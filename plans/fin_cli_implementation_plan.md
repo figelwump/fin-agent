@@ -20,11 +20,12 @@
 
 ## Phase 1 — Shared Foundation Modules
 **Notes:** Build reusable utilities that every CLI depends on before implementing tool-specific logic.
-- [ ] Implement `shared/config.py` to load and merge config from default values, YAML file, and environment variables.
-- [ ] Implement `shared/logging.py` (or integrate into `shared/utils.py`) for consistent Rich console logging and verbose output toggles.
-- [ ] Implement `shared/paths.py` helpers for resolving `~/.findata` and `~/.finconfig` directories, ensuring they are created lazily.
-- [ ] Implement `shared/exceptions.py` defining custom exception classes (e.g., `ExtractionError`, `CategorizationError`, `DatabaseError`) used across CLIs.
-- [ ] Implement `shared/cli.py` with Click parameter factories, shared options (`--db`, `--config`, `--verbose`, `--dry-run`), and global error handlers.
+- [x] Implement `shared/config.py` to load and merge config from default values, YAML file, and environment variables.
+- [x] Implement `shared/logging.py` (or integrate into `shared/utils.py`) for consistent Rich console logging and verbose output toggles.
+- [x] Implement `shared/paths.py` helpers for resolving `~/.findata` and `~/.finconfig` directories, ensuring they are created lazily.
+- [x] Implement `shared/exceptions.py` defining custom exception classes (e.g., `ExtractionError`, `CategorizationError`, `DatabaseError`) used across CLIs.
+- [x] Implement `shared/cli.py` with Click parameter factories, shared options (`--db`, `--config`, `--verbose`, `--dry-run`), and global error handlers.
+  - Notes: 2025-09-19 — added environment-aware config loader, path utilities, Rich-backed logger, shared CLI context injection, and pytest coverage for config/path behaviour.
 
 ## Phase 2 — Database Schema & Migration Engine
 **Notes:** Create the persistent model layer and utilities for interacting with SQLite.

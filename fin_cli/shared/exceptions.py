@@ -1,10 +1,14 @@
-"""Project-wide custom exceptions (initial scaffolding)."""
+"""Project-wide custom exceptions."""
 
 from __future__ import annotations
 
 
 class FinAgentError(Exception):
     """Base exception for the financial CLI suite."""
+
+
+class ConfigurationError(FinAgentError):
+    """Raised when configuration loading or validation fails."""
 
 
 class ExtractionError(FinAgentError):
