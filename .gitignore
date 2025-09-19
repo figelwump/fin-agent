@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+
+# Packaging/build artifacts
+*.egg-info/
+build/
+dist/
+
+# Editor directories
+.vscode/
+.idea/
+.DS_Store
+
+# pytest cache
+.pytest_cache/
+
+# Temporary files
+*.tmp
+*.log

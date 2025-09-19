@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fin-cli"
+version = "0.1.0-dev0"
+description = "Composable local-first financial CLI toolkit."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "GiantThings" },
+]
+license = { text = "Proprietary" }
+keywords = ["finance", "cli", "personal-finance", "analysis"]
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "License :: Other/Proprietary License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Developers",
+  "Topic :: Office/Business :: Financial :: Accounting",
+]
+dependencies = [
+  "click>=8.1",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+  "python-dateutil>=2.9",
+  "pandas>=2.2",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+pdf = [
+  "pdfplumber>=0.11",
+  "camelot-py[base]>=0.11",
+]
+llm = [
+  "openai>=1.40",
+]
+analysis = [
+  "numpy>=1.26",
+]
+dev = [
+  "pytest>=8.2",
+  "pytest-mock>=3.12",
+  "ruff>=0.6",
+  "black>=24.4",
+  "mypy>=1.11",
+]
+
+[project.scripts]
+fin-extract = "fin_cli.fin_extract.main:main"
+fin-enhance = "fin_cli.fin_enhance.main:main"
+fin-query = "fin_cli.fin_query.main:main"
+fin-analyze = "fin_cli.fin_analyze.main:main"
+fin-export = "fin_cli.fin_export.main:main"
+
+[tool.hatch.build.targets.sdist]
+include = ["fin_cli", "README.md", "specs", "plans", "AGENTS.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["fin_cli"]
+
+[tool.ruff]
+select = ["E", "F", "B", "I", "UP", "NP", "G"]
+line-length = 100
+target-version = "py311"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_return_any = true
+ignore_missing_imports = true
+packages = ["fin_cli"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra"
+filterwarnings = [
+  "error::DeprecationWarning",
+]
+testpaths = ["tests"]
