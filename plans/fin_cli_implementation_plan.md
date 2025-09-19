@@ -38,12 +38,13 @@
 
 ## Phase 3 — `fin-extract` MVP (Chase Support)
 **Notes:** Deliver the first CLI capable of parsing Chase PDFs into CSV and the database pipeline.
-- [ ] Implement PDF loader abstraction using `pdfplumber`, including page iteration and table extraction helpers in `fin-extract/parsers/`.
-- [ ] Create Chase-specific extractor in `fin-extract/extractors/chase.py` handling table normalization, multi-page joins, and account metadata detection.
-- [ ] Implement bank auto-detection heuristics in `fin-extract/extractors/__init__.py` (search for keywords, header patterns).
-- [ ] Implement CLI command in `fin-extract/main.py` supporting options from the product spec (output path, account override, no-db, verbose, dry-run).
-- [ ] Wire extracted transactions through CSV writer and optional database account upsert when `--no-db` is absent.
-- [ ] Add smoke tests using synthetic Chase PDFs (fixtures) to validate extraction results and CLI output formatting.
+- [x] Implement PDF loader abstraction using `pdfplumber`, including page iteration and table extraction helpers in `fin-extract/parsers/`.
+- [x] Create Chase-specific extractor in `fin-extract/extractors/chase.py` handling table normalization, multi-page joins, and account metadata detection.
+- [x] Implement bank auto-detection heuristics in `fin-extract/extractors/__init__.py` (search for keywords, header patterns).
+- [x] Implement CLI command in `fin-extract/main.py` supporting options from the product spec (output path, account override, no-db, verbose, dry-run).
+- [x] Wire extracted transactions through CSV writer and optional database account upsert when `--no-db` is absent.
+- [x] Add smoke tests using synthetic Chase PDFs (fixtures) to validate extraction results and CLI output formatting.
+  - Notes: 2025-09-19 — added pdfplumber-backed loader, Chase extractor with type-aware sign handling, autodetection registry, CLI CSV/DB flow, and pytest coverage using synthetic tables.
 
 ## Phase 4 — `fin-enhance` Rules-Only Import Baseline
 **Notes:** Build CSV ingestion, deduplication, rule-based categorization, and review workflows without LLM integration yet.
