@@ -10,6 +10,7 @@ from typing import Any, Callable, TypeVar
 import click
 
 from .config import AppConfig, load_config
+from .database import run_migrations
 from .exceptions import ConfigurationError, FinAgentError
 from .logging import Logger, get_logger
 
@@ -57,6 +58,9 @@ def common_cli_options(func: F) -> F:
         effective_db_path = Path(db_path).expanduser() if db_path else app_config.database.path
         if db_path:
             app_config = app_config.with_database_path(effective_db_path)
+
+        if not dry_run:
+            run_migrations(app_config)
 
         cli_ctx = CLIContext(
             config=app_config,

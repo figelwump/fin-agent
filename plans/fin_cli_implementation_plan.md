@@ -29,11 +29,12 @@
 
 ## Phase 2 — Database Schema & Migration Engine
 **Notes:** Create the persistent model layer and utilities for interacting with SQLite.
-- [ ] Implement `shared/database.py` providing connection management, context managers, and `run_migrations()` on startup.
-- [ ] Scaffold migration files in `shared/migrations/` (e.g., `001_initial.sql`) mirroring the schema from the implementation spec.
-- [ ] Implement `shared/models.py` or query helpers for CRUD operations on accounts, categories, transactions, merchant patterns, and schema versions.
-- [ ] Add transaction deduplication strategy (hash of `date+amount+merchant+account_id`) to prevent re-importing duplicates.
-- [ ] Write initial unit tests covering migration application and model helpers using an in-memory SQLite database.
+- [x] Implement `shared/database.py` providing connection management, context managers, and `run_migrations()` on startup.
+- [x] Scaffold migration files in `shared/migrations/` (e.g., `001_initial.sql`) mirroring the schema from the implementation spec.
+- [x] Implement `shared/models.py` or query helpers for CRUD operations on accounts, categories, transactions, merchant patterns, and schema versions.
+- [x] Add transaction deduplication strategy (hash of `date+amount+merchant+account_id`) to prevent re-importing duplicates.
+- [x] Write initial unit tests covering migration application and model helpers using an in-memory SQLite database.
+  - Notes: 2025-09-19 — added migration runner, initial schema with fingerprint-based dedupe, CRUD helpers, and pytest coverage for database/models.
 
 ## Phase 3 — `fin-extract` MVP (Chase Support)
 **Notes:** Deliver the first CLI capable of parsing Chase PDFs into CSV and the database pipeline.
