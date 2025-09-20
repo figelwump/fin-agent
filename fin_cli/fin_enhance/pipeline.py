@@ -23,6 +23,22 @@ class ImportStats:
     needs_review: int = 0
 
 
+@dataclass(slots=True)
+class ReviewCandidate:
+    fingerprint: str
+    date: str
+    merchant: str
+    amount: float
+    original_description: str
+    account_id: int | None
+
+
+@dataclass(slots=True)
+class ImportResult:
+    stats: ImportStats
+    review_items: list[ReviewCandidate]
+
+
 class ImportPipeline:
     def __init__(
         self,
@@ -48,8 +64,9 @@ class ImportPipeline:
         transactions: Iterable[ImportedTransaction],
         *,
         skip_dedupe: bool = False,
-    ) -> ImportStats:
+    ) -> ImportResult:
         stats = ImportStats()
+        review_items: list[ReviewCandidate] = []
         for txn in transactions:
             outcome = self.categorizer.categorize(txn.merchant)
             model_txn = models.Transaction(
@@ -81,16 +98,27 @@ class ImportPipeline:
                 stats.duplicates += 1
             if outcome.needs_review:
                 stats.needs_review += 1
-        return stats
+                review_items.append(
+                    ReviewCandidate(
+                        fingerprint=model_txn.fingerprint(),
+                        date=txn.date.isoformat(),
+                        merchant=txn.merchant,
+                        amount=txn.amount,
+                        original_description=txn.original_description,
+                        account_id=txn.account_id,
+                    )
+                )
+        return ImportResult(stats=stats, review_items=review_items)
 
 
 def dry_run_preview(
     connection: sqlite3.Connection,
     logger: Logger,
     transactions: Iterable[ImportedTransaction],
-) -> ImportStats:
+) -> ImportResult:
     pipeline = ImportPipeline(connection, logger, track_usage=False)
     stats = ImportStats()
+    review_items: list[ReviewCandidate] = []
     items = list(transactions)
     for txn in items:
         outcome = pipeline.categorizer.categorize(txn.merchant)
@@ -98,5 +126,20 @@ def dry_run_preview(
             stats.categorized += 1
         else:
             stats.needs_review += 1
+            review_items.append(
+                ReviewCandidate(
+                    fingerprint=models.compute_transaction_fingerprint(
+                        txn.date,
+                        txn.amount,
+                        txn.merchant,
+                        txn.account_id,
+                    ),
+                    date=txn.date.isoformat(),
+                    merchant=txn.merchant,
+                    amount=txn.amount,
+                    original_description=txn.original_description,
+                    account_id=txn.account_id,
+                )
+            )
     stats.inserted = len(items)
-    return stats
+    return ImportResult(stats=stats, review_items=review_items)

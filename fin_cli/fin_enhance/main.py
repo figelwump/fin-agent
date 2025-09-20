@@ -11,7 +11,8 @@ from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors
 from fin_cli.shared.database import connect
 
 from .importer import CSVImportError
-from .pipeline import ImportPipeline, ImportStats, dry_run_preview
+from .pipeline import ImportPipeline, ImportResult, ImportStats, dry_run_preview
+from .review import ReviewApplicationError, apply_review_file, write_review_file
 
 
 @click.command(help="Import transactions with rules-based categorization.")
@@ -35,13 +36,19 @@ def main(
     cli_ctx: CLIContext,
 ) -> None:
     if apply_review:
-        raise click.ClickException("--apply-review will be available after review workflows land in Phase 4.")
+        if csv_files:
+            raise click.UsageError("--apply-review should be used without additional CSV arguments.")
+        _handle_apply_review(Path(apply_review), cli_ctx)
+        return
+
     if not csv_files:
         raise click.UsageError("Provide one or more CSV files exported via fin-extract.")
-    if review_mode and review_mode != "auto":
-        raise click.ClickException("Interactive and JSON review modes are coming soon. Use --review-mode auto for now.")
-    if review_output:
-        cli_ctx.logger.warning("Review output is not yet generated; this will be implemented alongside review workflows.")
+    if review_mode not in {None, "auto", "json"}:
+        raise click.ClickException("Supported review modes: json, auto. Interactive mode arrives later in Phase 4.")
+    if review_mode == "json" and not review_output:
+        raise click.UsageError("--review-mode json requires --review-output <file>.")
+    if review_mode != "json" and review_output:
+        cli_ctx.logger.warning("--review-output is ignored unless --review-mode json is specified.")
     if not skip_llm:
         cli_ctx.logger.info("LLM categorization is disabled by default in v0.1; continuing with rules-only categorization.")
     if confidence != 0.8:
@@ -50,31 +57,40 @@ def main(
     csv_paths = [Path(p) for p in csv_files]
 
     if cli_ctx.dry_run:
-        _handle_dry_run(csv_paths, cli_ctx)
+        result = _handle_dry_run(csv_paths, cli_ctx)
     else:
-        _handle_import(csv_paths, cli_ctx, skip_dedupe=force)
+        result = _handle_import(csv_paths, cli_ctx, skip_dedupe=force)
+
+    if review_mode == "json":
+        review_path = Path(review_output)
+        write_review_file(review_path, result.review_items)
+        cli_ctx.logger.info(
+            f"Wrote {len(result.review_items)} review item(s) to {review_path}. Use --apply-review to record decisions."
+        )
 
 
-def _handle_dry_run(csv_paths: Sequence[Path], cli_ctx: CLIContext) -> None:
+def _handle_dry_run(csv_paths: Sequence[Path], cli_ctx: CLIContext) -> ImportResult:
     with connect(cli_ctx.config) as connection:
         pipeline = ImportPipeline(connection, cli_ctx.logger, track_usage=False)
         try:
             transactions = pipeline.load_transactions(csv_paths)
         except CSVImportError as exc:
             raise click.ClickException(str(exc)) from exc
-        stats = dry_run_preview(connection, cli_ctx.logger, transactions)
-    _print_summary(cli_ctx, stats, dry_run=True)
+        result = dry_run_preview(connection, cli_ctx.logger, transactions)
+    _print_summary(cli_ctx, result.stats, dry_run=True)
+    return result
 
 
-def _handle_import(csv_paths: Sequence[Path], cli_ctx: CLIContext, *, skip_dedupe: bool) -> None:
+def _handle_import(csv_paths: Sequence[Path], cli_ctx: CLIContext, *, skip_dedupe: bool) -> ImportResult:
     with connect(cli_ctx.config) as connection:
         pipeline = ImportPipeline(connection, cli_ctx.logger)
         try:
             transactions = pipeline.load_transactions(csv_paths)
         except CSVImportError as exc:
             raise click.ClickException(str(exc)) from exc
-        stats = pipeline.import_transactions(transactions, skip_dedupe=skip_dedupe)
-    _print_summary(cli_ctx, stats, dry_run=False)
+        result = pipeline.import_transactions(transactions, skip_dedupe=skip_dedupe)
+    _print_summary(cli_ctx, result.stats, dry_run=False)
+    return result
 
 
 def _print_summary(cli_ctx: CLIContext, stats: ImportStats, dry_run: bool) -> None:
@@ -88,7 +104,18 @@ def _print_summary(cli_ctx: CLIContext, stats: ImportStats, dry_run: bool) -> No
     cli_ctx.logger.info(f"  Categorized via rules: {stats.categorized}")
     cli_ctx.logger.info(f"  Needs review: {stats.needs_review}")
     if stats.needs_review:
-        cli_ctx.logger.info("Use review workflows (coming later in Phase 4) to resolve remaining transactions.")
+        cli_ctx.logger.info("Run with --review-mode json to export unresolved items for follow-up.")
+
+
+def _handle_apply_review(decisions_path: Path, cli_ctx: CLIContext) -> None:
+    with connect(cli_ctx.config) as connection:
+        try:
+            applied, skipped = apply_review_file(connection, decisions_path)
+        except ReviewApplicationError as exc:
+            raise click.ClickException(str(exc)) from exc
+    cli_ctx.logger.info(
+        f"Applied {applied} review decision(s). Skipped {skipped} invalid or missing entries."
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

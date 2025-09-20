@@ -48,14 +48,17 @@
 
 ## Phase 4 — `fin-enhance` Rules-Only Import Baseline
 **Notes:** Build CSV ingestion, deduplication, rule-based categorization, and review workflows without LLM integration yet.
+- **Phase 4a (in progress):** deliver a minimal review queue (JSON export/apply) before adding LLM support.
+- **Phase 4b:** expand to interactive review experience once LLM categorization is in place.
 - [x] Implement CSV reader pipeline converting rows into `Transaction` objects, performing validation and normalization (dates, amounts, merchant names).
 - [x] Implement rule-based categorizer leveraging `merchant_patterns` table before introducing LLM usage.
 - [x] Implement transaction deduplication logic with configurable override via `--force` flag.
-- [ ] Implement review queue builder identifying transactions lacking confident categorization.
-- [ ] Implement interactive review mode (terminal prompts) and JSON export/import flow (`--review-mode json`, `--review-output`, `--apply-review`).
+- [x] Phase 4a: Implement JSON review queue export (`--review-mode json`) capturing uncategorized transactions and new category suggestions.
+- [x] Phase 4a: Implement `--apply-review` to persist decisions (with optional pattern learning).
+- [ ] Phase 4b: Implement interactive review mode (terminal prompts) layered on top of the review queue APIs.
 - [x] Persist categorization decisions, updating `categories`, `merchant_patterns`, and transaction records with method + confidence metadata.
 - [x] Add CLI dry-run path that surfaces planned inserts/updates without committing.
-  - Notes: 2025-09-19 — added CSV importer, rules engine using merchant patterns/history, `--force` override, dry-run summaries, and tests covering importer, categorizer, and CLI workflows.
+  - Notes: 2025-09-19 — added CSV importer, rules engine using merchant patterns/history, `--force` override, dry-run summaries, JSON review export/apply workflow, and tests covering importer, categorizer, CLI, and review application.
 
 ## Phase 5 — LLM-Powered Dynamic Categorization
 **Notes:** Introduce GPT-4o-mini integration, batching, caching, and dynamic category creation thresholds.

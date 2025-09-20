@@ -189,6 +189,36 @@ def insert_transaction(
     return True
 
 
+def fetch_transaction_by_fingerprint(
+    connection: sqlite3.Connection,
+    fingerprint: str,
+) -> sqlite3.Row | None:
+    return connection.execute(
+        "SELECT * FROM transactions WHERE fingerprint = ?",
+        (fingerprint,),
+    ).fetchone()
+
+
+def apply_review_decision(
+    connection: sqlite3.Connection,
+    *,
+    fingerprint: str,
+    category_id: int,
+    confidence: float,
+    method: str,
+) -> None:
+    connection.execute(
+        """
+        UPDATE transactions
+        SET category_id = ?,
+            categorization_confidence = ?,
+            categorization_method = ?,
+            needs_review = 0
+        WHERE fingerprint = ?
+        """,
+        (category_id, confidence, method, fingerprint),
+    )
+
 def increment_category_usage(
     connection: sqlite3.Connection,
     category_id: int,
