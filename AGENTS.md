@@ -20,3 +20,7 @@ You may be given an implementation plan to work through. If so, here are guideli
 
 - Pause after each phase so i can test/review. Give me a good summary of changes made, things i need to do manually, tradeoffs/choices you made, and anything else you think needs to be brought to my attention to review the changes well. 
 - Update the checkboxes next to todo items in the plan as you complete them. also add notes on your changes to the plan as you go: relevant files, architecture or other technical decisions, choices made, etc -- these will be helpful for a future LLM to continue work if we get interrupted. ask any questions needed as we go.
+
+# Tooling conventions
+
+- When you need to inspect the local SQLite database, use the `sqlite3` CLI rather than ad-hoc Python scripts. Example: `sqlite3 ~/.findata/transactions.db`. From there you can run commands like `.tables` or `SELECT COUNT(*) FROM transactions;`.

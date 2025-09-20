@@ -108,4 +108,9 @@ def connect(
     try:
         yield connection
     finally:
+        if not read_only:
+            try:
+                connection.commit()
+            except sqlite3.ProgrammingError:
+                pass
         connection.close()

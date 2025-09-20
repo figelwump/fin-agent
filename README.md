@@ -51,6 +51,25 @@ phase is complete.
   (`pytest`, `pytest-mock`). Tool configuration lives in `pyproject.toml`.
 - Future phases will populate `tests/` with fixtures and integration coverage.
 
+## Inspecting the SQLite database
+
+Use the `sqlite3` CLI to inspect imported data. This keeps tooling lightweight
+and makes it easy to share copy/pasteable commands.
+
+```bash
+sqlite3 ~/.findata/transactions.db   # open the shell
+```
+
+Once inside the prompt, helpful commands include:
+
+- `.tables` – list available tables (e.g., `accounts`, `transactions`)
+- `.schema transactions` – display the CREATE TABLE statement
+- `SELECT COUNT(*) FROM transactions;` – confirm the number of imported rows
+- `SELECT date, merchant, amount FROM transactions ORDER BY date DESC LIMIT 5;` –
+  sample recent activity
+
+Exit the shell with `.quit` when finished.
+
 ## Repository Structure
 
 ```
