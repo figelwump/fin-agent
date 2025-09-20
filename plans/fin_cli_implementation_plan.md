@@ -48,13 +48,14 @@
 
 ## Phase 4 — `fin-enhance` Rules-Only Import Baseline
 **Notes:** Build CSV ingestion, deduplication, rule-based categorization, and review workflows without LLM integration yet.
-- [ ] Implement CSV reader pipeline converting rows into `Transaction` objects, performing validation and normalization (dates, amounts, merchant names).
-- [ ] Implement rule-based categorizer leveraging `merchant_patterns` table before introducing LLM usage.
-- [ ] Implement transaction deduplication logic with configurable override via `--force` flag.
+- [x] Implement CSV reader pipeline converting rows into `Transaction` objects, performing validation and normalization (dates, amounts, merchant names).
+- [x] Implement rule-based categorizer leveraging `merchant_patterns` table before introducing LLM usage.
+- [x] Implement transaction deduplication logic with configurable override via `--force` flag.
 - [ ] Implement review queue builder identifying transactions lacking confident categorization.
 - [ ] Implement interactive review mode (terminal prompts) and JSON export/import flow (`--review-mode json`, `--review-output`, `--apply-review`).
-- [ ] Persist categorization decisions, updating `categories`, `merchant_patterns`, and transaction records with method + confidence metadata.
-- [ ] Add CLI dry-run path that surfaces planned inserts/updates without committing.
+- [x] Persist categorization decisions, updating `categories`, `merchant_patterns`, and transaction records with method + confidence metadata.
+- [x] Add CLI dry-run path that surfaces planned inserts/updates without committing.
+  - Notes: 2025-09-19 — added CSV importer, rules engine using merchant patterns/history, `--force` override, dry-run summaries, and tests covering importer, categorizer, and CLI workflows.
 
 ## Phase 5 — LLM-Powered Dynamic Categorization
 **Notes:** Introduce GPT-4o-mini integration, batching, caching, and dynamic category creation thresholds.

@@ -121,6 +121,7 @@ def insert_transaction(
     transaction: Transaction,
     *,
     allow_update: bool = False,
+    skip_dedupe: bool = False,
 ) -> bool:
     """Insert a transaction if not already present.
 
@@ -129,10 +130,12 @@ def insert_transaction(
     category information.
     """
     fingerprint = transaction.fingerprint()
-    row = connection.execute(
-        "SELECT id FROM transactions WHERE fingerprint = ?",
-        (fingerprint,),
-    ).fetchone()
+    row = None
+    if not skip_dedupe:
+        row = connection.execute(
+            "SELECT id FROM transactions WHERE fingerprint = ?",
+            (fingerprint,),
+        ).fetchone()
 
     if row:
         if allow_update:

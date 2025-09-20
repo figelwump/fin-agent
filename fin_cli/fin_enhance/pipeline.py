@@ -1,0 +1,102 @@
+"""Core pipeline for importing CSV transactions."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
+
+import sqlite3
+
+from fin_cli.shared import models
+from fin_cli.shared.logging import Logger
+
+from .categorizer.rules import CategorizationOutcome, RuleCategorizer
+from .importer import CSVImportError, ImportedTransaction, load_csv_transactions
+
+
+@dataclass(slots=True)
+class ImportStats:
+    inserted: int = 0
+    duplicates: int = 0
+    categorized: int = 0
+    needs_review: int = 0
+
+
+class ImportPipeline:
+    def __init__(
+        self,
+        connection: sqlite3.Connection,
+        logger: Logger,
+        *,
+        track_usage: bool = True,
+    ) -> None:
+        self.connection = connection
+        self.logger = logger
+        self.categorizer = RuleCategorizer(connection, track_usage=track_usage)
+
+    def load_transactions(self, csv_paths: Iterable[str | Path]) -> list[ImportedTransaction]:
+        transactions: list[ImportedTransaction] = []
+        for path in csv_paths:
+            rows = load_csv_transactions(path)
+            transactions.extend(rows)
+            self.logger.info(f"Loaded {len(rows)} rows from {path}")
+        return transactions
+
+    def import_transactions(
+        self,
+        transactions: Iterable[ImportedTransaction],
+        *,
+        skip_dedupe: bool = False,
+    ) -> ImportStats:
+        stats = ImportStats()
+        for txn in transactions:
+            outcome = self.categorizer.categorize(txn.merchant)
+            model_txn = models.Transaction(
+                date=txn.date,
+                merchant=txn.merchant,
+                amount=txn.amount,
+                account_id=txn.account_id,
+                category_id=outcome.category_id,
+                original_description=txn.original_description,
+                categorization_confidence=outcome.confidence if outcome.category_id else None,
+                categorization_method=outcome.method,
+                needs_review=outcome.needs_review,
+            )
+            inserted = models.insert_transaction(
+                self.connection,
+                model_txn,
+                allow_update=True,
+                skip_dedupe=skip_dedupe,
+            )
+            if inserted:
+                stats.inserted += 1
+                if outcome.category_id:
+                    stats.categorized += 1
+                    models.increment_category_usage(
+                        self.connection,
+                        outcome.category_id,
+                    )
+            else:
+                stats.duplicates += 1
+            if outcome.needs_review:
+                stats.needs_review += 1
+        return stats
+
+
+def dry_run_preview(
+    connection: sqlite3.Connection,
+    logger: Logger,
+    transactions: Iterable[ImportedTransaction],
+) -> ImportStats:
+    pipeline = ImportPipeline(connection, logger, track_usage=False)
+    stats = ImportStats()
+    items = list(transactions)
+    for txn in items:
+        outcome = pipeline.categorizer.categorize(txn.merchant)
+        if outcome.category_id:
+            stats.categorized += 1
+        else:
+            stats.needs_review += 1
+    stats.inserted = len(items)
+    return stats
