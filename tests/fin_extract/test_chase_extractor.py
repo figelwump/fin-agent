@@ -16,6 +16,7 @@ def _build_document() -> PdfDocument:
         "Amount",
     )
     rows = [
+        ("11/28/2024", "11/28/2024", "PAYMENTS AND OTHER CREDITS", "Payment", "0.00"),
         ("11/27/2024", "11/27/2024", "WHOLEFDS #10234", "Sale", "127.34"),
         ("11/26/2024", "11/26/2024", "AUTOMATIC PAYMENT", "Payment", "$1,500.00"),
     ]
@@ -45,11 +46,11 @@ def test_chase_extractor_extracts_transactions() -> None:
     document = _build_document()
     extractor = ChaseExtractor()
     result = extractor.extract(document)
-    assert len(result.transactions) == 2
-    grocery, payment = result.transactions
+    assert len(result.transactions) == 1
+    grocery = result.transactions[0]
     assert grocery.date == date(2024, 11, 27)
     assert grocery.amount == -127.34  # sale should be negative
-    assert payment.amount == 1500.0  # payment should remain positive
+    assert grocery.original_description == "WHOLEFDS #10234"
 
 
 def test_detect_extractor_returns_chase() -> None:
@@ -63,4 +64,5 @@ def test_text_only_document_supported() -> None:
     extractor = detect_extractor(document)
     assert isinstance(extractor, ChaseExtractor)
     result = extractor.extract(document)
-    assert len(result.transactions) == 2
+    assert len(result.transactions) == 1
+    assert result.transactions[0].merchant == "WHOLEFDS #10234"

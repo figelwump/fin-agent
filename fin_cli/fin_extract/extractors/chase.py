@@ -12,6 +12,26 @@ from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
 from .base import StatementExtractor
 
 
+# PDF table extraction can surface section header labels as standalone rows; skip known headers here.
+_SECTION_HEADER_DESCRIPTIONS = {
+    "PAYMENTS AND OTHER CREDITS",
+}
+
+_CREDIT_TYPE_KEYWORDS = {
+    "payment",
+    "credit",
+    "adjustment",
+    "refund",
+}
+
+_CREDIT_DESCRIPTION_PREFIXES = (
+    "automatic payment",
+    "payment",
+    "other credit",
+    "credit balance",
+)
+
+
 @dataclass(slots=True)
 class _ColumnMapping:
     date_index: int
@@ -99,11 +119,15 @@ class ChaseExtractor(StatementExtractor):
         description = description.strip()
         if not description:
             return None
+        if description.upper() in _SECTION_HEADER_DESCRIPTIONS:
+            return None
         type_value = (
             cells[mapping.type_index].strip().lower()
             if mapping.type_index is not None and mapping.type_index < len(cells)
             else ""
         )
+        if _is_credit_entry(description, type_value):
+            return None
         amount = _apply_charge_sign(amount, description, type_value)
         return ExtractedTransaction(
             date=txn_date,
@@ -131,6 +155,13 @@ class ChaseExtractor(StatementExtractor):
             if not match:
                 continue
             month, day, description, amount_str = match.groups()
+            description = description.strip()
+            if description.upper() in _SECTION_HEADER_DESCRIPTIONS:
+                continue
+            if current_section == "credit":
+                continue
+            if _is_credit_entry(description, current_section or ""):
+                continue
             try:
                 txn_date = _resolve_date(month, day, year)
                 amount = _parse_amount(amount_str)
@@ -191,6 +222,14 @@ def _apply_charge_sign(amount: float, description: str, type_value: str) -> floa
     if "payment" in normalized_desc or "credit" in normalized_desc:
         return abs(amount)
     return -abs(amount)
+
+
+def _is_credit_entry(description: str, type_value: str) -> bool:
+    normalized_type = (type_value or "").lower()
+    if normalized_type and any(keyword in normalized_type for keyword in _CREDIT_TYPE_KEYWORDS):
+        return True
+    normalized_desc = description.lower()
+    return any(normalized_desc.startswith(prefix) for prefix in _CREDIT_DESCRIPTION_PREFIXES)
 
 
 _STATEMENT_LINE_RE = re.compile(
