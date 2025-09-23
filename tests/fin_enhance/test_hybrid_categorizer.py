@@ -35,7 +35,7 @@ class DummyLLMClient:
         self.enabled = True
         self.calls: list[Dict[str, list[object]]] = []
 
-    def categorize_batch(self, items, *, max_batch_merchants: int = 6):  # noqa: ANN001 - interface compatibility
+    def categorize_batch(self, items, *, known_categories=None, max_batch_merchants: int = 6):  # noqa: ANN001 - interface compatibility
         self.calls.append(items)
         return self._responses
 

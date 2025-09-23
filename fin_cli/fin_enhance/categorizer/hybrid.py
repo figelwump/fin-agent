@@ -135,11 +135,12 @@ class HybridCategorizer:
             )
 
         llm_results: dict[str, LLMResult] = {}
+        known_categories = self._fetch_known_categories()
         if merchant_batches:
             cached_results, pending_batches = self._resolve_cache(merchant_batches)
             llm_results.update(cached_results)
             if pending_batches:
-                fetched = self._fetch_from_llm(pending_batches)
+                fetched = self._fetch_from_llm(pending_batches, known_categories)
                 llm_results.update(fetched)
                 self._persist_cache(fetched)
 
@@ -195,12 +196,21 @@ class HybridCategorizer:
     def _fetch_from_llm(
         self,
         batches: Mapping[str, list[LLMRequestItem]],
+        known_categories: Sequence[dict[str, str]] | None,
     ) -> dict[str, LLMResult]:
         try:
-            return self.llm_client.categorize_batch(batches)
+            return self.llm_client.categorize_batch(batches, known_categories=known_categories)
         except LLMClientError as exc:
             self.logger.warning(f"LLM categorization failed: {exc}")
             return {}
+
+    def _fetch_known_categories(self) -> list[dict[str, str]]:
+        rows = models.fetch_all_categories(self.connection)
+        return [
+            {"category": str(row["category"]), "subcategory": str(row["subcategory"])}
+            for row in rows
+            if row["category"] and row["subcategory"]
+        ]
 
     def _persist_cache(self, results: Mapping[str, LLMResult]) -> None:
         if not results:

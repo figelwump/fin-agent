@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
@@ -100,6 +100,8 @@ class LLMClient:
     def build_payload(
         self,
         items: Mapping[str, list[LLMRequestItem]],
+        *,
+        known_categories: Sequence[Mapping[str, str]] | None = None,
     ) -> str:
         """Create JSON payload describing merchants and transactions."""
 
@@ -119,12 +121,23 @@ class LLMClient:
                     ],
                 }
             )
-        return json.dumps({"merchants": merchants}, separators=(",", ":"))
+        payload: dict[str, Any] = {"merchants": merchants}
+        if known_categories:
+            payload["known_categories"] = [
+                {
+                    "category": str(entry.get("category", "")).strip(),
+                    "subcategory": str(entry.get("subcategory", "")).strip(),
+                }
+                for entry in known_categories
+                if entry.get("category") and entry.get("subcategory")
+            ]
+        return json.dumps(payload, separators=(",", ":"))
 
     def categorize_batch(
         self,
         items: Mapping[str, list[LLMRequestItem]],
         *,
+        known_categories: Sequence[Mapping[str, str]] | None = None,
         max_batch_merchants: int = 6,
     ) -> dict[str, LLMResult]:
         """Categorize merchants using the configured LLM.
@@ -139,7 +152,7 @@ class LLMClient:
         merchant_items = list(items.items())
         for start in range(0, len(merchant_items), max_batch_merchants):
             chunk = dict(merchant_items[start : start + max_batch_merchants])
-            payload = self.build_payload(chunk)
+            payload = self.build_payload(chunk, known_categories=known_categories)
             try:
                 chunk_results = self._invoke_llm(payload)
             except LLMClientError as exc:

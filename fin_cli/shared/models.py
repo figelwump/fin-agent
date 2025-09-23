@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import date
-from typing import Iterable, Optional
+from typing import Iterable
 
 import sqlite3
 
@@ -114,6 +114,21 @@ def get_or_create_category(
         (category, subcategory, auto_generated, user_approved),
     )
     return int(cursor.lastrowid)
+
+
+def find_category_id(
+    connection: sqlite3.Connection,
+    *,
+    category: str,
+    subcategory: str,
+) -> int | None:
+    """Return an existing category id if present."""
+
+    row = connection.execute(
+        "SELECT id FROM categories WHERE category = ? AND subcategory = ?",
+        (category, subcategory),
+    ).fetchone()
+    return int(row[0]) if row else None
 
 
 def insert_transaction(
@@ -269,6 +284,123 @@ def fetch_merchant_patterns(
         (like_expression,),
     ).fetchall()
     return list(rows)
+
+
+def fetch_llm_cache_entry(
+    connection: sqlite3.Connection,
+    merchant_normalized: str,
+) -> sqlite3.Row | None:
+    """Return cached LLM categorization suggestions for a merchant."""
+
+    return connection.execute(
+        "SELECT * FROM llm_cache WHERE merchant_normalized = ?",
+        (merchant_normalized,),
+    ).fetchone()
+
+
+def upsert_llm_cache_entry(
+    connection: sqlite3.Connection,
+    *,
+    merchant_normalized: str,
+    response_json: str,
+    model: str,
+) -> None:
+    """Store LLM response payload for a merchant.
+
+    The cache stores the most recent response per normalized merchant string.
+    """
+
+    connection.execute(
+        """
+        INSERT INTO llm_cache (merchant_normalized, response_json, model)
+        VALUES (?, ?, ?)
+        ON CONFLICT(merchant_normalized) DO UPDATE SET
+            response_json = excluded.response_json,
+            model = excluded.model,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (merchant_normalized, response_json, model),
+    )
+
+
+def fetch_all_categories(connection: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Return every category record ordered for stable prompting."""
+
+    rows = connection.execute(
+        """
+        SELECT category, subcategory
+        FROM categories
+        ORDER BY LOWER(category), LOWER(subcategory)
+        """,
+    ).fetchall()
+    return list(rows)
+
+
+def record_category_suggestion(
+    connection: sqlite3.Connection,
+    *,
+    category: str,
+    subcategory: str,
+    amount: float,
+    confidence: float,
+) -> sqlite3.Row:
+    """Track support metrics for a dynamically suggested category."""
+
+    connection.execute(
+        """
+        INSERT INTO category_suggestions (
+            category,
+            subcategory,
+            support_count,
+            total_amount,
+            max_confidence
+        ) VALUES (?, ?, 1, ?, ?)
+        ON CONFLICT(category, subcategory) DO UPDATE SET
+            support_count = category_suggestions.support_count + 1,
+            total_amount = category_suggestions.total_amount + excluded.total_amount,
+            max_confidence = CASE
+                WHEN excluded.max_confidence > category_suggestions.max_confidence
+                THEN excluded.max_confidence
+                ELSE category_suggestions.max_confidence
+            END,
+            last_seen = CURRENT_TIMESTAMP
+        """,
+        (category, subcategory, abs(amount), confidence),
+    )
+    return connection.execute(
+        "SELECT * FROM category_suggestions WHERE category = ? AND subcategory = ?",
+        (category, subcategory),
+    ).fetchone()
+
+
+def set_category_suggestion_status(
+    connection: sqlite3.Connection,
+    *,
+    category: str,
+    subcategory: str,
+    status: str,
+) -> None:
+    connection.execute(
+        """
+        UPDATE category_suggestions
+        SET status = ?, last_seen = CURRENT_TIMESTAMP
+        WHERE category = ? AND subcategory = ?
+        """,
+        (status, category, subcategory),
+    )
+
+
+def fetch_category_suggestions(
+    connection: sqlite3.Connection,
+    *,
+    status: str = "pending",
+) -> list[sqlite3.Row]:
+    return list(
+        connection.execute(
+            "SELECT * FROM category_suggestions WHERE status = ? ORDER BY support_count DESC",
+            (status,),
+        ).fetchall()
+    )
 
 
 def bulk_insert_transactions(
