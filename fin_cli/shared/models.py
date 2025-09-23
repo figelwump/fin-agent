@@ -275,13 +275,13 @@ def record_merchant_pattern(
 
 def fetch_merchant_patterns(
     connection: sqlite3.Connection,
-    merchant: str,
+    pattern_key: str,
 ) -> list[sqlite3.Row]:
-    """Retrieve patterns similar to the provided merchant string."""
-    like_expression = f"{merchant[:20]}%"
+    """Retrieve learned patterns for the provided merchant key."""
+
     rows = connection.execute(
-        "SELECT * FROM merchant_patterns WHERE pattern LIKE ? ORDER BY confidence DESC",
-        (like_expression,),
+        "SELECT * FROM merchant_patterns WHERE pattern = ? ORDER BY confidence DESC",
+        (pattern_key,),
     ).fetchall()
     return list(rows)
 

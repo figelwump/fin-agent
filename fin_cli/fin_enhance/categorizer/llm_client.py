@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
@@ -54,6 +55,29 @@ def normalize_merchant(merchant: str) -> str:
 
     cleaned = merchant.strip().upper()
     return " ".join(cleaned.split())
+
+
+def merchant_pattern_key(merchant: str) -> str:
+    """Derive a pattern key used to learn merchant-specific rules.
+
+    We strip volatile order identifiers that often appear after a '*' token so
+    that future variants (e.g., different Amazon order numbers) map to the same
+    learned pattern. The remaining string is collapsed to single spaces and
+    truncated for storage stability.
+    """
+
+    normalized = normalize_merchant(merchant)
+    if "*" in normalized:
+        prefix, rest = normalized.split("*", 1)
+        rest = rest.lstrip()
+        suffix = ""
+        if rest:
+            parts = rest.split(" ", 1)
+            if len(parts) == 2:
+                suffix = parts[1]
+        normalized = f"{prefix.strip()} {suffix.strip()}".strip()
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized[:80]
 
 
 class LLMClient:

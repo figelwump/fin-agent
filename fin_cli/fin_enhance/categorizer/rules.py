@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from fin_cli.shared import models
 
+from .llm_client import merchant_pattern_key
+
 
 @dataclass(slots=True)
 class CategorizationOutcome:
@@ -38,7 +40,10 @@ class RuleCategorizer:
         )
 
     def _from_patterns(self, merchant: str) -> CategorizationOutcome | None:
-        rows = models.fetch_merchant_patterns(self.connection, merchant)
+        pattern_key = merchant_pattern_key(merchant)
+        if not pattern_key:
+            return None
+        rows = models.fetch_merchant_patterns(self.connection, pattern_key)
         if not rows:
             return None
         best = rows[0]

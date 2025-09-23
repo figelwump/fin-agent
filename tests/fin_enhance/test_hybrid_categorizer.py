@@ -14,6 +14,7 @@ from fin_cli.fin_enhance.categorizer.llm_client import (
     LLMClientError,
     LLMResult,
     LLMSuggestion,
+    merchant_pattern_key,
     normalize_merchant,
 )
 from fin_cli.fin_enhance.importer import ImportedTransaction
@@ -207,6 +208,32 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
     assert result.outcomes[0].needs_review is False
     assert not result.transaction_reviews
     assert ("Shopping", "Online Retail") in result.auto_created_categories
+
+    # Ensure merchant pattern stored for reuse
+    pattern_row = conn.execute(
+        "SELECT category_id FROM merchant_patterns WHERE pattern = ?",
+        (merchant_pattern_key("Amazon.com*random123 AMZN.COM/BILL WA"),),
+    ).fetchone()
+    assert pattern_row is not None
+    assert int(pattern_row[0]) == int(row[0])
+
+    categorizer.llm_client.calls.clear()
+    second_transactions = [_make_transaction("Amazon.com*NEWID123 AMZN.COM/BILL WA")]
+    result_second = categorizer.categorize_transactions(
+        second_transactions,
+        options=CategorizationOptions(
+            skip_llm=False,
+            apply_side_effects=True,
+            auto_assign_threshold=0.8,
+            needs_review_threshold=0.5,
+        ),
+    )
+
+    assert result_second.outcomes[0].category_id == int(row[0])
+    assert result_second.outcomes[0].method == "rule:pattern"
+    assert result_second.outcomes[0].needs_review is False
+    assert not result_second.transaction_reviews
+    assert not categorizer.llm_client.calls
 
 
 def test_hybrid_flags_review_when_below_auto_threshold() -> None:

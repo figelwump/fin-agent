@@ -19,6 +19,7 @@ from .llm_client import (
     LLMResult,
     LLMSuggestion,
     deserialize_llm_results,
+    merchant_pattern_key,
     normalize_merchant,
     serialize_llm_results,
 )
@@ -320,6 +321,8 @@ class HybridCategorizer:
         )
 
         if not needs_review:
+            if category_id is not None and options.apply_side_effects:
+                self._record_merchant_pattern(txn, category_id, confidence)
             return HybridCategorizer._LLMDetail(outcome=outcome, review=None)
         return HybridCategorizer._LLMDetail(outcome=outcome, review=review_entry)
 
@@ -383,6 +386,7 @@ class HybridCategorizer:
                 status="auto-approved",
             )
             auto_created.append(key)
+            self._record_merchant_pattern(txn, category_id, suggestion.confidence)
             return category_id, False, "llm:auto-new-category"
 
         proposal = category_proposals_map.get(key)
@@ -407,6 +411,17 @@ class HybridCategorizer:
                 confidence=suggestion.confidence,
             )
         return None, True, None
+
+    def _record_merchant_pattern(self, txn: ImportedTransaction, category_id: int, confidence: float) -> None:
+        pattern = merchant_pattern_key(txn.merchant)
+        if not pattern:
+            return
+        models.record_merchant_pattern(
+            self.connection,
+            pattern=pattern,
+            category_id=category_id,
+            confidence=confidence,
+        )
 
     def _fallback_review(self, txn: ImportedTransaction) -> "HybridCategorizer._LLMDetail":
         outcome = CategorizationOutcome(
