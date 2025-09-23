@@ -11,7 +11,7 @@ from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors
 from fin_cli.shared.database import connect
 
 from .importer import CSVImportError
-from .pipeline import ImportPipeline, ImportResult, ImportStats, dry_run_preview
+from .pipeline import ImportPipeline, ImportResult, ImportStats, ReviewQueue, dry_run_preview
 from .review import ReviewApplicationError, apply_review_file, write_review_file
 
 
@@ -49,47 +49,97 @@ def main(
         raise click.UsageError("--review-mode json requires --review-output <file>.")
     if review_mode != "json" and review_output:
         cli_ctx.logger.warning("--review-output is ignored unless --review-mode json is specified.")
-    if not skip_llm:
-        cli_ctx.logger.info("LLM categorization is disabled by default in v0.1; continuing with rules-only categorization.")
-    if confidence != 0.8:
-        cli_ctx.logger.warning("Confidence overrides are ignored until LLM-based categorization is introduced.")
+
+    llm_enabled_config = cli_ctx.config.categorization.llm.enabled
+    effective_skip_llm = skip_llm or not llm_enabled_config
+    if effective_skip_llm:
+        cli_ctx.logger.info("Running in rules-only mode (LLM categorization disabled).")
+
+    auto_assign_threshold = None
+    if review_mode == "auto":
+        auto_assign_threshold = confidence
+    elif confidence != 0.8:
+        cli_ctx.logger.warning("--confidence applies only to --review-mode auto. Ignoring override.")
 
     csv_paths = [Path(p) for p in csv_files]
 
     if cli_ctx.dry_run:
-        result = _handle_dry_run(csv_paths, cli_ctx)
+        result = _handle_dry_run(
+            csv_paths,
+            cli_ctx,
+            skip_llm=effective_skip_llm,
+            auto_assign_threshold=auto_assign_threshold,
+        )
     else:
-        result = _handle_import(csv_paths, cli_ctx, skip_dedupe=force)
+        result = _handle_import(
+            csv_paths,
+            cli_ctx,
+            skip_dedupe=force,
+            skip_llm=effective_skip_llm,
+            auto_assign_threshold=auto_assign_threshold,
+        )
 
     if review_mode == "json":
         review_path = Path(review_output)
-        write_review_file(review_path, result.review_items)
+        write_review_file(review_path, result.review)
         cli_ctx.logger.info(
-            f"Wrote {len(result.review_items)} review item(s) to {review_path}. Use --apply-review to record decisions."
+            f"Wrote {len(result.review.transactions)} transaction review item(s) to {review_path}. Use --apply-review to record decisions."
+        )
+    elif review_mode == "auto" and result.review.transactions:
+        cli_ctx.logger.info(
+            f"{len(result.review.transactions)} transaction(s) fell below the auto confidence threshold and require follow-up."
         )
 
 
-def _handle_dry_run(csv_paths: Sequence[Path], cli_ctx: CLIContext) -> ImportResult:
+def _handle_dry_run(
+    csv_paths: Sequence[Path],
+    cli_ctx: CLIContext,
+    *,
+    skip_llm: bool,
+    auto_assign_threshold: float | None,
+) -> ImportResult:
     with connect(cli_ctx.config) as connection:
-        pipeline = ImportPipeline(connection, cli_ctx.logger, track_usage=False)
+        pipeline = ImportPipeline(connection, cli_ctx.logger, cli_ctx.config, track_usage=False)
         try:
             transactions = pipeline.load_transactions(csv_paths)
         except CSVImportError as exc:
             raise click.ClickException(str(exc)) from exc
-        result = dry_run_preview(connection, cli_ctx.logger, transactions)
+        result = dry_run_preview(
+            connection,
+            cli_ctx.logger,
+            cli_ctx.config,
+            transactions,
+            skip_llm=skip_llm,
+            auto_assign_threshold=auto_assign_threshold,
+        )
     _print_summary(cli_ctx, result.stats, dry_run=True)
     return result
 
 
-def _handle_import(csv_paths: Sequence[Path], cli_ctx: CLIContext, *, skip_dedupe: bool) -> ImportResult:
+def _handle_import(
+    csv_paths: Sequence[Path],
+    cli_ctx: CLIContext,
+    *,
+    skip_dedupe: bool,
+    skip_llm: bool,
+    auto_assign_threshold: float | None,
+) -> ImportResult:
     with connect(cli_ctx.config) as connection:
-        pipeline = ImportPipeline(connection, cli_ctx.logger)
+        pipeline = ImportPipeline(connection, cli_ctx.logger, cli_ctx.config)
         try:
             transactions = pipeline.load_transactions(csv_paths)
         except CSVImportError as exc:
             raise click.ClickException(str(exc)) from exc
-        result = pipeline.import_transactions(transactions, skip_dedupe=skip_dedupe)
+        result = pipeline.import_transactions(
+            transactions,
+            skip_dedupe=skip_dedupe,
+            skip_llm=skip_llm,
+            auto_assign_threshold=auto_assign_threshold,
+        )
     _print_summary(cli_ctx, result.stats, dry_run=False)
+    if result.auto_created_categories:
+        created = ", ".join(f"{cat} > {sub}" for cat, sub in result.auto_created_categories)
+        cli_ctx.logger.success(f"Auto-created categories: {created}")
     return result
 
 
@@ -101,10 +151,12 @@ def _print_summary(cli_ctx: CLIContext, stats: ImportStats, dry_run: bool) -> No
     if not dry_run:
         cli_ctx.logger.info(f"  Inserted: {stats.inserted}")
         cli_ctx.logger.info(f"  Duplicates skipped: {stats.duplicates}")
-    cli_ctx.logger.info(f"  Categorized via rules: {stats.categorized}")
+    cli_ctx.logger.info(f"  Categorized automatically: {stats.categorized}")
     cli_ctx.logger.info(f"  Needs review: {stats.needs_review}")
     if stats.needs_review:
-        cli_ctx.logger.info("Run with --review-mode json to export unresolved items for follow-up.")
+        cli_ctx.logger.info(
+            "Use --review-mode json to export unresolved items or --review-mode auto to adjust confidence thresholds."
+        )
 
 
 def _handle_apply_review(decisions_path: Path, cli_ctx: CLIContext) -> None:

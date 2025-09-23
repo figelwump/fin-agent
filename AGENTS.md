@@ -24,3 +24,57 @@ You may be given an implementation plan to work through. If so, here are guideli
 # Tooling conventions
 
 - When you need to inspect the local SQLite database, use the `sqlite3` CLI rather than ad-hoc Python scripts. Example: `sqlite3 ~/.findata/transactions.db`. From there you can run commands like `.tables` or `SELECT COUNT(*) FROM transactions;`.
+
+# fin-enhance Review Process
+
+## Review Mode JSON Output
+When using `fin-enhance --review-mode json`, transactions requiring review are output in this format:
+```json
+{
+  "version": "1.0",
+  "generated_at": "ISO-8601 timestamp",
+  "review_needed": [
+    {
+      "type": "transaction_review",
+      "id": "unique transaction hash",
+      "date": "YYYY-MM-DD",
+      "merchant": "merchant name",
+      "amount": decimal,
+      "original_description": "original transaction description",
+      "account_id": integer
+    }
+  ]
+}
+```
+
+## Decisions JSON Format
+To apply review decisions, create a decisions JSON file with this format:
+```json
+{
+  "version": "1.0",
+  "decisions": [
+    {
+      "id": "transaction hash matching review.json",
+      "category": "required category name",
+      "subcategory": "required subcategory name",
+      "learn": true,  // optional, default true - whether to learn from this pattern
+      "confidence": 0.95,  // optional, default 1.0 - confidence level (0-1)
+      "method": "review:manual",  // optional, default "review:manual"
+      "notes": "optional notes about the decision"
+    }
+  ]
+}
+```
+
+Required fields:
+- `id`: Transaction fingerprint/hash from review.json
+- `category`: Main category (e.g., "Shopping", "Food & Dining")
+- `subcategory`: Specific subcategory (e.g., "Online", "Groceries")
+
+Optional fields:
+- `learn`: Whether to learn from this merchant pattern for future auto-categorization
+- `confidence`: Confidence level from 0 to 1
+- `method`: How the decision was made (typically "review:manual")
+- `notes`: Any additional notes (not used by the system)
+
+Apply decisions using: `fin-enhance --apply-review decisions.json`

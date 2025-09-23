@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import resources
 from pathlib import Path
 
 from fin_cli.shared.config import load_config
@@ -25,7 +26,12 @@ def test_run_migrations_creates_schema(tmp_path: Path) -> None:
         }
         assert {"accounts", "categories", "transactions", "merchant_patterns", "schema_versions"}.issubset(tables)
         version = connection.execute("SELECT MAX(version) FROM schema_versions").fetchone()[0]
-        assert version == 1
+        expected_version = max(
+            int(path.stem.split("_", 1)[0])
+            for path in resources.files("fin_cli.shared.migrations").iterdir()
+            if path.suffix == ".sql"
+        )
+        assert version == expected_version
 
 
 def test_connect_applies_migrations_by_default(tmp_path: Path) -> None:

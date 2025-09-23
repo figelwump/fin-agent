@@ -62,13 +62,14 @@
 
 ## Phase 5 — LLM-Powered Dynamic Categorization
 **Notes:** Introduce GPT-4o-mini integration, batching, caching, and dynamic category creation thresholds.
-- [ ] Implement `fin-enhance/categorizers/llm_client.py` handling prompt construction, API calls, retries, and response validation against safety checks.
-- [ ] Add caching layer (SQLite table or local JSON) keyed by normalized merchant descriptors to avoid repeat requests.
-- [ ] Implement batching logic to group similar uncategorized transactions per API call, respecting token limits and cost considerations.
-- [ ] Implement dynamic category suggestion tracker enforcing `min_transactions_for_new` and `auto_approve_confidence` thresholds from config.
-- [ ] Enhance review modes to surface LLM-generated suggestions with confidence scores and example transactions.
-- [ ] Implement fallback path to resume rules-only mode when LLM is disabled or API errors occur (configurable via `--skip-llm`).
-- [ ] Add unit tests with mocked OpenAI responses covering auto-approve, needs-review, and fallback scenarios.
+- [x] Implement `fin-enhance/categorizers/llm_client.py` handling prompt construction, API calls, retries, and response validation against safety checks.
+- [x] Add caching layer (SQLite table or local JSON) keyed by normalized merchant descriptors to avoid repeat requests.
+- [x] Implement batching logic to group similar uncategorized transactions per API call, respecting token limits and cost considerations.
+- [x] Implement dynamic category suggestion tracker enforcing `min_transactions_for_new` and `auto_approve_confidence` thresholds from config.
+- [x] Enhance review modes to surface LLM-generated suggestions with confidence scores and example transactions.
+- [x] Implement fallback path to resume rules-only mode when LLM is disabled or API errors occur (configurable via `--skip-llm`).
+- [x] Add unit tests with mocked OpenAI responses covering auto-approve, needs-review, and fallback scenarios.
+  - Notes: 2025-09-21 — Added OpenAI-backed LLM client with batching + caching, hybrid categorization pipeline, dynamic category suggestions, enriched review JSON output, CLI auto-mode support, new migration (002) for llm cache/suggestions, and pytest coverage for auto-approve, review fallback, and new category auto-creation.
 
 ## Phase 6 — Additional PDF Extractors & Robustness
 **Notes:** Expand bank coverage and introduce Camelot fallback for complex tables.

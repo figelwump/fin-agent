@@ -3,44 +3,34 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Any
 
 import sqlite3
 
 from fin_cli.shared import models
 
-from .pipeline import ReviewCandidate
+from .categorizer.hybrid import (
+    CategoryProposal,
+    ReviewExample,
+    ReviewSuggestion,
+    TransactionReview,
+)
+from .pipeline import ReviewQueue
 
 
-@dataclass(slots=True)
-class ReviewPayload:
-    items: list[ReviewCandidate]
+def write_review_file(path: Path, review_queue: ReviewQueue) -> None:
+    """Serialize review items (transactions + category proposals) to JSON."""
 
-    def to_dict(self) -> dict:
-        return {
-            "version": "1.0",
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "review_needed": [
-                {
-                    "type": "transaction_review",
-                    "id": item.fingerprint,
-                    "date": item.date,
-                    "merchant": item.merchant,
-                    "amount": item.amount,
-                    "original_description": item.original_description,
-                    "account_id": item.account_id,
-                }
-                for item in self.items
-            ],
-        }
-
-
-def write_review_file(path: Path, items: Iterable[ReviewCandidate]) -> None:
-    payload = ReviewPayload(list(items))
-    data = payload.to_dict()
+    data = {
+        "version": "1.0",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "review_needed": [
+            *_serialize_category_proposals(review_queue.category_proposals),
+            *_serialize_transaction_reviews(review_queue.transactions),
+        ],
+    }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -54,6 +44,7 @@ def apply_review_file(connection: sqlite3.Connection, file_path: Path) -> tuple[
 
     Returns a tuple of (applied_count, skipped_count).
     """
+
     if not file_path.exists():
         raise ReviewApplicationError(f"Review decisions file not found: {file_path}")
     try:
@@ -109,3 +100,73 @@ def apply_review_file(connection: sqlite3.Connection, file_path: Path) -> tuple[
             )
         applied += 1
     return applied, skipped
+
+
+def _serialize_transaction_reviews(items: list[TransactionReview]) -> list[dict[str, Any]]:
+    serialized: list[dict[str, Any]] = []
+    for item in items:
+        serialized.append(
+            {
+                "type": "transaction_review",
+                "id": item.example.fingerprint,
+                "date": item.example.date,
+                "merchant": item.example.merchant,
+                "amount": item.example.amount,
+                "original_description": item.example.original_description,
+                "account_id": item.example.account_id,
+                "suggestions": [
+                    _serialize_suggestion(suggestion) for suggestion in item.suggestions
+                ],
+                "similar_transactions": [
+                    {
+                        "category": similar.category,
+                        "subcategory": similar.subcategory,
+                        "count": similar.count,
+                    }
+                    for similar in item.similar
+                ],
+            }
+        )
+    return serialized
+
+
+def _serialize_category_proposals(items: list[CategoryProposal]) -> list[dict[str, Any]]:
+    serialized: list[dict[str, Any]] = []
+    for proposal in items:
+        serialized.append(
+            {
+                "type": "new_category_approval",
+                "proposed_category": proposal.category,
+                "proposed_subcategory": proposal.subcategory,
+                "confidence": proposal.confidence,
+                "transaction_count": proposal.support_count or len(proposal.transaction_examples),
+                "total_amount": proposal.total_amount,
+                "transaction_examples": [
+                    _serialize_example(example) for example in proposal.transaction_examples
+                ],
+            }
+        )
+    return serialized
+
+
+def _serialize_suggestion(suggestion: ReviewSuggestion) -> dict[str, Any]:
+    data = {
+        "category": suggestion.category,
+        "subcategory": suggestion.subcategory,
+        "confidence": suggestion.confidence,
+        "is_new_category": suggestion.is_new_category,
+    }
+    if suggestion.notes:
+        data["notes"] = suggestion.notes
+    return data
+
+
+def _serialize_example(example: ReviewExample) -> dict[str, Any]:
+    return {
+        "id": example.fingerprint,
+        "date": example.date,
+        "merchant": example.merchant,
+        "amount": example.amount,
+        "original_description": example.original_description,
+        "account_id": example.account_id,
+    }

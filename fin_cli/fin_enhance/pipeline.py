@@ -4,14 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import sqlite3
 
 from fin_cli.shared import models
+from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
 
-from .categorizer.rules import CategorizationOutcome, RuleCategorizer
+from .categorizer.hybrid import (
+    CategoryProposal,
+    CategorizationOptions,
+    HybridCategorizer,
+    HybridCategorizerResult,
+    TransactionReview,
+)
+from .categorizer.rules import CategorizationOutcome
 from .importer import CSVImportError, ImportedTransaction, load_csv_transactions
 
 
@@ -24,19 +32,18 @@ class ImportStats:
 
 
 @dataclass(slots=True)
-class ReviewCandidate:
-    fingerprint: str
-    date: str
-    merchant: str
-    amount: float
-    original_description: str
-    account_id: int | None
+class ReviewQueue:
+    """Container for reviewable items."""
+
+    transactions: list[TransactionReview]
+    category_proposals: list[CategoryProposal]
 
 
 @dataclass(slots=True)
 class ImportResult:
     stats: ImportStats
-    review_items: list[ReviewCandidate]
+    review: ReviewQueue
+    auto_created_categories: list[tuple[str, str]]
 
 
 class ImportPipeline:
@@ -44,12 +51,19 @@ class ImportPipeline:
         self,
         connection: sqlite3.Connection,
         logger: Logger,
+        config: AppConfig,
         *,
         track_usage: bool = True,
     ) -> None:
         self.connection = connection
         self.logger = logger
-        self.categorizer = RuleCategorizer(connection, track_usage=track_usage)
+        self.config = config
+        self.categorizer = HybridCategorizer(
+            connection,
+            config,
+            logger,
+            track_usage=track_usage,
+        )
 
     def load_transactions(self, csv_paths: Iterable[str | Path]) -> list[ImportedTransaction]:
         transactions: list[ImportedTransaction] = []
@@ -61,14 +75,66 @@ class ImportPipeline:
 
     def import_transactions(
         self,
-        transactions: Iterable[ImportedTransaction],
+        transactions: Sequence[ImportedTransaction],
         *,
         skip_dedupe: bool = False,
+        skip_llm: bool = False,
+        auto_assign_threshold: float | None = None,
     ) -> ImportResult:
+        result = self._run_categorizer(
+            transactions,
+            skip_llm=skip_llm,
+            apply_side_effects=True,
+            auto_assign_threshold=auto_assign_threshold,
+        )
+        stats = self._persist_transactions(
+            transactions,
+            result.outcomes,
+            skip_dedupe=skip_dedupe,
+        )
+        stats.needs_review = len(result.transaction_reviews)
+        review = ReviewQueue(
+            transactions=result.transaction_reviews,
+            category_proposals=result.category_proposals,
+        )
+        return ImportResult(
+            stats=stats,
+            review=review,
+            auto_created_categories=result.auto_created_categories,
+        )
+
+    def _run_categorizer(
+        self,
+        transactions: Sequence[ImportedTransaction],
+        *,
+        skip_llm: bool,
+        apply_side_effects: bool,
+        auto_assign_threshold: float | None,
+    ) -> HybridCategorizerResult:
+        needs_review_threshold = self.config.categorization.confidence.needs_review
+        effective_auto_threshold = (
+            auto_assign_threshold
+            if auto_assign_threshold is not None
+            else self.config.categorization.confidence.auto_approve
+        )
+        effective_auto_threshold = max(effective_auto_threshold, needs_review_threshold)
+        options = CategorizationOptions(
+            skip_llm=skip_llm or not self.config.categorization.llm.enabled,
+            apply_side_effects=apply_side_effects,
+            auto_assign_threshold=effective_auto_threshold,
+            needs_review_threshold=needs_review_threshold,
+        )
+        return self.categorizer.categorize_transactions(transactions, options=options)
+
+    def _persist_transactions(
+        self,
+        transactions: Sequence[ImportedTransaction],
+        outcomes: Sequence[CategorizationOutcome],
+        *,
+        skip_dedupe: bool,
+    ) -> ImportStats:
         stats = ImportStats()
-        review_items: list[ReviewCandidate] = []
-        for txn in transactions:
-            outcome = self.categorizer.categorize(txn.merchant)
+        for txn, outcome in zip(transactions, outcomes, strict=False):
             model_txn = models.Transaction(
                 date=txn.date,
                 merchant=txn.merchant,
@@ -96,50 +162,35 @@ class ImportPipeline:
                     )
             else:
                 stats.duplicates += 1
-            if outcome.needs_review:
-                stats.needs_review += 1
-                review_items.append(
-                    ReviewCandidate(
-                        fingerprint=model_txn.fingerprint(),
-                        date=txn.date.isoformat(),
-                        merchant=txn.merchant,
-                        amount=txn.amount,
-                        original_description=txn.original_description,
-                        account_id=txn.account_id,
-                    )
-                )
-        return ImportResult(stats=stats, review_items=review_items)
+        return stats
 
 
 def dry_run_preview(
     connection: sqlite3.Connection,
     logger: Logger,
-    transactions: Iterable[ImportedTransaction],
+    config: AppConfig,
+    transactions: Sequence[ImportedTransaction],
+    *,
+    skip_llm: bool = False,
+    auto_assign_threshold: float | None = None,
 ) -> ImportResult:
-    pipeline = ImportPipeline(connection, logger, track_usage=False)
+    pipeline = ImportPipeline(connection, logger, config, track_usage=False)
+    result = pipeline._run_categorizer(
+        transactions,
+        skip_llm=skip_llm,
+        apply_side_effects=False,
+        auto_assign_threshold=auto_assign_threshold,
+    )
     stats = ImportStats()
-    review_items: list[ReviewCandidate] = []
-    items = list(transactions)
-    for txn in items:
-        outcome = pipeline.categorizer.categorize(txn.merchant)
-        if outcome.category_id:
-            stats.categorized += 1
-        else:
-            stats.needs_review += 1
-            review_items.append(
-                ReviewCandidate(
-                    fingerprint=models.compute_transaction_fingerprint(
-                        txn.date,
-                        txn.amount,
-                        txn.merchant,
-                        txn.account_id,
-                    ),
-                    date=txn.date.isoformat(),
-                    merchant=txn.merchant,
-                    amount=txn.amount,
-                    original_description=txn.original_description,
-                    account_id=txn.account_id,
-                )
-            )
-    stats.inserted = len(items)
-    return ImportResult(stats=stats, review_items=review_items)
+    stats.inserted = len(transactions)
+    stats.categorized = sum(1 for outcome in result.outcomes if outcome.category_id)
+    stats.needs_review = len(result.transaction_reviews)
+    review = ReviewQueue(
+        transactions=result.transaction_reviews,
+        category_proposals=result.category_proposals,
+    )
+    return ImportResult(
+        stats=stats,
+        review=review,
+        auto_created_categories=result.auto_created_categories,
+    )

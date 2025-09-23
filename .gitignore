@@ -22,4 +22,5 @@ dist/
 # Temporary files
 *.tmp
 *.log
-test_statements/
+statements/
+output/
