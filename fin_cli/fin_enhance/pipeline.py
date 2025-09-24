@@ -68,9 +68,11 @@ class ImportPipeline:
     def load_transactions(self, csv_paths: Iterable[str | Path]) -> list[ImportedTransaction]:
         transactions: list[ImportedTransaction] = []
         for path in csv_paths:
-            rows = load_csv_transactions(path)
+            path_str = str(path)
+            rows = load_csv_transactions(path_str if path_str != '-' else None)
             transactions.extend(rows)
-            self.logger.info(f"Loaded {len(rows)} rows from {path}")
+            source_name = "stdin" if path_str == '-' else str(path)
+            self.logger.info(f"Loaded {len(rows)} rows from {source_name}")
         return transactions
 
     def import_transactions(

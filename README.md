@@ -44,6 +44,59 @@ implementation progresses:
 Each command currently raises a friendly `ClickException` until the relevant
 phase is complete.
 
+## Pipe Mode: Composable Unix-style Processing
+
+The tools support Unix-style piping for efficient, composable workflows:
+
+### Basic Usage
+
+Traditional file-based workflow:
+```bash
+# Extract to file, then enhance
+fin-extract statement.pdf -o transactions.csv
+fin-enhance transactions.csv
+```
+
+New pipe mode for direct processing:
+```bash
+# Extract and enhance in one pipeline
+fin-extract statement.pdf | fin-enhance --stdin
+```
+
+### Advanced Examples
+
+Process multiple PDFs in one pipeline:
+```bash
+for pdf in *.pdf; do
+    fin-extract "$pdf"
+done | fin-enhance --stdin
+```
+
+Filter transactions before import:
+```bash
+# Exclude pending transactions
+fin-extract statement.pdf | grep -v "PENDING" | fin-enhance --stdin
+```
+
+Inspect data mid-pipeline:
+```bash
+# Use 'tee' to save intermediate data for debugging
+fin-extract statement.pdf | tee extracted.csv | fin-enhance --stdin
+```
+
+### Benefits of Pipe Mode
+
+- **Memory efficient**: No intermediate file storage required
+- **Faster processing**: Eliminates disk I/O for temporary files
+- **Composable**: Works with standard Unix tools (grep, awk, sed, cut)
+- **Agent-friendly**: Single command for extract+enhance operations
+
+### Limitations
+
+- Interactive review mode (`--review-mode interactive`) is not available with stdin
+- Pipeline breaks lose intermediate data (use `tee` for debugging)
+- Only supports single CSV stream (cannot mix multiple CSVs via stdin)
+
 ## Development Workflow
 
 - Follow the phased checklist in `plans/fin_cli_implementation_plan.md`.

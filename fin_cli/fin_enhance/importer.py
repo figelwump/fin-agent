@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import csv
+import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, TextIO
 
 from dateutil import parser as date_parser
 
@@ -33,28 +34,53 @@ class CSVImportError(Exception):
     """Raised when the CSV cannot be parsed."""
 
 
-def load_csv_transactions(path: str | Path) -> list[ImportedTransaction]:
+def load_csv_transactions_from_stream(stream: TextIO, source_name: str = "stdin") -> list[ImportedTransaction]:
+    """Load transactions from a file-like object (e.g., sys.stdin).
+
+    Args:
+        stream: File-like object to read CSV from
+        source_name: Name for error reporting (e.g., "stdin" or filename)
+
+    Returns:
+        List of imported transactions
+    """
+    reader = csv.DictReader(stream)
+    if not reader.fieldnames:
+        raise CSVImportError(f"{source_name}: CSV must include headers.")
+    missing = set(reader.fieldnames) - SUPPORTED_HEADERS
+    if missing:
+        raise CSVImportError(
+            f"{source_name}: Unsupported columns in CSV: " + ", ".join(sorted(missing))
+        )
+    transactions: list[ImportedTransaction] = []
+    for idx, row in enumerate(reader, start=1):
+        try:
+            txn = _parse_row(row)
+        except ValueError as exc:
+            raise CSVImportError(f"{source_name} row {idx}: {exc}") from exc
+        transactions.append(txn)
+    return transactions
+
+
+def load_csv_transactions(path: str | Path | None = None) -> list[ImportedTransaction]:
+    """Load CSV transactions from a file or stdin.
+
+    Args:
+        path: File path, '-' for stdin, or None for stdin
+
+    Returns:
+        List of imported transactions
+    """
+    if path is None or path == '-':
+        # Read from stdin
+        return load_csv_transactions_from_stream(sys.stdin, "stdin")
+
     file_path = Path(path)
     if not file_path.exists():
         raise CSVImportError(f"CSV file not found: {file_path}")
 
     with file_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        if not reader.fieldnames:
-            raise CSVImportError("CSV file must include headers.")
-        missing = set(reader.fieldnames) - SUPPORTED_HEADERS
-        if missing:
-            raise CSVImportError(
-                "Unsupported columns in CSV: " + ", ".join(sorted(missing))
-            )
-        transactions: list[ImportedTransaction] = []
-        for idx, row in enumerate(reader, start=1):
-            try:
-                txn = _parse_row(row)
-            except ValueError as exc:
-                raise CSVImportError(f"Row {idx}: {exc}") from exc
-            transactions.append(txn)
-    return transactions
+        return load_csv_transactions_from_stream(handle, str(file_path))
 
 
 def _parse_row(row: dict[str, str | None]) -> ImportedTransaction:
