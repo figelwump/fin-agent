@@ -18,6 +18,7 @@ from fin_cli.fin_enhance.categorizer.llm_client import (
     normalize_merchant,
 )
 from fin_cli.fin_enhance.importer import ImportedTransaction
+from fin_cli.shared import models
 from fin_cli.shared.config import (
     AppConfig,
     CategorizationSettings,
@@ -60,7 +61,7 @@ def _make_config(*, llm_enabled: bool = True) -> AppConfig:
                 auto_approve_confidence=0.85,
                 max_pending_categories=20,
             ),
-            confidence=ConfidenceSettings(auto_approve=0.8, needs_review=0.5),
+            confidence=ConfidenceSettings(auto_approve=0.8),
         ),
     )
 
@@ -92,7 +93,6 @@ def _init_db() -> sqlite3.Connection:
             import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             categorization_confidence REAL,
             categorization_method TEXT,
-            needs_review BOOLEAN,
             fingerprint TEXT UNIQUE
         );
         CREATE TABLE merchant_patterns (
@@ -127,11 +127,16 @@ def _init_db() -> sqlite3.Connection:
 
 
 def _make_transaction(merchant: str) -> ImportedTransaction:
+    account_key = models.compute_account_key('Test Account', 'Test Bank', 'credit')
     return ImportedTransaction(
         date=date(2024, 11, 27),
         merchant=merchant,
         amount=-42.00,
         original_description=f"{merchant} POS",
+        account_name='Test Account',
+        institution='Test Bank',
+        account_type='credit',
+        account_key=account_key,
         account_id=1,
     )
 
@@ -160,7 +165,6 @@ def test_hybrid_auto_assigns_high_confidence() -> None:
             skip_llm=False,
             apply_side_effects=True,
             auto_assign_threshold=0.8,
-            needs_review_threshold=0.5,
         ),
     )
 
@@ -176,7 +180,8 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
     logger = Logger(verbose=False)
     config = _make_config()
     categorizer = HybridCategorizer(conn, config, logger, track_usage=False)
-    merchant_key = normalize_merchant("AMAZON")
+    example_merchant = "Amazon.com*random123 AMZN.COM/BILL WA"
+    merchant_key = normalize_merchant(example_merchant)
     suggestion = LLMSuggestion(
         category="Shopping",
         subcategory="Online Retail",
@@ -186,14 +191,13 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
     mapping = {merchant_key: LLMResult(merchant_key, [suggestion])}
     categorizer.llm_client = DummyLLMClient(mapping)
 
-    transactions = [_make_transaction("AMAZON")]
+    transactions = [_make_transaction(example_merchant)]
     result = categorizer.categorize_transactions(
         transactions,
         options=CategorizationOptions(
             skip_llm=False,
             apply_side_effects=True,
             auto_assign_threshold=0.8,
-            needs_review_threshold=0.5,
         ),
     )
 
@@ -212,7 +216,7 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
     # Ensure merchant pattern stored for reuse
     pattern_row = conn.execute(
         "SELECT category_id FROM merchant_patterns WHERE pattern = ?",
-        (merchant_pattern_key("Amazon.com*random123 AMZN.COM/BILL WA"),),
+        (merchant_pattern_key(example_merchant),),
     ).fetchone()
     assert pattern_row is not None
     assert int(pattern_row[0]) == int(row[0])
@@ -225,7 +229,6 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
             skip_llm=False,
             apply_side_effects=True,
             auto_assign_threshold=0.8,
-            needs_review_threshold=0.5,
         ),
     )
 
@@ -260,7 +263,6 @@ def test_hybrid_flags_review_when_below_auto_threshold() -> None:
             skip_llm=False,
             apply_side_effects=True,
             auto_assign_threshold=0.8,
-            needs_review_threshold=0.5,
         ),
     )
 
@@ -291,7 +293,6 @@ def test_hybrid_handles_llm_failure() -> None:
             skip_llm=False,
             apply_side_effects=True,
             auto_assign_threshold=0.8,
-            needs_review_threshold=0.5,
         ),
     )
 
@@ -321,7 +322,6 @@ def test_hybrid_auto_creates_new_category_after_threshold() -> None:
             skip_llm=False,
             apply_side_effects=True,
             auto_assign_threshold=0.8,
-            needs_review_threshold=0.5,
         ),
     )
 

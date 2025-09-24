@@ -53,7 +53,6 @@ class ConfidenceSettings:
     """Confidence threshold configuration for categorization."""
 
     auto_approve: float
-    needs_review: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +102,6 @@ def _default_config(env: Mapping[str, str]) -> dict[str, Any]:
             },
             "confidence": {
                 "auto_approve": 0.8,
-                "needs_review": 0.5,
             },
         },
     }
@@ -131,7 +129,6 @@ ENV_OVERRIDE_SPEC: dict[str, tuple[str, type]] = {
         int,
     ),
     "categorization.confidence.auto_approve": ("FINCLI_CONFIDENCE_AUTO_APPROVE", float),
-    "categorization.confidence.needs_review": ("FINCLI_CONFIDENCE_NEEDS_REVIEW", float),
 }
 
 
@@ -246,7 +243,6 @@ def _build_config(data: Mapping[str, Any], source_path: Path) -> AppConfig:
         conf_cfg = data["categorization"]["confidence"]
         confidence = ConfidenceSettings(
             auto_approve=float(conf_cfg["auto_approve"]),
-            needs_review=float(conf_cfg["needs_review"]),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ConfigurationError(f"Invalid configuration structure: {exc}") from exc

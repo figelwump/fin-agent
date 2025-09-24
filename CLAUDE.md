@@ -1,5 +1,3 @@
-# AGENTS.md
-
 # General
 
 - Write comments in the code if it will help a future LLM understand details or nuance about how the code works.
@@ -25,10 +23,70 @@ You may be given an implementation plan to work through. If so, here are guideli
 
 - When you need to inspect the local SQLite database, use the `sqlite3` CLI rather than ad-hoc Python scripts. Example: `sqlite3 ~/.findata/transactions.db`. From there you can run commands like `.tables` or `SELECT COUNT(*) FROM transactions;`.
 
+## Code Search with ast-grep
+
+Use `ast-grep` (sg) for semantic code searches across the codebase. It's more powerful than text-based grep for finding code patterns.
+
+### Common ast-grep patterns for this Python codebase:
+
+Find all function definitions:
+```bash
+sg --pattern 'def $FUNC($$$):' --lang python
+```
+
+Find specific function calls:
+```bash
+sg --pattern '$OBJ.enhance($$$)' --lang python
+sg --pattern 'categorize($$$)' --lang python
+```
+
+Find all class definitions:
+```bash
+sg --pattern 'class $CLASS($$$):' --lang python
+```
+
+Find database queries:
+```bash
+sg --pattern 'execute($SQL)' --lang python
+sg --pattern 'executemany($$$)' --lang python
+```
+
+Find imports:
+```bash
+sg --pattern 'from $MODULE import $$$' --lang python
+sg --pattern 'import $MODULE' --lang python
+```
+
+Find decorated functions (e.g., CLI commands):
+```bash
+sg --pattern '@click.command()
+def $FUNC($$$):' --lang python
+```
+
+Find specific method calls on objects:
+```bash
+sg --pattern '$VAR.apply_decisions($$$)' --lang python
+```
+
+Find exception handling:
+```bash
+sg --pattern 'try:
+    $$$
+except $EXCEPTION:
+    $$$' --lang python
+```
+
+### Tips:
+- Use `$VAR` for single identifiers
+- Use `$$$` for any sequence of code (wildcards)
+- Add `--json` for machine-readable output
+- Add `-A 3 -B 3` to show context lines
+- Combine with standard Unix tools: `sg --pattern 'def $FUNC($$$):' --lang python | grep enhance`
+
 # fin-enhance Review Process
 
-## Review Mode JSON Output
-When using `fin-enhance --review-mode json`, transactions requiring review are output in this format:
+## Review JSON Output
+When running `fin-enhance transactions.csv --review-output review.json`, the unresolved transactions are written in this format:
 ```json
 {
   "version": "1.0",

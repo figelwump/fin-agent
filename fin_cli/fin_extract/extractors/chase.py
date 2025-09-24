@@ -42,6 +42,10 @@ class _ColumnMapping:
 
 _KEYWORD_PATTERN_CACHE: dict[str, re.Pattern[str]] = {}
 
+_ACCOUNT_NAME_PATTERNS: list[tuple[tuple[str, ...], str]] = [
+    (("amazon", "prime visa"), "Amazon Prime Visa"),
+]
+
 
 def _contains_keyword(text: str, keyword: str) -> bool:
     """Return True when `keyword` is present even if letters are duplicated.
@@ -66,6 +70,13 @@ def _contains_keyword(text: str, keyword: str) -> bool:
         pattern = re.compile("".join(parts), re.IGNORECASE)
         _KEYWORD_PATTERN_CACHE[keyword] = pattern
     return bool(pattern.search(text))
+
+
+def _infer_account_name(text: str) -> str:
+    for keywords, name in _ACCOUNT_NAME_PATTERNS:
+        if all(_contains_keyword(text, keyword) for keyword in keywords):
+            return name
+    return "Chase Account"
 
 
 class ChaseExtractor(StatementExtractor):
@@ -96,9 +107,10 @@ class ChaseExtractor(StatementExtractor):
 
         if not transactions:
             transactions = self._extract_from_text(document.text)
+        account_name = _infer_account_name(document.text)
         metadata = StatementMetadata(
             institution="Chase",
-            account_name="Chase Account",
+            account_name=account_name,
             account_type="credit",
             start_date=None,
             end_date=None,

@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     categorization_confidence REAL,
     categorization_method TEXT,
-    needs_review BOOLEAN DEFAULT FALSE,
     fingerprint TEXT NOT NULL UNIQUE,
     FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL

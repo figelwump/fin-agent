@@ -17,113 +17,32 @@ A suite of composable command-line tools for processing, analyzing, and visualiz
 
 **Usage**:
 ```bash
-fin-extract <file> [options]
-  --output <file>     Output CSV file (default: stdout)
-  --account-name <name> Override auto-detected account name
-  --verbose           Show extraction progress
-  --dry-run           Preview what would be extracted
-  --help              Show detailed help and examples
+fin-enhance <csv-files...> [options]
+  --stdin               Read CSV data from stdin instead of files
+  --review-output <file>  Write unresolved transactions to JSON
+  --apply-review <file>   Apply categorization decisions from JSON
+  --confidence <0-1>      Override auto-categorization confidence threshold
+  --skip-llm              Use only rules-based categorization
+  --dry-run               Preview import without committing
+  --force                 Skip duplicate detection safeguards
+  --db <path>             Database path (default: ~/.findata/transactions.db)
+  --help                  Show detailed help
 ```
 
 **Examples**:
 ```bash
-# Basic extraction with auto account detection
-$ fin-extract Chase_Statement_Nov_2024.pdf --output nov_transactions.csv
-✓ Detected: Chase Freedom (Credit Card)
-✓ Inferred account: Chase Freedom (credit)
-✓ Extracted 127 transactions
-✓ Saved to: nov_transactions.csv
+# Basic import (will remind you how many transactions still need review)
+$ fin-enhance chase_july.csv
 
-# Preview extraction without saving
-$ fin-extract statement.pdf --dry-run
-Would extract:
-  Format detected: Bank of America Checking
-  Account name: BofA Checking
-  Transactions: 143
-  Date range: 2024-11-01 to 2024-11-30
+# Import and export unresolved transactions for an agent
+$ fin-enhance chase_july.csv --review-output review.json
 
-# Process directory of statements
-$ for f in ~/statements/*.pdf; do
-    fin-extract "$f" --output "${f%.pdf}_transactions.csv"
-  done
+# Apply review decisions from an agent
+$ fin-enhance --apply-review review_decisions.json
+
+# Use stdin and a stricter confidence threshold
+$ cat chase_july.csv | fin-enhance --stdin --confidence 0.9 --review-output review.json
 ```
-
-**Help Output**:
-```bash
-$ fin-extract --help
-fin-extract - Local PDF transaction extractor
-
-USAGE:
-  fin-extract <pdf-file> [options]
-
-DESCRIPTION:
-  Extracts transaction data from bank/credit card PDF statements.
-  All processing happens locally - no data sent to cloud services.
-  Automatically infers account metadata for downstream tools.
-
-OPTIONS:
-  --output, -o <file>   Output CSV file (default: stdout)
-  --account-name <name> Override auto-detected account name
-  --verbose, -v         Show detailed extraction progress
-  --dry-run             Preview without extracting
-  --help, -h            Show this help message
-
-SUPPORTED BANKS (auto-detected):
-  - Chase (all account types)
-  - Bank of America (checking and credit)
-  - Mercury (business checking)
-
-OUTPUT FORMAT:
-  CSV with columns: date,merchant,amount,original_description,account_name,institution,account_type,account_key
-
-EXAMPLES:
-  # Basic extraction
-  $ fin-extract statement.pdf --output transactions.csv
-
-  # Preview without saving  
-  $ fin-extract statement.pdf --dry-run
-
-  # Override account name
-  $ fin-extract statement.pdf --account-name "Chase Sapphire"
-
-PRIVACY NOTE:
-  All processing happens locally using PDF parsing libraries.
-  No data is sent to external services or APIs.
-
-EXIT CODES:
-  0  Success
-  1  PDF parsing failed
-  2  No transactions found
-  3  Unsupported format
-```
-
-**Output Format (CSV)**:
-```csv
-date,merchant,amount,original_description,account_name,institution,account_type,account_key
-2024-11-28,SWEETGREEN #123,-18.47,TST* SWEETGREEN COLONNADE,Chase Freedom,Chase,credit,8d3e9b5e8d09e1f79c69fe7b1fd44f6e5d77b5ea2b3f5e2a8d3b5c6d7e8f9a0
-2024-11-27,WHOLE FOODS,-127.34,WHOLEFDS #10234,Chase Freedom,Chase,credit,8d3e9b5e8d09e1f79c69fe7b1fd44f6e5d77b5ea2b3f5e2a8d3b5c6d7e8f9a0
-2024-11-26,NETFLIX,-15.99,NETFLIX.COM MONTHLY,Chase Freedom,Chase,credit,8d3e9b5e8d09e1f79c69fe7b1fd44f6e5d77b5ea2b3f5e2a8d3b5c6d7e8f9a0
-```
-
----
-
-### 2. `fin-enhance` - Smart Categorization & Import
-
-**Purpose**: Import CSV transactions with intelligent categorization that dynamically creates categories based on your spending patterns
-
-**Usage**:
-```bash
-fin-enhance <files...> [options]
-  --review-mode <mode>   Review mode: interactive|json|auto
-  --review-output <file> Output review decisions for AI processing
-  --apply-review <file>  Apply review decisions from file
-  --confidence <0-1>     Min confidence for auto-categorization (default: 0.8)
-  --skip-llm             Use only rules-based categorization
-  --dry-run              Preview import without committing
-  --db <path>            Database path (default: ~/.findata/transactions.db)
-  --help                 Show detailed help
-```
-
 **Review Workflow**:
 
 Default imports categorize what they can and leave the rest uncategorized. Use `--review-output` to export unresolved transactions for an agent, then apply the agent's decisions with `--apply-review`.
@@ -598,7 +517,7 @@ $ fin-extract ~/Downloads/BofA_Statement_Nov_2024.pdf --output /tmp/bofa_nov.csv
 
 Now I'll import them and handle categorization:
 
-$ fin-enhance /tmp/*.csv --review-mode json --review-output /tmp/review.json
+$ fin-enhance /tmp/*.csv --review-output /tmp/review.json
 ✓ Imported 259 transactions
 ✓ Auto-categorized 245 transactions (94.6%)
 ✓ Found 3 new category suggestions

@@ -29,24 +29,34 @@ def _prepare_db(db_path: Path) -> None:
             user_approved=True,
         )
         connection.execute(
-            "INSERT INTO merchant_patterns (pattern, category_id, confidence) VALUES (?, ?, ?)",
+            "INSERT INTO merchant_patterns (pattern, category_id, confidence, learned_date, usage_count) VALUES (?, ?, ?, CURRENT_TIMESTAMP, 0)",
             ("WHOLEFDS #10234", category_id, 0.92),
+        )
+        connection.execute(
+            "UPDATE accounts SET id = ? WHERE id = ?",
+            (account_id, account_id),
         )
 
 
-def test_cli_import_persists_transactions(tmp_path: Path, monkeypatch) -> None:
+def _write_sample_csv(path: Path, rows: list[str]) -> None:
+    header = "date,merchant,amount,original_description,account_name,institution,account_type,account_id\n"
+    path.write_text(header + "".join(rows), encoding="utf-8")
+
+
+def test_cli_import_persists_transactions(tmp_path: Path) -> None:
     csv_path = tmp_path / "transactions.csv"
-    csv_path.write_text(
-        "date,merchant,amount,original_description,account_id\n"
-        "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,1\n"
-        "2024-11-28,UNKNOWN MERCHANT,-42.00,UNKNOWN MERCHANT,1\n",
-        encoding="utf-8",
+    _write_sample_csv(
+        csv_path,
+        [
+            "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,Test Account,Test Bank,credit,1\n",
+            "2024-11-28,UNKNOWN MERCHANT,-42.00,UNKNOWN MERCHANT,Test Account,Test Bank,credit,1\n",
+        ],
     )
     db_path = tmp_path / "db.sqlite"
     _prepare_db(db_path)
     env = {paths.DATABASE_PATH_ENV: str(db_path)}
     runner = CliRunner()
-    result = runner.invoke(enhance_cli, [str(csv_path), "--db", str(db_path)], env=env)
+    result = runner.invoke(enhance_cli, [str(csv_path), "--db", str(db_path), "--skip-llm"], env=env)
     assert result.exit_code == 0, result.output
     config = load_config(env=env)
     with connect(config) as connection:
@@ -56,18 +66,23 @@ def test_cli_import_persists_transactions(tmp_path: Path, monkeypatch) -> None:
             "SELECT COUNT(*) FROM transactions WHERE category_id IS NOT NULL"
         ).fetchone()[0]
         assert categorized == 1
-        needs_review = connection.execute(
-            "SELECT COUNT(*) FROM transactions WHERE needs_review = 1"
+        uncategorized = connection.execute(
+            "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL"
         ).fetchone()[0]
-        assert needs_review == 1
+        assert uncategorized == 1
+
+    review_file = csv_path.with_name(f"{csv_path.stem}-review.json")
+    assert review_file.exists()
+    assert "UNKNOWN MERCHANT" in review_file.read_text(encoding="utf-8")
 
 
-def test_cli_dry_run(tmp_path: Path, monkeypatch) -> None:
+def test_cli_dry_run(tmp_path: Path) -> None:
     csv_path = tmp_path / "transactions.csv"
-    csv_path.write_text(
-        "date,merchant,amount,original_description,account_id\n"
-        "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,1\n",
-        encoding="utf-8",
+    _write_sample_csv(
+        csv_path,
+        [
+            "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,Test Account,Test Bank,credit,1\n",
+        ],
     )
     db_path = tmp_path / "db.sqlite"
     env = {paths.DATABASE_PATH_ENV: str(db_path)}
@@ -77,23 +92,25 @@ def test_cli_dry_run(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(
         enhance_cli,
-        [str(csv_path), "--dry-run", "--db", str(db_path)],
+        [str(csv_path), "--dry-run", "--db", str(db_path), "--skip-llm"],
         env=env,
     )
-    assert result.exit_code == 0
-    config = load_config(env=env)
+    assert result.exit_code == 0, result.output
     with connect(config, read_only=True, apply_migrations=False) as connection:
         rows = connection.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
         assert rows == 0
+    default_review = csv_path.with_name(f"{csv_path.stem}-review.json")
+    assert not default_review.exists()
 
 
-def test_cli_review_mode_json_outputs_file(tmp_path: Path) -> None:
+def test_cli_review_output_writes_file(tmp_path: Path) -> None:
     csv_path = tmp_path / "transactions.csv"
-    csv_path.write_text(
-        "date,merchant,amount,original_description,account_id\n"
-        "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,1\n"
-        "2024-11-28,UNKNOWN MERCHANT,-42.00,UNKNOWN MERCHANT,1\n",
-        encoding="utf-8",
+    _write_sample_csv(
+        csv_path,
+        [
+            "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,Test Account,Test Bank,credit,1\n",
+            "2024-11-28,UNKNOWN MERCHANT,-42.00,UNKNOWN MERCHANT,Test Account,Test Bank,credit,1\n",
+        ],
     )
     db_path = tmp_path / "db.sqlite"
     _prepare_db(db_path)
@@ -106,10 +123,9 @@ def test_cli_review_mode_json_outputs_file(tmp_path: Path) -> None:
             str(csv_path),
             "--db",
             str(db_path),
-            "--review-mode",
-            "json",
             "--review-output",
             str(review_path),
+            "--skip-llm",
         ],
         env=env,
     )
@@ -120,10 +136,11 @@ def test_cli_review_mode_json_outputs_file(tmp_path: Path) -> None:
 
 def test_apply_review_updates_transaction(tmp_path: Path) -> None:
     csv_path = tmp_path / "transactions.csv"
-    csv_path.write_text(
-        "date,merchant,amount,original_description,account_id\n"
-        "2024-11-28,UNKNOWN MERCHANT,-42.00,UNKNOWN MERCHANT,1\n",
-        encoding="utf-8",
+    _write_sample_csv(
+        csv_path,
+        [
+            "2024-11-28,UNKNOWN MERCHANT,-42.00,UNKNOWN MERCHANT,Test Account,Test Bank,credit,1\n",
+        ],
     )
     db_path = tmp_path / "db.sqlite"
     _prepare_db(db_path)
@@ -136,10 +153,9 @@ def test_apply_review_updates_transaction(tmp_path: Path) -> None:
             str(csv_path),
             "--db",
             str(db_path),
-            "--review-mode",
-            "json",
             "--review-output",
             str(review_path),
+            "--skip-llm",
         ],
         env=env,
     )
@@ -174,11 +190,10 @@ def test_apply_review_updates_transaction(tmp_path: Path) -> None:
     config = load_config(env=env)
     with connect(config) as connection:
         row = connection.execute(
-            "SELECT category_id, needs_review FROM transactions WHERE fingerprint = ?",
+            "SELECT category_id FROM transactions WHERE fingerprint = ?",
             (fingerprint,),
         ).fetchone()
         assert row["category_id"] is not None
-        assert row["needs_review"] == 0
         pattern_row = connection.execute(
             "SELECT category_id FROM merchant_patterns WHERE pattern = ?",
             ("UNKNOWN MERCHANT",),

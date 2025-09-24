@@ -40,7 +40,6 @@ def _setup_db() -> sqlite3.Connection:
             import_date TIMESTAMP,
             categorization_confidence REAL,
             categorization_method TEXT,
-            needs_review BOOLEAN,
             fingerprint TEXT UNIQUE
         );
         """

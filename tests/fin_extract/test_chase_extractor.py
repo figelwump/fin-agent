@@ -26,7 +26,7 @@ def _build_document() -> PdfDocument:
 
 def _build_text_only_document() -> PdfDocument:
     text = """
-    Chase Prime Visa Statement
+    Chase Amazon Prime Visa Statement
     ACCOUNT ACTIVITY
     PAYMENTS AND OTHER CREDITS
     09/14 AUTOMATIC PAYMENT - THANK YOU -554.38
@@ -38,7 +38,7 @@ def _build_text_only_document() -> PdfDocument:
 
 def _build_duplicated_glyph_document() -> PdfDocument:
     text = """
-    CChhaassee Prime Visa Statement
+    CChhaassee Amazon Prime Visa Statement
     AACCCCOOUUNNTT AACCTTIIVVIITTYY
     PAYMENTS AND OTHER CREDITS
     07/14 AUTOMATIC PAYMENT - THANK YOU -2,742.06
@@ -63,6 +63,7 @@ def test_chase_extractor_extracts_transactions() -> None:
     assert grocery.date == date(2024, 11, 27)
     assert grocery.amount == -127.34  # sale should be negative
     assert grocery.original_description == "WHOLEFDS #10234"
+    assert result.metadata.account_name == "Chase Account"
 
 
 def test_detect_extractor_returns_chase() -> None:
@@ -78,6 +79,7 @@ def test_text_only_document_supported() -> None:
     result = extractor.extract(document)
     assert len(result.transactions) == 1
     assert result.transactions[0].merchant == "WHOLEFDS #10234"
+    assert result.metadata.account_name == "Amazon Prime Visa"
 
 
 def test_keyword_search_handles_duplicated_letters() -> None:
@@ -90,6 +92,7 @@ def test_document_with_duplicated_glyphs_supported() -> None:
     extractor = detect_extractor(document)
     assert isinstance(extractor, ChaseExtractor)
     result = extractor.extract(document)
+    assert result.metadata.account_name == "Amazon Prime Visa"
     # Payment should be filtered as a credit; only the purchase remains.
     assert len(result.transactions) == 1
     txn = result.transactions[0]

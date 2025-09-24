@@ -1,10 +1,9 @@
-# AGENTS.md
-
 # General
 
 - Write comments in the code if it will help a future LLM understand details or nuance about how the code works.
 
 # How to write implementation plans
+- Prefix the plan name with "plan_" and suffix with a date like "_092325"
 - Read the specs carefully to understand the requirements and the overall architecture.
 - Use markdown to write plans.
 - Use checkboxes to track progress on todo items.
@@ -27,8 +26,8 @@ You may be given an implementation plan to work through. If so, here are guideli
 
 # fin-enhance Review Process
 
-## Review Mode JSON Output
-When using `fin-enhance --review-mode json`, transactions requiring review are output in this format:
+## Review JSON Output
+When running `fin-enhance transactions.csv --review-output review.json`, the unresolved transactions are written in this format:
 ```json
 {
   "version": "1.0",

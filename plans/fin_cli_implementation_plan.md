@@ -53,10 +53,10 @@
 - [x] Implement CSV reader pipeline converting rows into `Transaction` objects, performing validation and normalization (dates, amounts, merchant names).
 - [x] Implement rule-based categorizer leveraging `merchant_patterns` table before introducing LLM usage.
 - [x] Implement transaction deduplication logic with configurable override via `--force` flag.
-- [x] Phase 4a: Implement JSON review queue export (`--review-mode json`) capturing uncategorized transactions and new category suggestions.
+- [x] Phase 4a: Implement JSON review queue export capturing uncategorized transactions and new category suggestions.
 - [x] Phase 4a: Implement `--apply-review` to persist decisions (with optional pattern learning).
-- [x] Phase 4b: Implement interactive review mode (terminal prompts) layered on top of the review queue APIs.
-  - Notes: 2025-09-24 — Added interactive CLI session with category proposals, manual categorization, merchant learning toggles, and post-session summary reporting.
+- [ ] Phase 4b: Interactive review experience (de-scoped in favor of JSON agent workflow).
+  - Notes: 2025-09-24 — Interactive terminal prompts removed; JSON export is the primary review path.
 - [x] Persist categorization decisions, updating `categories`, `merchant_patterns`, and transaction records with method + confidence metadata.
 - [x] Add CLI dry-run path that surfaces planned inserts/updates without committing.
   - Notes: 2025-09-19 — added CSV importer, rules engine using merchant patterns/history, `--force` override, dry-run summaries, JSON review export/apply workflow, and tests covering importer, categorizer, CLI, and review application.

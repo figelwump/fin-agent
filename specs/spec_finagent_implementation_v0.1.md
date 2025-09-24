@@ -92,7 +92,7 @@ CREATE TABLE transactions (
     import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     categorization_confidence REAL,
     categorization_method TEXT,
-    needs_review BOOLEAN DEFAULT FALSE,
+    fingerprint TEXT NOT NULL UNIQUE,
     FOREIGN KEY (account_id) REFERENCES accounts(id),
     FOREIGN KEY (category_id) REFERENCES categories(id)
 );
@@ -164,7 +164,6 @@ categorization:
     
   confidence:
     auto_approve: 0.8
-    needs_review: 0.5
 ```
 
 #### 5. Migration System
@@ -227,7 +226,7 @@ categorization:
 #### Phase 2: Intelligence Layer (Week 2)  
 - LLM integration for categorization (GPT-4o-mini)
 - Dynamic category creation system
-- Review modes (interactive, JSON)
+- Review queue export (JSON)
 - Merchant pattern learning
 
 #### Phase 3: Bank Support & Analysis (Week 3)
