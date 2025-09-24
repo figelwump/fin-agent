@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import date
 
+from fin_cli.fin_enhance.categorizer.llm_client import merchant_pattern_key
 from fin_cli.fin_enhance.categorizer.rules import RuleCategorizer
 from fin_cli.shared import models
 
@@ -27,7 +28,9 @@ def _setup_db() -> sqlite3.Connection:
             category_id INTEGER,
             confidence REAL,
             learned_date TIMESTAMP,
-            usage_count INTEGER DEFAULT 0
+            usage_count INTEGER DEFAULT 0,
+            pattern_display TEXT,
+            metadata TEXT
         );
         CREATE TABLE transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +43,8 @@ def _setup_db() -> sqlite3.Connection:
             import_date TIMESTAMP,
             categorization_confidence REAL,
             categorization_method TEXT,
-            fingerprint TEXT UNIQUE
+            fingerprint TEXT UNIQUE,
+            metadata TEXT
         );
         """
     )
@@ -50,14 +54,26 @@ def _setup_db() -> sqlite3.Connection:
 def test_rule_categorizer_uses_patterns() -> None:
     conn = _setup_db()
     conn.execute("INSERT INTO categories (category, subcategory) VALUES ('Food', 'Groceries')")
+    pattern = merchant_pattern_key("WHOLEFDS #10234")
     conn.execute(
-        "INSERT INTO merchant_patterns (pattern, category_id, confidence) VALUES (?, ?, ?)",
-        ("WHOLEFDS #10234", 1, 0.95),
+        """
+        INSERT INTO merchant_patterns (
+            pattern,
+            category_id,
+            confidence,
+            pattern_display,
+            metadata
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (pattern, 1, 0.95, "Whole Foods Market", '{"platform":"InStore"}'),
     )
     categorizer = RuleCategorizer(conn)
     outcome = categorizer.categorize("WHOLEFDS #10234")
     assert outcome.category_id == 1
     assert outcome.needs_review is False
+    assert outcome.pattern_key == pattern
+    assert outcome.pattern_display == "Whole Foods Market"
+    assert outcome.merchant_metadata == {"platform": "InStore"}
     updated = conn.execute(
         "SELECT usage_count FROM merchant_patterns WHERE pattern = ?",
         ("WHOLEFDS #10234",),

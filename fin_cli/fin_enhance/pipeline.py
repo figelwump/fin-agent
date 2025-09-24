@@ -160,6 +160,17 @@ class ImportPipeline:
         stats = ImportStats()
         for txn, outcome in zip(transactions, outcomes, strict=False):
             account_id = self._resolve_account_id(txn)
+            metadata_payload = None
+            if outcome.pattern_key or outcome.pattern_display or outcome.merchant_metadata:
+                # Persist merchant enrichment details so downstream analysis/reporting can reuse
+                # the canonical display name and any extra metadata emitted by the LLM.
+                metadata_payload = {}
+                if outcome.pattern_key:
+                    metadata_payload["merchant_pattern_key"] = outcome.pattern_key
+                if outcome.pattern_display:
+                    metadata_payload["merchant_pattern_display"] = outcome.pattern_display
+                if outcome.merchant_metadata:
+                    metadata_payload["merchant_metadata"] = dict(outcome.merchant_metadata)
             model_txn = models.Transaction(
                 date=txn.date,
                 merchant=txn.merchant,
@@ -170,6 +181,7 @@ class ImportPipeline:
                 original_description=txn.original_description,
                 categorization_confidence=outcome.confidence if outcome.category_id else None,
                 categorization_method=outcome.method,
+                metadata=metadata_payload,
             )
             inserted = models.insert_transaction(
                 self.connection,

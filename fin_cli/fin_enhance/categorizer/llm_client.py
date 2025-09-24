@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 from fin_cli.shared.config import AppConfig
@@ -43,11 +43,37 @@ class LLMResult:
     """Aggregated LLM result for a merchant."""
 
     merchant_normalized: str
-    suggestions: list[LLMSuggestion]
+    pattern_key: str | None = None
+    pattern_display: str | None = None
+    merchant_metadata: Mapping[str, Any] | None = None
+    suggestions: list[LLMSuggestion] = field(default_factory=list)
 
 
 class LLMClientError(RuntimeError):
     """Raised when the LLM client cannot fulfill a request."""
+
+
+_TRANSACTION_ID_RE = re.compile(r"\b\d{10,16}\b")
+_PHONE_RE = re.compile(r"\d{3}[-.]?\d{3}[-.]?\d{4}")
+_DATE_RE = re.compile(r"\b\d{2}[-/]\d{2}\b")
+_URL_RE = re.compile(r"\b[\w.-]+\.\w{2,4}\b", re.IGNORECASE)
+_ORDER_PREFIX_RE = re.compile(r"^[A-Z0-9]+\s*\*\d+\s*", re.IGNORECASE)
+_STRIP_PATTERNS = (_TRANSACTION_ID_RE, _PHONE_RE, _DATE_RE, _URL_RE)
+
+
+def _normalize_metadata(value: Any) -> dict[str, Any] | None:
+    """Normalize arbitrary metadata payloads from the LLM."""
+
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        normalized: dict[str, Any] = {}
+        for key, val in value.items():
+            if key is None:
+                continue
+            normalized[str(key)] = val
+        return normalized if normalized else None
+    return None
 
 
 def normalize_merchant(merchant: str) -> str:
@@ -58,26 +84,40 @@ def normalize_merchant(merchant: str) -> str:
 
 
 def merchant_pattern_key(merchant: str) -> str:
-    """Derive a pattern key used to learn merchant-specific rules.
+    """Return a deterministic lookup key for merchant pattern learning.
 
-    We strip volatile order identifiers that often appear after a '*' token so
-    that future variants (e.g., different Amazon order numbers) map to the same
-    learned pattern. The remaining string is collapsed to single spaces and
-    truncated for storage stability.
+    Cleans known volatile tokens (ticket IDs, phone numbers, dates, URLs, order
+    prefixes) while retaining a stable brand token to reuse for future matches.
     """
 
     normalized = normalize_merchant(merchant)
-    if "*" in normalized:
-        prefix, rest = normalized.split("*", 1)
+    if not normalized:
+        return normalized
+
+    cleaned = _ORDER_PREFIX_RE.sub("", normalized)
+
+    if "*" in cleaned:
+        prefix, rest = cleaned.split("*", 1)
         rest = rest.lstrip()
         suffix = ""
         if rest:
             parts = rest.split(" ", 1)
             if len(parts) == 2:
                 suffix = parts[1]
-        normalized = f"{prefix.strip()} {suffix.strip()}".strip()
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    return normalized[:80]
+        cleaned = f"{prefix.strip()} {suffix.strip()}".strip()
+
+    for pattern in _STRIP_PATTERNS:
+        cleaned = pattern.sub(" ", cleaned)
+
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if not cleaned:
+        tokens = normalized.split()
+        if tokens:
+            cleaned = tokens[0].split(".", 1)[0].strip()
+    cleaned = cleaned.strip()
+    if not cleaned:
+        cleaned = normalized
+    return cleaned[:80]
 
 
 class LLMClient:
@@ -120,7 +160,6 @@ class LLMClient:
         except Exception as exc:  # pragma: no cover - defensive
             self._logger.error(f"Failed to initialize OpenAI client: {exc}")
             return None
-
     def build_payload(
         self,
         items: Mapping[str, list[LLMRequestItem]],
@@ -134,6 +173,7 @@ class LLMClient:
             merchants.append(
                 {
                     "merchant_normalized": merchant_key,
+                    "pattern_key": merchant_key,
                     "transactions": [
                         {
                             "merchant": item.merchant,
@@ -227,10 +267,22 @@ class LLMClient:
         for entry in merchants_data:
             if not isinstance(entry, Mapping):
                 continue
-            key = entry.get("merchant_normalized")
+            key_raw = entry.get("merchant_normalized") or entry.get("pattern_key")
             suggestions_data = entry.get("suggestions", [])
-            if not key or not isinstance(suggestions_data, Iterable):
+            if not key_raw or not isinstance(suggestions_data, Iterable):
                 continue
+            key_norm = normalize_merchant(str(key_raw))
+            pattern_key_raw = entry.get("pattern_key")
+            pattern_key_norm = (
+                normalize_merchant(str(pattern_key_raw)) if pattern_key_raw else key_norm
+            )
+            if not pattern_key_norm:
+                pattern_key_norm = key_norm
+            pattern_display_raw = entry.get("pattern_display")
+            pattern_display = (
+                str(pattern_display_raw).strip() if pattern_display_raw else None
+            )
+            metadata_entry = entry.get("metadata")
             suggestions: list[LLMSuggestion] = []
             for suggestion in suggestions_data:
                 if not isinstance(suggestion, Mapping):
@@ -255,23 +307,31 @@ class LLMClient:
                     )
                 )
             if suggestions:
-                results[str(key)] = LLMResult(
-                    merchant_normalized=str(key),
+                results[key_norm] = LLMResult(
+                    merchant_normalized=key_norm,
+                    pattern_key=pattern_key_norm,
+                    pattern_display=pattern_display,
+                    merchant_metadata=_normalize_metadata(metadata_entry),
                     suggestions=suggestions,
                 )
         return results
 
     def _build_prompt(self, payload_json: str) -> list[Dict[str, Any]]:
         system_prompt = (
-            "You categorize financial transactions. Return JSON with 'merchants', each containing "
-            "'merchant_normalized' and 'suggestions'. Each suggestion must include 'category', "
-            "'subcategory', 'confidence' (0-1 float), 'is_new_category' (boolean), and optional 'notes'. "
-            "Use the provided merchant data and do not invent amounts or dates."
+            "You categorize financial transactions. Return JSON with a 'merchants' array. Each "
+            "merchant must include: 'merchant_normalized' (echo of the provided key), 'pattern_key' "
+            "(uppercase canonical brand with no ticket IDs, phone numbers, dates, URLs, or order "
+            "numbers), 'pattern_display' (human-friendly label such as 'DoorDash • Dosa Point'), an "
+            "optional 'metadata' object with enrichment fields (e.g., {'platform':'DoorDash', "
+            "'restaurant_name':'Dosa Point'}), and 'suggestions'. Each suggestion must include "
+            "'category', 'subcategory', 'confidence' (0-1 float), 'is_new_category' (boolean), and "
+            "optional 'notes'. Use only the provided merchant data; do not invent amounts or dates."
         )
         user_prompt = (
-            "Categorize these merchants. Use existing consumer finance category hierarchies when "
-            "possible (e.g., 'Food & Dining' > 'Groceries'). Flag suggestions as new categories only "
-            "when no close match exists."
+            "Categorize these merchants. Reuse existing consumer finance category hierarchies "
+            "whenever possible (e.g., 'Food & Dining' > 'Groceries'). Promote new categories only "
+            "when no close match exists. Provide a stable canonical brand in 'pattern_key' and a "
+            "friendly display name in 'pattern_display'."
         )
         # Responses API requires explicit block types (e.g., input_text) instead of bare strings.
         # The SDK no longer supports structured input blocks like input_json, so we inline
@@ -333,25 +393,31 @@ class LLMClient:
 def serialize_llm_results(results: Mapping[str, LLMResult]) -> str:
     """Serialize LLM results for caching."""
 
-    payload = {
-        "merchants": [
-            {
-                "merchant_normalized": key,
-                "suggestions": [
-                    {
-                        "category": suggestion.category,
-                        "subcategory": suggestion.subcategory,
-                        "confidence": suggestion.confidence,
-                        "is_new_category": suggestion.is_new_category,
-                        "notes": suggestion.notes,
-                    }
-                    for suggestion in result.suggestions
-                ],
-            }
-            for key, result in results.items()
-        ]
-    }
-    return json.dumps(payload)
+    merchants: list[dict[str, Any]] = []
+    for key, result in results.items():
+        merchant_key = result.merchant_normalized or key
+        entry: dict[str, Any] = {
+            "merchant_normalized": merchant_key,
+            "pattern_key": result.pattern_key or merchant_key,
+            "suggestions": [
+                {
+                    "category": suggestion.category,
+                    "subcategory": suggestion.subcategory,
+                    "confidence": suggestion.confidence,
+                    "is_new_category": suggestion.is_new_category,
+                    "notes": suggestion.notes,
+                }
+                for suggestion in result.suggestions
+            ],
+        }
+        if result.pattern_display:
+            entry["pattern_display"] = result.pattern_display
+        if result.merchant_metadata:
+            entry["metadata"] = dict(result.merchant_metadata)
+        merchants.append(entry)
+
+    payload = {"merchants": merchants}
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def deserialize_llm_results(raw: str) -> dict[str, LLMResult]:
@@ -370,10 +436,16 @@ def deserialize_llm_results(raw: str) -> dict[str, LLMResult]:
     for entry in merchants:
         if not isinstance(entry, Mapping):
             continue
-        key = entry.get("merchant_normalized")
+        key_raw = entry.get("merchant_normalized") or entry.get("pattern_key")
         suggestions_data = entry.get("suggestions", [])
-        if not key or not isinstance(suggestions_data, Iterable):
+        if not key_raw or not isinstance(suggestions_data, Iterable):
             continue
+        key_norm = normalize_merchant(str(key_raw))
+        pattern_key_raw = entry.get("pattern_key")
+        pattern_key_norm = normalize_merchant(str(pattern_key_raw)) if pattern_key_raw else key_norm
+        pattern_display_raw = entry.get("pattern_display")
+        metadata_entry = entry.get("metadata")
+
         suggestions: list[LLMSuggestion] = []
         for suggestion in suggestions_data:
             if not isinstance(suggestion, Mapping):
@@ -396,8 +468,11 @@ def deserialize_llm_results(raw: str) -> dict[str, LLMResult]:
                 )
             )
         if suggestions:
-            results[str(key)] = LLMResult(
-                merchant_normalized=str(key),
+            results[key_norm] = LLMResult(
+                merchant_normalized=key_norm,
+                pattern_key=pattern_key_norm or key_norm,
+                pattern_display=str(pattern_display_raw).strip() if pattern_display_raw else None,
+                merchant_metadata=_normalize_metadata(metadata_entry),
                 suggestions=suggestions,
             )
     return results

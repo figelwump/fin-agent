@@ -11,8 +11,8 @@ from fin_cli.fin_enhance.importer import CSVImportError, load_csv_transactions
 def test_load_csv_transactions(tmp_path: Path) -> None:
     csv_path = tmp_path / "transactions.csv"
     csv_path.write_text(
-        "date,merchant,amount,original_description,account_id\n"
-        "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,1\n",
+        "date,merchant,amount,original_description,account_name,institution,account_type,account_id\n"
+        "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,Test Account,Test Bank,credit,1\n",
         encoding="utf-8",
     )
     result = load_csv_transactions(csv_path)
@@ -22,6 +22,7 @@ def test_load_csv_transactions(tmp_path: Path) -> None:
     assert txn.merchant == "WHOLEFDS #10234"
     assert txn.amount == -127.34
     assert txn.account_id == 1
+    assert txn.account_name == "Test Account"
 
 
 def test_load_csv_transactions_missing_column(tmp_path: Path) -> None:

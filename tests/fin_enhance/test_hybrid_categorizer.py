@@ -15,7 +15,6 @@ from fin_cli.fin_enhance.categorizer.llm_client import (
     LLMResult,
     LLMSuggestion,
     merchant_pattern_key,
-    normalize_merchant,
 )
 from fin_cli.fin_enhance.importer import ImportedTransaction
 from fin_cli.shared import models
@@ -93,14 +92,17 @@ def _init_db() -> sqlite3.Connection:
             import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             categorization_confidence REAL,
             categorization_method TEXT,
-            fingerprint TEXT UNIQUE
+            fingerprint TEXT UNIQUE,
+            metadata TEXT
         );
         CREATE TABLE merchant_patterns (
             pattern TEXT PRIMARY KEY,
             category_id INTEGER,
             confidence REAL,
             learned_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            usage_count INTEGER DEFAULT 0
+            usage_count INTEGER DEFAULT 0,
+            pattern_display TEXT,
+            metadata TEXT
         );
         CREATE TABLE llm_cache (
             merchant_normalized TEXT PRIMARY KEY,
@@ -141,6 +143,19 @@ def _make_transaction(merchant: str) -> ImportedTransaction:
     )
 
 
+def test_merchant_pattern_key_strips_noise() -> None:
+    key = merchant_pattern_key("UNITED 0164315356024 UNITED.COM TX")
+    assert "0164315356024" not in key
+    assert ".COM" not in key
+    dd_key = merchant_pattern_key("DD DOSAPOINT 855-431-0459 CA")
+    assert "855" not in dd_key and "DOSAPOINT" in dd_key
+    lyft_key = merchant_pattern_key("LYFT *1 RIDE")
+    assert lyft_key == "RIDE"
+    amazon_a = merchant_pattern_key("Amazon.com*random123 AMZN.COM/BILL WA")
+    amazon_b = merchant_pattern_key("Amazon.com*NEWID123 AMZN.COM/BILL WA")
+    assert amazon_a == amazon_b
+
+
 def test_hybrid_auto_assigns_high_confidence() -> None:
     conn = _init_db()
     conn.execute("INSERT INTO categories (category, subcategory, auto_generated, user_approved) VALUES (?, ?, ?, ?)",
@@ -148,14 +163,22 @@ def test_hybrid_auto_assigns_high_confidence() -> None:
     logger = Logger(verbose=False)
     config = _make_config()
     categorizer = HybridCategorizer(conn, config, logger, track_usage=False)
-    merchant_key = normalize_merchant("NEW SHOP")
+    merchant_key = merchant_pattern_key("NEW SHOP")
     suggestion = LLMSuggestion(
         category="Food & Dining",
         subcategory="Groceries",
         confidence=0.92,
         is_new_category=False,
     )
-    mapping = {merchant_key: LLMResult(merchant_key, [suggestion])}
+    mapping = {
+        merchant_key: LLMResult(
+            merchant_normalized=merchant_key,
+            pattern_key="NEW SHOP",
+            pattern_display="New Shop",
+            merchant_metadata={"platform": "Test"},
+            suggestions=[suggestion],
+        )
+    }
     categorizer.llm_client = DummyLLMClient(mapping)
 
     transactions = [_make_transaction("NEW SHOP")]
@@ -170,9 +193,19 @@ def test_hybrid_auto_assigns_high_confidence() -> None:
 
     assert result.outcomes[0].category_id == 1
     assert result.outcomes[0].needs_review is False
+    assert result.outcomes[0].pattern_key == merchant_key
+    assert result.outcomes[0].pattern_display == "New Shop"
+    assert result.outcomes[0].merchant_metadata == {"platform": "Test"}
     assert not result.transaction_reviews
     cache_row = conn.execute("SELECT response_json FROM llm_cache WHERE merchant_normalized = ?", (merchant_key,)).fetchone()
     assert cache_row is not None
+    pattern_row = conn.execute(
+        "SELECT pattern_display, metadata FROM merchant_patterns WHERE pattern = ?",
+        (merchant_key,),
+    ).fetchone()
+    assert pattern_row is not None
+    assert pattern_row["pattern_display"] == "New Shop"
+    assert "platform" in (pattern_row["metadata"] or "")
 
 
 def test_hybrid_creates_missing_category_for_high_confidence() -> None:
@@ -181,14 +214,22 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
     config = _make_config()
     categorizer = HybridCategorizer(conn, config, logger, track_usage=False)
     example_merchant = "Amazon.com*random123 AMZN.COM/BILL WA"
-    merchant_key = normalize_merchant(example_merchant)
+    merchant_key = merchant_pattern_key(example_merchant)
     suggestion = LLMSuggestion(
         category="Shopping",
         subcategory="Online Retail",
         confidence=0.9,
         is_new_category=False,
     )
-    mapping = {merchant_key: LLMResult(merchant_key, [suggestion])}
+    mapping = {
+        merchant_key: LLMResult(
+            merchant_normalized=merchant_key,
+            pattern_key="AMAZON",
+            pattern_display="Amazon",
+            merchant_metadata=None,
+            suggestions=[suggestion],
+        )
+    }
     categorizer.llm_client = DummyLLMClient(mapping)
 
     transactions = [_make_transaction(example_merchant)]
@@ -227,7 +268,12 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
     assert result_second.outcomes[0].category_id is None
     assert result_second.outcomes[0].needs_review is True
     assert result_second.transaction_reviews  # still queued because category not approved yet
-    assert categorizer.llm_client.calls  # LLM invoked since no pattern available
+    assert categorizer.llm_client.calls == []  # cache satisfied without new LLM call
+    cache_row = conn.execute(
+        "SELECT response_json FROM llm_cache WHERE merchant_normalized = ?",
+        (merchant_key,),
+    ).fetchone()
+    assert cache_row is not None
 
 
 def test_hybrid_flags_review_when_below_auto_threshold() -> None:
@@ -237,14 +283,22 @@ def test_hybrid_flags_review_when_below_auto_threshold() -> None:
     logger = Logger(verbose=False)
     config = _make_config()
     categorizer = HybridCategorizer(conn, config, logger, track_usage=False)
-    merchant_key = normalize_merchant("AMBIG SHOP")
+    merchant_key = merchant_pattern_key("AMBIG SHOP")
     suggestion = LLMSuggestion(
         category="Food & Dining",
         subcategory="Groceries",
         confidence=0.6,
         is_new_category=False,
     )
-    mapping = {merchant_key: LLMResult(merchant_key, [suggestion])}
+    mapping = {
+        merchant_key: LLMResult(
+            merchant_normalized=merchant_key,
+            pattern_key="AMBIG SHOP",
+            pattern_display="Ambig Shop",
+            merchant_metadata=None,
+            suggestions=[suggestion],
+        )
+    }
     categorizer.llm_client = DummyLLMClient(mapping)
 
     transactions = [_make_transaction("AMBIG SHOP")]
@@ -296,14 +350,22 @@ def test_hybrid_new_category_requires_review_even_with_support() -> None:
     logger = Logger(verbose=False)
     config = _make_config()
     categorizer = HybridCategorizer(conn, config, logger, track_usage=False)
-    merchant_key = normalize_merchant("GREEN CO")
+    merchant_key = merchant_pattern_key("GREEN CO")
     suggestion = LLMSuggestion(
         category="Eco Living",
         subcategory="Sustainable Goods",
         confidence=0.9,
         is_new_category=True,
     )
-    mapping = {merchant_key: LLMResult(merchant_key, [suggestion])}
+    mapping = {
+        merchant_key: LLMResult(
+            merchant_normalized=merchant_key,
+            pattern_key="GREEN CO",
+            pattern_display="Green Co",
+            merchant_metadata=None,
+            suggestions=[suggestion],
+        )
+    }
     categorizer.llm_client = DummyLLMClient(mapping)
 
     transactions = [_make_transaction("GREEN CO") for _ in range(3)]

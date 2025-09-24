@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from dataclasses import dataclass
+from typing import Any, Mapping
 
 from fin_cli.shared import models
 
@@ -16,6 +18,9 @@ class CategorizationOutcome:
     confidence: float
     method: str | None
     needs_review: bool
+    pattern_key: str | None = None
+    pattern_display: str | None = None
+    merchant_metadata: Mapping[str, Any] | None = None
 
 
 class RuleCategorizer:
@@ -51,6 +56,15 @@ class RuleCategorizer:
         if category_id is None:
             return None
         confidence = float(best["confidence"] or 0.8)
+        pattern_key = str(best["pattern"]) if best["pattern"] else None
+        pattern_display = str(best["pattern_display"]).strip() if best["pattern_display"] else None
+        merchant_metadata = None
+        raw_metadata = best["metadata"] if "metadata" in best.keys() else None
+        if raw_metadata:
+            try:
+                merchant_metadata = json.loads(raw_metadata)
+            except json.JSONDecodeError:
+                merchant_metadata = None
         # update usage count for analytics
         if self.track_usage:
             self.connection.execute(
@@ -62,6 +76,9 @@ class RuleCategorizer:
             confidence=confidence,
             method="rule:pattern",
             needs_review=False,
+            pattern_key=pattern_key,
+            pattern_display=pattern_display,
+            merchant_metadata=merchant_metadata,
         )
 
     def _from_history(self, merchant: str) -> CategorizationOutcome | None:

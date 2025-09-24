@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from datetime import date
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 
 import sqlite3
+import json
 
 from .exceptions import DatabaseError
 
@@ -41,6 +42,7 @@ class Transaction:
     original_description: str | None = None
     categorization_confidence: float | None = None
     categorization_method: str | None = None
+    metadata: Mapping[str, Any] | None = None
 
     def fingerprint(self) -> str:
         return compute_transaction_fingerprint(
@@ -173,6 +175,8 @@ def insert_transaction(
             (fingerprint,),
         ).fetchone()
 
+    metadata_json = _serialize_metadata(transaction.metadata)
+
     if row:
         if allow_update:
             connection.execute(
@@ -180,13 +184,15 @@ def insert_transaction(
                 UPDATE transactions
                 SET category_id = COALESCE(?, category_id),
                     categorization_confidence = COALESCE(?, categorization_confidence),
-                    categorization_method = COALESCE(?, categorization_method)
+                    categorization_method = COALESCE(?, categorization_method),
+                    metadata = COALESCE(?, metadata)
                 WHERE id = ?
                 """,
                 (
                     transaction.category_id,
                     transaction.categorization_confidence,
                     transaction.categorization_method,
+                    metadata_json,
                     int(row[0]),
                 ),
             )
@@ -203,8 +209,9 @@ def insert_transaction(
             original_description,
             categorization_confidence,
             categorization_method,
-            fingerprint
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            fingerprint,
+            metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             transaction.date.isoformat(),
@@ -216,6 +223,7 @@ def insert_transaction(
             transaction.categorization_confidence,
             transaction.categorization_method,
             fingerprint,
+            metadata_json,
         ),
     )
     return True
@@ -274,18 +282,35 @@ def record_merchant_pattern(
     pattern: str,
     category_id: int,
     confidence: float,
+    pattern_display: str | None = None,
+    metadata: Mapping[str, Any] | str | None = None,
 ) -> None:
     """Insert or update a learned merchant pattern."""
+
+    metadata_json = _serialize_metadata(metadata)
     connection.execute(
         """
-        INSERT INTO merchant_patterns (pattern, category_id, confidence, learned_date, usage_count)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP, 0)
+        INSERT INTO merchant_patterns (
+            pattern,
+            category_id,
+            confidence,
+            learned_date,
+            usage_count,
+            pattern_display,
+            metadata
+        )
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP, 0, ?, ?)
         ON CONFLICT(pattern) DO UPDATE SET
             category_id = excluded.category_id,
             confidence = excluded.confidence,
+            pattern_display = COALESCE(excluded.pattern_display, merchant_patterns.pattern_display),
+            metadata = CASE
+                WHEN excluded.metadata IS NOT NULL THEN excluded.metadata
+                ELSE merchant_patterns.metadata
+            END,
             learned_date = CURRENT_TIMESTAMP
         """,
-        (pattern, category_id, confidence),
+        (pattern, category_id, confidence, pattern_display, metadata_json),
     )
 
 
@@ -437,3 +462,18 @@ def bulk_insert_transactions(
         except sqlite3.IntegrityError as exc:  # pragma: no cover - defensive
             raise DatabaseError(str(exc)) from exc
     return inserted, duplicates
+
+
+def _serialize_metadata(metadata: Mapping[str, Any] | str | None) -> str | None:
+    """Return a stable JSON string for metadata storage."""
+
+    if metadata is None:
+        return None
+    if isinstance(metadata, str):
+        stripped = metadata.strip()
+        return stripped or None
+    if not isinstance(metadata, Mapping):
+        raise TypeError("metadata must be a mapping, string, or None")
+    if not metadata:
+        return None
+    return json.dumps(metadata, ensure_ascii=False, separators=(",", ":"), sort_keys=True)

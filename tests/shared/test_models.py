@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 
 from fin_cli.shared import paths
@@ -68,6 +69,8 @@ def test_record_merchant_pattern_overwrites(tmp_path) -> None:
             pattern="STARBUCKS",
             category_id=category_id,
             confidence=0.9,
+            pattern_display="Starbucks",
+            metadata={"platform": "InStore"},
         )
         models.record_merchant_pattern(
             connection,
@@ -76,7 +79,32 @@ def test_record_merchant_pattern_overwrites(tmp_path) -> None:
             confidence=0.8,
         )
         rows = connection.execute(
-            "SELECT confidence FROM merchant_patterns WHERE pattern = ?",
+            "SELECT confidence, pattern_display, metadata FROM merchant_patterns WHERE pattern = ?",
             ("STARBUCKS",),
         ).fetchone()
         assert abs(rows[0] - 0.8) < 1e-6
+        assert rows["pattern_display"] == "Starbucks"
+        metadata = json.loads(rows["metadata"])
+        assert metadata == {"platform": "InStore"}
+
+
+def test_insert_transaction_persists_metadata(tmp_path) -> None:
+    config = _config(tmp_path)
+    run_migrations(config)
+    with connect(config) as connection:
+        txn = models.Transaction(
+            date=date(2024, 11, 2),
+            merchant="DD DOSAPOINT",
+            amount=-24.5,
+            metadata={
+                "merchant_pattern_key": "DD DOSAPOINT",
+                "merchant_pattern_display": "DoorDash • Dosa Point",
+                "merchant_metadata": {"platform": "DoorDash", "restaurant_name": "Dosa Point"},
+            },
+        )
+        assert models.insert_transaction(connection, txn) is True
+        row = connection.execute("SELECT metadata FROM transactions").fetchone()
+        assert row is not None and row["metadata"]
+        stored = json.loads(row["metadata"])
+        assert stored["merchant_pattern_display"] == "DoorDash • Dosa Point"
+        assert stored["merchant_metadata"]["restaurant_name"] == "Dosa Point"

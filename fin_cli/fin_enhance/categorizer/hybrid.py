@@ -126,7 +126,8 @@ class HybridCategorizer:
                     if detail.review is not None:
                         transaction_reviews.append(detail.review)
                 else:
-                    merchant_key = normalize_merchant(txn.merchant)
+                    pattern_key = merchant_pattern_key(txn.merchant)
+                    merchant_key = pattern_key or normalize_merchant(txn.merchant)
                     merchant_batches[merchant_key].append((idx, txn))
 
         if merchant_batches and not self.llm_client.enabled:
@@ -150,7 +151,7 @@ class HybridCategorizer:
                 if result:
                     detail = self._apply_llm_suggestions(
                         txn,
-                        result.suggestions,
+                        result,
                         options,
                         category_proposals_map,
                         auto_created,
@@ -231,11 +232,12 @@ class HybridCategorizer:
     def _apply_llm_suggestions(
         self,
         txn: ImportedTransaction,
-        suggestions: Sequence[LLMSuggestion],
+        llm_result: LLMResult,
         options: CategorizationOptions,
         category_proposals_map: dict[tuple[str, str], CategoryProposal],
         auto_created: list[tuple[str, str]],
     ) -> "HybridCategorizer._LLMDetail":
+        suggestions = llm_result.suggestions
         if not suggestions:
             return self._fallback_review(txn)
 
@@ -262,6 +264,12 @@ class HybridCategorizer:
         needs_review = True
         method: str | None = None
         confidence = best.confidence
+        # Use deterministic regex-normalized key for lookups to avoid re-contacting the LLM
+        deterministic_pattern = merchant_pattern_key(txn.merchant) or llm_result.merchant_normalized
+        pattern_display = llm_result.pattern_display or llm_result.pattern_key
+        merchant_metadata = dict(llm_result.merchant_metadata) if llm_result.merchant_metadata else {}
+        if llm_result.pattern_key and llm_result.pattern_key != deterministic_pattern:
+            merchant_metadata.setdefault("canonical_pattern_key", llm_result.pattern_key)
 
         existing_category_id = models.find_category_id(
             self.connection,
@@ -292,11 +300,21 @@ class HybridCategorizer:
             confidence=confidence if category_id else 0.0,
             method=method,
             needs_review=needs_review,
+            pattern_key=deterministic_pattern,
+            pattern_display=pattern_display,
+            merchant_metadata=merchant_metadata or None,
         )
 
         if not needs_review:
             if category_id is not None and options.apply_side_effects:
-                self._record_merchant_pattern(txn, category_id, confidence)
+                self._record_merchant_pattern(
+                    txn,
+                    category_id,
+                    confidence,
+                    pattern_key=deterministic_pattern,
+                    pattern_display=pattern_display,
+                    merchant_metadata=merchant_metadata or None,
+                )
             return HybridCategorizer._LLMDetail(outcome=outcome, review=None)
         return HybridCategorizer._LLMDetail(outcome=outcome, review=review_entry)
 
@@ -344,8 +362,17 @@ class HybridCategorizer:
             )
         return None, True, None
 
-    def _record_merchant_pattern(self, txn: ImportedTransaction, category_id: int, confidence: float) -> None:
-        pattern = merchant_pattern_key(txn.merchant)
+    def _record_merchant_pattern(
+        self,
+        txn: ImportedTransaction,
+        category_id: int,
+        confidence: float,
+        *,
+        pattern_key: str | None = None,
+        pattern_display: str | None = None,
+        merchant_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        pattern = pattern_key or merchant_pattern_key(txn.merchant)
         if not pattern:
             return
         models.record_merchant_pattern(
@@ -353,6 +380,8 @@ class HybridCategorizer:
             pattern=pattern,
             category_id=category_id,
             confidence=confidence,
+            pattern_display=pattern_display,
+            metadata=merchant_metadata,
         )
 
     def _fallback_review(self, txn: ImportedTransaction) -> "HybridCategorizer._LLMDetail":

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from click.testing import CliRunner
 
+from fin_cli.fin_enhance.categorizer.llm_client import merchant_pattern_key
 from fin_cli.fin_enhance.main import main as enhance_cli
 from fin_cli.shared import models, paths
 from fin_cli.shared.config import load_config
@@ -28,9 +30,20 @@ def _prepare_db(db_path: Path) -> None:
             auto_generated=False,
             user_approved=True,
         )
+        pattern = merchant_pattern_key("WHOLEFDS #10234")
         connection.execute(
-            "INSERT INTO merchant_patterns (pattern, category_id, confidence, learned_date, usage_count) VALUES (?, ?, ?, CURRENT_TIMESTAMP, 0)",
-            ("WHOLEFDS #10234", category_id, 0.92),
+            """
+            INSERT INTO merchant_patterns (
+                pattern,
+                category_id,
+                confidence,
+                learned_date,
+                usage_count,
+                pattern_display,
+                metadata
+            ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, 0, ?, ?)
+            """,
+            (pattern, category_id, 0.92, "Whole Foods Market", '{"platform":"InStore"}'),
         )
         connection.execute(
             "UPDATE accounts SET id = ? WHERE id = ?",
@@ -70,6 +83,15 @@ def test_cli_import_persists_transactions(tmp_path: Path) -> None:
             "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL"
         ).fetchone()[0]
         assert uncategorized == 1
+        pattern = merchant_pattern_key("WHOLEFDS #10234")
+        txn_row = connection.execute(
+            "SELECT metadata FROM transactions WHERE merchant = ?",
+            ("WHOLEFDS #10234",),
+        ).fetchone()
+        assert txn_row is not None and txn_row["metadata"]
+        metadata = json.loads(txn_row["metadata"])
+        assert metadata["merchant_pattern_key"] == pattern
+        assert metadata["merchant_pattern_display"] == "Whole Foods Market"
 
     review_file = csv_path.with_name(f"{csv_path.stem}-review.json")
     assert review_file.exists()
