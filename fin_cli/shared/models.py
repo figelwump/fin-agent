@@ -36,11 +36,11 @@ class Transaction:
     merchant: str
     amount: float
     account_id: int | None = None
+    account_key: str | None = None
     category_id: int | None = None
     original_description: str | None = None
     categorization_confidence: float | None = None
     categorization_method: str | None = None
-    needs_review: bool = False
 
     def fingerprint(self) -> str:
         return compute_transaction_fingerprint(
@@ -48,6 +48,7 @@ class Transaction:
             self.amount,
             self.merchant,
             self.account_id,
+            self.account_key,
         )
 
 
@@ -56,14 +57,34 @@ def compute_transaction_fingerprint(
     amount: float,
     merchant: str,
     account_id: int | None,
+    account_key: str | None = None,
 ) -> str:
     """Return a deterministic hash for deduplication."""
+    if account_key:
+        account_identifier = account_key
+    elif account_id is not None:
+        account_identifier = str(account_id)
+    else:
+        account_identifier = "0"
     normalized = "|".join(
         [
             txn_date.isoformat(),
             f"{amount:.2f}",
             merchant.strip().lower(),
-            str(account_id or 0),
+            account_identifier,
+        ]
+    )
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def compute_account_key(name: str, institution: str, account_type: str) -> str:
+    """Stable hash representing an account by its descriptive fields."""
+
+    normalized = "|".join(
+        [
+            name.strip().lower(),
+            institution.strip().lower(),
+            account_type.strip().lower(),
         ]
     )
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
@@ -159,15 +180,13 @@ def insert_transaction(
                 UPDATE transactions
                 SET category_id = COALESCE(?, category_id),
                     categorization_confidence = COALESCE(?, categorization_confidence),
-                    categorization_method = COALESCE(?, categorization_method),
-                    needs_review = ?
+                    categorization_method = COALESCE(?, categorization_method)
                 WHERE id = ?
                 """,
                 (
                     transaction.category_id,
                     transaction.categorization_confidence,
                     transaction.categorization_method,
-                    int(transaction.needs_review),
                     int(row[0]),
                 ),
             )
@@ -184,9 +203,8 @@ def insert_transaction(
             original_description,
             categorization_confidence,
             categorization_method,
-            needs_review,
             fingerprint
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             transaction.date.isoformat(),
@@ -197,7 +215,6 @@ def insert_transaction(
             transaction.original_description,
             transaction.categorization_confidence,
             transaction.categorization_method,
-            int(transaction.needs_review),
             fingerprint,
         ),
     )
@@ -227,8 +244,7 @@ def apply_review_decision(
         UPDATE transactions
         SET category_id = ?,
             categorization_confidence = ?,
-            categorization_method = ?,
-            needs_review = 0
+            categorization_method = ?
         WHERE fingerprint = ?
         """,
         (category_id, confidence, method, fingerprint),

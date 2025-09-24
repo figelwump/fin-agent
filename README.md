@@ -32,17 +32,20 @@ Work is organized around the multi-phase implementation plan in
 
 ## Available CLI Entry Points
 
-The package exposes stubbed commands to preserve CLI contracts while
-implementation progresses:
+The package exposes the following commands (phases denote the primary
+implementation milestones from the plan):
 
-- `fin-extract` – PDF statement ingestion (Phase 3)
-- `fin-enhance` – Transaction import and categorization (Phases 4-5)
+- `fin-extract` – PDF statement extractor (Phase 3) — **implemented**; parses
+  statements locally and emits CSV with account metadata, never touching SQLite.
+- `fin-enhance` – Transaction import and categorization (Phases 4-5) — consumes
+  extractor CSVs, upserts accounts, and writes transactions into SQLite with
+  optional LLM-assisted categorization.
 - `fin-query` – Database exploration (Phase 7)
 - `fin-analyze` – Analytical reports (Phase 8)
 - `fin-export` – Markdown report generation (Phase 9)
 
-Each command currently raises a friendly `ClickException` until the relevant
-phase is complete.
+Commands beyond `fin-extract`/`fin-enhance` remain stubs until their phases are
+implemented.
 
 ## Pipe Mode: Composable Unix-style Processing
 
@@ -52,8 +55,8 @@ The tools support Unix-style piping for efficient, composable workflows:
 
 Traditional file-based workflow:
 ```bash
-# Extract to file, then enhance
-fin-extract statement.pdf -o transactions.csv
+# Extract to file, then enhance (fin-extract never touches the DB)
+fin-extract statement.pdf --output transactions.csv
 fin-enhance transactions.csv
 ```
 
@@ -93,9 +96,24 @@ fin-extract statement.pdf | tee extracted.csv | fin-enhance --stdin
 
 ### Limitations
 
-- Interactive review mode (`--review-mode interactive`) is not available with stdin
+- Review JSON export (`--review-output`) is not available with stdin
 - Pipeline breaks lose intermediate data (use `tee` for debugging)
 - Only supports single CSV stream (cannot mix multiple CSVs via stdin)
+
+### CSV Output & Metadata
+
+`fin-extract` writes eight columns so downstream tools can recreate account
+context without touching the database during extraction:
+
+```
+date,merchant,amount,original_description,account_name,institution,account_type,account_key
+```
+
+- `account_name`, `institution`, and `account_type` describe the inferred
+  account. These are required when importing via `fin-enhance`.
+- `account_key` is a deterministic SHA-256 hash based on the three descriptive
+  fields; it helps deduplicate statements before a numeric `account_id` exists.
+- `fin-enhance` recomputes the key if the column is missing (for legacy CSVs).
 
 ## Development Workflow
 

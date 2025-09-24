@@ -31,49 +31,58 @@ class CLIContext:
 pass_cli_context = click.make_pass_decorator(CLIContext)
 
 
-def common_cli_options(func: F) -> F:
+def common_cli_options(
+    func: F | None = None,
+    *,
+    run_migrations_on_start: bool = True,
+) -> F | Callable[[F], F]:
     """Decorator injecting shared CLI options and context creation."""
 
-    @click.option("--config", "config_path", type=click.Path(path_type=str), help="Path to config file.")
-    @click.option("--db", "db_path", type=click.Path(path_type=str), help="Override database path.")
-    @click.option("--dry-run", is_flag=True, help="Preview actions without side effects.")
-    @click.option("--verbose", is_flag=True, help="Enable verbose logging output.")
-    @click.pass_context
-    @functools.wraps(func)
-    def wrapper(
-        ctx: click.Context,
-        *args: Any,
-        config_path: str | None = None,
-        db_path: str | None = None,
-        dry_run: bool = False,
-        verbose: bool = False,
-        **kwargs: Any,
-    ) -> Any:
-        try:
-            app_config = load_config(config_path)
-        except ConfigurationError as exc:
-            raise click.ClickException(str(exc)) from exc
+    def decorator(inner_func: F) -> F:
+        @click.option("--config", "config_path", type=click.Path(path_type=str), help="Path to config file.")
+        @click.option("--db", "db_path", type=click.Path(path_type=str), help="Override database path.")
+        @click.option("--dry-run", is_flag=True, help="Preview actions without side effects.")
+        @click.option("--verbose", is_flag=True, help="Enable verbose logging output.")
+        @click.pass_context
+        @functools.wraps(inner_func)
+        def wrapper(
+            ctx: click.Context,
+            *args: Any,
+            config_path: str | None = None,
+            db_path: str | None = None,
+            dry_run: bool = False,
+            verbose: bool = False,
+            **kwargs: Any,
+        ) -> Any:
+            try:
+                app_config = load_config(config_path)
+            except ConfigurationError as exc:
+                raise click.ClickException(str(exc)) from exc
 
-        logger = get_logger(verbose=verbose)
-        effective_db_path = Path(db_path).expanduser() if db_path else app_config.database.path
-        if db_path:
-            app_config = app_config.with_database_path(effective_db_path)
+            logger = get_logger(verbose=verbose)
+            effective_db_path = Path(db_path).expanduser() if db_path else app_config.database.path
+            if db_path:
+                app_config = app_config.with_database_path(effective_db_path)
 
-        if not dry_run:
-            run_migrations(app_config)
+            if not dry_run and run_migrations_on_start:
+                run_migrations(app_config)
 
-        cli_ctx = CLIContext(
-            config=app_config,
-            db_path=effective_db_path,
-            dry_run=dry_run,
-            verbose=verbose,
-            logger=logger,
-        )
-        ctx.obj = cli_ctx
-        kwargs["cli_ctx"] = cli_ctx
-        return func(*args, **kwargs)
+            cli_ctx = CLIContext(
+                config=app_config,
+                db_path=effective_db_path,
+                dry_run=dry_run,
+                verbose=verbose,
+                logger=logger,
+            )
+            ctx.obj = cli_ctx
+            kwargs["cli_ctx"] = cli_ctx
+            return inner_func(*args, **kwargs)
 
-    return wrapper  # type: ignore[return-value]
+        return wrapper  # type: ignore[return-value]
+
+    if func is not None:
+        return decorator(func)
+    return decorator
 
 
 def handle_cli_errors(func: F) -> F:

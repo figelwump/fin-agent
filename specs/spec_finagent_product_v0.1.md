@@ -20,7 +20,6 @@ A suite of composable command-line tools for processing, analyzing, and visualiz
 fin-extract <file> [options]
   --output <file>     Output CSV file (default: stdout)
   --account-name <name> Override auto-detected account name
-  --no-db             Don't update accounts database
   --verbose           Show extraction progress
   --dry-run           Preview what would be extracted
   --help              Show detailed help and examples
@@ -31,7 +30,7 @@ fin-extract <file> [options]
 # Basic extraction with auto account detection
 $ fin-extract Chase_Statement_Nov_2024.pdf --output nov_transactions.csv
 ✓ Detected: Chase Freedom (Credit Card)
-✓ Created account record: ID 1
+✓ Inferred account: Chase Freedom (credit)
 ✓ Extracted 127 transactions
 ✓ Saved to: nov_transactions.csv
 
@@ -60,12 +59,11 @@ USAGE:
 DESCRIPTION:
   Extracts transaction data from bank/credit card PDF statements.
   All processing happens locally - no data sent to cloud services.
-  Automatically detects and creates account records.
+  Automatically infers account metadata for downstream tools.
 
 OPTIONS:
   --output, -o <file>   Output CSV file (default: stdout)
   --account-name <name> Override auto-detected account name
-  --no-db               Don't update accounts database
   --verbose, -v         Show detailed extraction progress
   --dry-run             Preview without extracting
   --help, -h            Show this help message
@@ -76,7 +74,7 @@ SUPPORTED BANKS (auto-detected):
   - Mercury (business checking)
 
 OUTPUT FORMAT:
-  CSV with columns: date,merchant,amount,original_description,account_id
+  CSV with columns: date,merchant,amount,original_description,account_name,institution,account_type,account_key
 
 EXAMPLES:
   # Basic extraction
@@ -101,10 +99,10 @@ EXIT CODES:
 
 **Output Format (CSV)**:
 ```csv
-date,merchant,amount,original_description,account_id
-2024-11-28,SWEETGREEN #123,-18.47,TST* SWEETGREEN COLONNADE,1
-2024-11-27,WHOLE FOODS,-127.34,WHOLEFDS #10234,1
-2024-11-26,NETFLIX,-15.99,NETFLIX.COM MONTHLY,1
+date,merchant,amount,original_description,account_name,institution,account_type,account_key
+2024-11-28,SWEETGREEN #123,-18.47,TST* SWEETGREEN COLONNADE,Chase Freedom,Chase,credit,8d3e9b5e8d09e1f79c69fe7b1fd44f6e5d77b5ea2b3f5e2a8d3b5c6d7e8f9a0
+2024-11-27,WHOLE FOODS,-127.34,WHOLEFDS #10234,Chase Freedom,Chase,credit,8d3e9b5e8d09e1f79c69fe7b1fd44f6e5d77b5ea2b3f5e2a8d3b5c6d7e8f9a0
+2024-11-26,NETFLIX,-15.99,NETFLIX.COM MONTHLY,Chase Freedom,Chase,credit,8d3e9b5e8d09e1f79c69fe7b1fd44f6e5d77b5ea2b3f5e2a8d3b5c6d7e8f9a0
 ```
 
 ---
@@ -126,196 +124,47 @@ fin-enhance <files...> [options]
   --help                 Show detailed help
 ```
 
-**Review Modes**:
+**Review Workflow**:
 
-#### Interactive Mode (Human)
+Default imports categorize what they can and leave the rest uncategorized. Use `--review-output` to export unresolved transactions for an agent, then apply the agent's decisions with `--apply-review`.
+
 ```bash
-$ fin-enhance transactions.csv --review-mode interactive
+# Import and export unresolved transactions for an agent
+$ fin-enhance transactions.csv --review-output review.json
+✓ Auto-categorized 120/127 transactions
+✓ Exported 7 unresolved transactions to review.json
 
-=== New Category Approval ===
-
-Proposed: Home & Garden > Home Improvement
-Based on 4 transactions:
-  - HOME DEPOT: $234.56
-  - LOWES: $123.45
-  - ACE HARDWARE: $45.67
-  - HOME DEPOT: $567.89
-
-Approve this category? (y/n/rename): y
-✓ Created category "Home & Garden > Home Improvement"
-✓ Learning rule: HOME DEPOT* → Home & Garden > Home Improvement
-
-Need categorization for 7 transactions:
-
-[1/7] WHOLEFDS #10234 - $127.34 - 2024-11-27
-  Similar: "WHOLE FOODS" previously categorized as "Groceries"
-  Suggested categories:
-    1. Groceries > Supermarket (confidence: 0.92)
-    2. Groceries > Premium/Organic (confidence: 0.81)
-    3. Shopping > General (confidence: 0.23)
-  Select (1-3), (s)kip, or enter custom: 1
-  ✓ Learned: WHOLEFDS* → Groceries > Supermarket
-```
-
-#### JSON Mode (AI-Friendly)
-```bash
-# Output review items as JSON for AI processing
-$ fin-enhance transactions.csv --review-mode json --review-output review.json
-✓ Found 7 transactions needing review
-✓ Found 2 new category suggestions
-✓ Written to review.json for external processing
-
-# review.json structure:
+# review.json structure
 {
+  "version": "1.0",
+  "generated_at": "2025-09-24T19:05:34Z",
   "review_needed": [
     {
-      "type": "new_category_approval",
-      "proposed_category": "Home & Garden",
-      "proposed_subcategory": "Home Improvement",
-      "confidence": 0.85,
-      "transaction_examples": [
-        {
-          "id": "tx_001",
-          "merchant": "HOME DEPOT",
-          "amount": 234.56,
-          "date": "2024-11-15"
-        }
-      ],
-      "transaction_count": 4,
-      "total_amount": 971.57
-    },
-    {
-      "type": "ambiguous_transaction",
+      "type": "transaction_review",
       "id": "tx_045",
-      "date": "2024-11-27",
+      "date": "2025-07-17",
       "merchant": "WHOLEFDS #10234",
       "amount": 127.34,
       "original_description": "WHOLEFDS #10234 BERKELEY",
+      "account_id": 1,
       "suggestions": [
-        {"category": "Groceries", "subcategory": "Supermarket", "confidence": 0.92},
-        {"category": "Groceries", "subcategory": "Premium/Organic", "confidence": 0.81}
-      ],
-      "similar_transactions": [
-        {"merchant": "WHOLE FOODS", "category": "Groceries", "count": 23}
+        {"category": "Groceries", "subcategory": "Supermarket", "confidence": 0.72},
+        {"category": "Shopping", "subcategory": "General", "confidence": 0.26}
       ]
     }
   ],
   "existing_categories": {
-    "Food & Dining": ["Restaurants", "Groceries", "Coffee Shops"],
-    "Transportation": ["Gas", "Parking", "Rideshare"]
+    "Food & Dining": ["Restaurants", "Groceries", "Coffee Shops"]
   }
 }
 
-# Apply AI/human decisions
-$ fin-enhance --apply-review review_decisions.json
+# Apply agent or human decisions
+$ fin-enhance --apply-review decisions.json
 ✓ Applied 7 categorization decisions
-✓ Created 2 new categories
-✓ Updated learning rules
+✓ Updated merchant learning rules
 ```
 
-#### Auto Mode (Best-Effort with Confidence)
-```bash
-$ fin-enhance transactions.csv --review-mode auto --confidence 0.7
-✓ Auto-categorized 120/127 transactions (confidence > 0.7)
-✓ Auto-approved 2 new categories (confidence > 0.85):
-  - Home & Garden > Home Improvement (4 transactions)
-  - Health & Wellness > Alternative Medicine (3 transactions)
-✓ Uncertain transactions (7):
-  - VENMO *PAYMENT ($50.00) - no pattern match
-  - SQ *FARMERS MKT ($23.45) - ambiguous
-  - PP *RANDOM STORE ($67.89) - unknown merchant
-✓ Run with --review-mode interactive to categorize remaining
-```
-
-**Help Output**:
-```bash
-$ fin-enhance --help
-fin-enhance - Import transactions with intelligent categorization
-
-USAGE:
-  fin-enhance <csv-files...> [options]
-
-DESCRIPTION:
-  Imports transaction CSVs into local database with dynamic category creation.
-  Uses LLM and learned rules to intelligently categorize transactions.
-  Creates personalized categories based on your actual spending patterns.
-
-OPTIONS:
-  --review-mode <mode>   How to handle uncategorized transactions:
-                          interactive - Human review via terminal
-                          json - Output JSON for AI/external processing  
-                          auto - Auto-categorize with confidence threshold
-  --review-output <file> Write review items to file (json mode)
-  --apply-review <file>  Apply categorizations from JSON file
-  --confidence <0-1>     Min confidence for auto-categorization (default: 0.8)
-  --skip-llm             Use only rules-based categorization
-  --force                Skip duplicate detection
-  --dry-run              Preview import without committing
-  --db <path>            Database path (default: ~/.findata/transactions.db)
-  --help                 Show this help
-
-DYNAMIC CATEGORIES:
-  The system learns from your transactions to build personalized categories:
-  - Suggests new categories when patterns emerge (3+ similar transactions)
-  - Two-level hierarchy: Category > Subcategory
-  - Auto-approves high confidence suggestions (>0.85)
-  - Asks for approval on lower confidence suggestions
-
-REVIEW MODES EXPLAINED:
-
-  interactive: Traditional terminal UI for human review
-    Best for: Small batches, initial setup
-    Example: fin-enhance file.csv --review-mode interactive
-
-  json: Outputs review items as JSON for external processing
-    Best for: AI orchestration (Claude Code), batch processing
-    Example: fin-enhance file.csv --review-mode json --review-output review.json
-    Then: <process review.json with AI or script>
-    Finally: fin-enhance --apply-review decisions.json
-
-  auto: Automatically categorize based on confidence
-    Best for: Recurring imports, high-confidence matches
-    Example: fin-enhance file.csv --review-mode auto --confidence 0.9
-
-AI INTEGRATION (Claude Code):
-  1. Extract: fin-extract statement.pdf > transactions.csv
-  2. Review: fin-enhance transactions.csv --review-mode json --review-output review.json
-  3. AI processes review.json, creates decisions.json
-  4. Apply: fin-enhance --apply-review decisions.json
-
-EXAMPLES:
-  # Human review
-  $ fin-enhance nov_2024.csv --review-mode interactive
-
-  # AI-driven review
-  $ fin-enhance nov_2024.csv --review-mode json --review-output needs_review.json
-  $ # <Claude Code processes needs_review.json>
-  $ fin-enhance --apply-review categorization_decisions.json
-
-  # Automatic with high confidence
-  $ fin-enhance nov_2024.csv --review-mode auto --confidence 0.95
-
-  # Preview what would be imported
-  $ fin-enhance transactions.csv --dry-run
-
-DECISION FILE FORMAT (for --apply-review):
-  {
-    "decisions": [
-      {
-        "id": "tx_001",
-        "category": "Groceries",
-        "subcategory": "Supermarket",
-        "learn": true
-      }
-    ]
-  }
-
-EXIT CODES:
-  0  Success
-  1  Import failed
-  2  Review needed (json mode)
-  3  Database error
-```
+Run without `--review-output` to just import; the CLI will remind you how many transactions still need decisions.
 
 ---
 

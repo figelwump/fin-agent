@@ -21,6 +21,7 @@ def test_cli_dry_run(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("fin_cli.fin_extract.main.load_pdf_document", lambda _: _fake_document())
 
     runner = CliRunner()
-    result = runner.invoke(main, [str(pdf_path), "--dry-run", "--no-db"])
+    result = runner.invoke(main, [str(pdf_path), "--dry-run"])
     assert result.exit_code == 0
     assert "Transactions: 1" in result.output
+    assert "Institution: Chase" in result.output

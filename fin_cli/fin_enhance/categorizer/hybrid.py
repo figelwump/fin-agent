@@ -83,7 +83,6 @@ class CategorizationOptions:
     skip_llm: bool
     apply_side_effects: bool
     auto_assign_threshold: float
-    needs_review_threshold: float
 
 
 class HybridCategorizer:
@@ -302,11 +301,6 @@ class HybridCategorizer:
                 category_proposals_map,
                 auto_created,
             )
-        elif existing_category_id is not None and confidence >= options.needs_review_threshold:
-            # Suggestion is plausible but below auto threshold; mark for review with hint.
-            category_id = None
-            needs_review = True
-            method = None
         else:
             # Low confidence or unknown category; keep review entry only.
             category_id = None
@@ -443,6 +437,7 @@ class HybridCategorizer:
             txn.amount,
             txn.merchant,
             txn.account_id,
+            txn.account_key,
         )
         return ReviewExample(
             fingerprint=fingerprint,

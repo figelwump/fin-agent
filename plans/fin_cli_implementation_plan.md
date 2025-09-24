@@ -5,7 +5,7 @@
 - Follow the directory layout from the implementation spec (`fin-extract/`, `fin-enhance/`, etc.) with a shared package containing config, database, models, and utilities.
 - Persist data in `~/.findata/transactions.db`; manage connections via a shared database module that also drives simple versioned migrations stored in `shared/migrations/`.
 - Place global configuration at `~/.finconfig/config.yaml` with environment variable overrides, and expose helper functions for resolving paths and defaults.
-- Enforce privacy guarantees: `fin-extract` performs purely local PDF parsing, while `fin-enhance` is the only tool allowed to invoke LLM APIs (with opt-out and caching).
+- Enforce privacy guarantees and stateless extraction: `fin-extract` performs local PDF parsing only and never touches SQLite; `fin-enhance` is the sole tool that mutates the database or invokes LLM APIs (with opt-out and caching).
 - Reuse common CLI patterns (Click + Rich) across tools; centralize styling, logging, and error handling helpers in `shared/cli.py`.
 - Cache LLM categorizations and learned merchant rules in SQLite tables (`merchant_patterns`, `categories`) to reduce repeated API calls.
 
@@ -32,7 +32,7 @@
 - [x] Implement `shared/database.py` providing connection management, context managers, and `run_migrations()` on startup.
 - [x] Scaffold migration files in `shared/migrations/` (e.g., `001_initial.sql`) mirroring the schema from the implementation spec.
 - [x] Implement `shared/models.py` or query helpers for CRUD operations on accounts, categories, transactions, merchant patterns, and schema versions.
-- [x] Add transaction deduplication strategy (hash of `date+amount+merchant+account_id`) to prevent re-importing duplicates.
+- [x] Add transaction deduplication strategy (hash of `date+amount+merchant+account_identifier`) to prevent re-importing duplicates.
 - [x] Write initial unit tests covering migration application and model helpers using an in-memory SQLite database.
   - Notes: 2025-09-19 — added migration runner, initial schema with fingerprint-based dedupe, CRUD helpers, and pytest coverage for database/models.
 
@@ -41,8 +41,8 @@
 - [x] Implement PDF loader abstraction using `pdfplumber`, including page iteration and table extraction helpers in `fin-extract/parsers/`.
 - [x] Create Chase-specific extractor in `fin-extract/extractors/chase.py` handling table normalization, multi-page joins, and account metadata detection.
 - [x] Implement bank auto-detection heuristics in `fin-extract/extractors/__init__.py` (search for keywords, header patterns).
-- [x] Implement CLI command in `fin-extract/main.py` supporting options from the product spec (output path, account override, no-db, verbose, dry-run).
-- [x] Wire extracted transactions through CSV writer and optional database account upsert when `--no-db` is absent.
+- [x] Implement CLI command in `fin-extract/main.py` supporting options from the product spec (output path, account override, verbose, dry-run) while remaining stateless (no database writes).
+- [x] Wire extracted transactions through CSV writer only, emitting per-row account metadata (`account_name`, `institution`, `account_type`, `account_key`) for downstream imports.
 - [x] Add smoke tests using synthetic Chase PDFs (fixtures) to validate extraction results and CLI output formatting.
   - Notes: 2025-09-19 — added pdfplumber-backed loader, Chase extractor with type-aware sign handling, autodetection registry, CLI CSV/DB flow, and pytest coverage using synthetic tables.
 
@@ -55,7 +55,8 @@
 - [x] Implement transaction deduplication logic with configurable override via `--force` flag.
 - [x] Phase 4a: Implement JSON review queue export (`--review-mode json`) capturing uncategorized transactions and new category suggestions.
 - [x] Phase 4a: Implement `--apply-review` to persist decisions (with optional pattern learning).
-- [ ] Phase 4b: Implement interactive review mode (terminal prompts) layered on top of the review queue APIs.
+- [x] Phase 4b: Implement interactive review mode (terminal prompts) layered on top of the review queue APIs.
+  - Notes: 2025-09-24 — Added interactive CLI session with category proposals, manual categorization, merchant learning toggles, and post-session summary reporting.
 - [x] Persist categorization decisions, updating `categories`, `merchant_patterns`, and transaction records with method + confidence metadata.
 - [x] Add CLI dry-run path that surfaces planned inserts/updates without committing.
   - Notes: 2025-09-19 — added CSV importer, rules engine using merchant patterns/history, `--force` override, dry-run summaries, JSON review export/apply workflow, and tests covering importer, categorizer, CLI, and review application.
@@ -70,6 +71,7 @@
 - [x] Implement fallback path to resume rules-only mode when LLM is disabled or API errors occur (configurable via `--skip-llm`).
 - [x] Add unit tests with mocked OpenAI responses covering auto-approve, needs-review, and fallback scenarios.
   - Notes: 2025-09-21 — Added OpenAI-backed LLM client with batching + caching, hybrid categorization pipeline, dynamic category suggestions, enriched review JSON output, CLI auto-mode support, new migration (002) for llm cache/suggestions, and pytest coverage for auto-approve, review fallback, and new category auto-creation.
+  - Notes: 2025-09-24 — Prompt now includes the live category catalog; high-confidence LLM assignments auto-create missing categories, learn merchant patterns (`merchant_patterns`), and sanitize cached responses. Follow-up runs reuse `rule:pattern` without re-hitting the LLM, stabilizing outputs for merchants like Amazon/Google.
 
 ## Phase 6 — Additional PDF Extractors & Robustness
 **Notes:** Expand bank coverage and introduce Camelot fallback for complex tables.

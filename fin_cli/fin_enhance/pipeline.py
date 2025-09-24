@@ -64,14 +64,19 @@ class ImportPipeline:
             logger,
             track_usage=track_usage,
         )
+        self._account_cache: dict[str, int] = {}
 
     def load_transactions(self, csv_paths: Iterable[str | Path]) -> list[ImportedTransaction]:
         transactions: list[ImportedTransaction] = []
         for path in csv_paths:
             path_str = str(path)
-            rows = load_csv_transactions(path_str if path_str != '-' else None)
+            if path_str == "-":
+                rows = load_csv_transactions(None)
+                source_name = "stdin"
+            else:
+                rows = load_csv_transactions(path)
+                source_name = str(path)
             transactions.extend(rows)
-            source_name = "stdin" if path_str == '-' else str(path)
             self.logger.info(f"Loaded {len(rows)} rows from {source_name}")
         return transactions
 
@@ -113,18 +118,15 @@ class ImportPipeline:
         apply_side_effects: bool,
         auto_assign_threshold: float | None,
     ) -> HybridCategorizerResult:
-        needs_review_threshold = self.config.categorization.confidence.needs_review
         effective_auto_threshold = (
             auto_assign_threshold
             if auto_assign_threshold is not None
             else self.config.categorization.confidence.auto_approve
         )
-        effective_auto_threshold = max(effective_auto_threshold, needs_review_threshold)
         options = CategorizationOptions(
             skip_llm=skip_llm or not self.config.categorization.llm.enabled,
             apply_side_effects=apply_side_effects,
             auto_assign_threshold=effective_auto_threshold,
-            needs_review_threshold=needs_review_threshold,
         )
         return self.categorizer.categorize_transactions(transactions, options=options)
 
@@ -137,16 +139,17 @@ class ImportPipeline:
     ) -> ImportStats:
         stats = ImportStats()
         for txn, outcome in zip(transactions, outcomes, strict=False):
+            account_id = self._resolve_account_id(txn)
             model_txn = models.Transaction(
                 date=txn.date,
                 merchant=txn.merchant,
                 amount=txn.amount,
-                account_id=txn.account_id,
+                account_id=account_id,
+                account_key=txn.account_key,
                 category_id=outcome.category_id,
                 original_description=txn.original_description,
                 categorization_confidence=outcome.confidence if outcome.category_id else None,
                 categorization_method=outcome.method,
-                needs_review=outcome.needs_review,
             )
             inserted = models.insert_transaction(
                 self.connection,
@@ -165,6 +168,30 @@ class ImportPipeline:
             else:
                 stats.duplicates += 1
         return stats
+
+    def _resolve_account_id(self, txn: ImportedTransaction) -> int:
+        """Lookup or create the backing account for an imported transaction."""
+
+        if txn.account_id is not None:
+            return txn.account_id
+        cache_key = txn.account_key or models.compute_account_key(
+            txn.account_name,
+            txn.institution,
+            txn.account_type,
+        )
+        if cache_key in self._account_cache:
+            account_id = self._account_cache[cache_key]
+        else:
+            account_id = models.upsert_account(
+                self.connection,
+                name=txn.account_name,
+                institution=txn.institution,
+                account_type=txn.account_type,
+            )
+            self._account_cache[cache_key] = account_id
+        txn.account_id = account_id
+        txn.account_key = cache_key
+        return account_id
 
 
 def dry_run_preview(
@@ -196,3 +223,12 @@ def dry_run_preview(
         review=review,
         auto_created_categories=result.auto_created_categories,
     )
+
+
+__all__ = [
+    "ImportPipeline",
+    "ImportResult",
+    "ImportStats",
+    "ReviewQueue",
+    "dry_run_preview",
+]

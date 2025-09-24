@@ -11,6 +11,8 @@ from typing import Iterable, TextIO
 
 from dateutil import parser as date_parser
 
+from fin_cli.shared.models import compute_account_key
+
 
 @dataclass(slots=True)
 class ImportedTransaction:
@@ -18,14 +20,25 @@ class ImportedTransaction:
     merchant: str
     amount: float
     original_description: str
-    account_id: int | None
+    account_name: str
+    institution: str
+    account_type: str
+    account_key: str
+    account_id: int | None = None
 
 
-SUPPORTED_HEADERS = {
+REQUIRED_HEADERS = {
     "date",
     "merchant",
     "amount",
     "original_description",
+    "account_name",
+    "institution",
+    "account_type",
+}
+
+OPTIONAL_HEADERS = {
+    "account_key",
     "account_id",
 }
 
@@ -47,10 +60,16 @@ def load_csv_transactions_from_stream(stream: TextIO, source_name: str = "stdin"
     reader = csv.DictReader(stream)
     if not reader.fieldnames:
         raise CSVImportError(f"{source_name}: CSV must include headers.")
-    missing = set(reader.fieldnames) - SUPPORTED_HEADERS
-    if missing:
+    headers = set(reader.fieldnames)
+    unsupported = headers - (REQUIRED_HEADERS | OPTIONAL_HEADERS)
+    if unsupported:
         raise CSVImportError(
-            f"{source_name}: Unsupported columns in CSV: " + ", ".join(sorted(missing))
+            f"{source_name}: Unsupported columns in CSV: " + ", ".join(sorted(unsupported))
+        )
+    missing_required = REQUIRED_HEADERS - headers
+    if missing_required:
+        raise CSVImportError(
+            f"{source_name}: Missing required columns in CSV: " + ", ".join(sorted(missing_required))
         )
     transactions: list[ImportedTransaction] = []
     for idx, row in enumerate(reader, start=1):
@@ -101,6 +120,15 @@ def _parse_row(row: dict[str, str | None]) -> ImportedTransaction:
 
     original_description = (row.get("original_description") or merchant).strip()
 
+    account_name = (row.get("account_name") or "").strip()
+    institution = (row.get("institution") or "").strip()
+    account_type = (row.get("account_type") or "").strip()
+    if not account_name or not institution or not account_type:
+        raise ValueError("Missing account metadata (account_name, institution, account_type)")
+
+    account_key_value = (row.get("account_key") or "").strip()
+    account_key = account_key_value or compute_account_key(account_name, institution, account_type)
+
     account_raw = (row.get("account_id") or "").strip()
     account_id = int(account_raw) if account_raw else None
 
@@ -109,5 +137,9 @@ def _parse_row(row: dict[str, str | None]) -> ImportedTransaction:
         merchant=merchant,
         amount=amount,
         original_description=original_description,
+        account_name=account_name,
+        institution=institution,
+        account_type=account_type,
+        account_key=account_key,
         account_id=account_id,
     )
