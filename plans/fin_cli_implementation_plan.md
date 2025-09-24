@@ -73,21 +73,14 @@
   - Notes: 2025-09-21 — Added OpenAI-backed LLM client with batching + caching, hybrid categorization pipeline, dynamic category suggestions, enriched review JSON output, CLI auto-mode support, new migration (002) for llm cache/suggestions, and pytest coverage for auto-approve, review fallback, and new category auto-creation.
   - Notes: 2025-09-24 — Prompt now includes the live category catalog; high-confidence LLM assignments auto-create missing categories, learn merchant patterns (`merchant_patterns`), and sanitize cached responses. Follow-up runs reuse `rule:pattern` without re-hitting the LLM, stabilizing outputs for merchants like Amazon/Google.
 
-## Phase 6 — Additional PDF Extractors & Robustness
-**Notes:** Expand bank coverage and introduce Camelot fallback for complex tables.
-- [ ] Implement Bank of America extractor with support for both checking and credit layouts, including header parsing for date ranges.
-- [ ] Implement Mercury business checking extractor handling two-line transaction entries if present.
-- [ ] Integrate Camelot fallback for PDFs where `pdfplumber` fails, with configuration toggle and documented performance caveats.
-- [ ] Extend auto-detection heuristics to differentiate supported banks reliably and emit `UnsupportedFormatError` for unknown inputs.
-- [ ] Add regression tests using synthetic BofA and Mercury PDFs to validate multi-page table stitching and currency parsing.
-
 ## Phase 7 — `fin-query` CLI & Saved Queries
 **Notes:** Deliver database exploration capabilities for both ad-hoc SQL and curated queries.
-- [ ] Implement CLI command with mutual exclusive options (`sql`, `--saved`, `--list`, `--schema`) using Click groups.
-- [ ] Create `fin-query/queries/` directory populated with SQL templates referenced by saved query names (e.g., `recent.sql`, `summary.sql`).
-- [ ] Implement renderer that outputs Rich tables by default with optional TSV/CSV/JSON serialization.
-- [ ] Implement schema introspection command that prints table definitions and indexes from SQLite pragma data.
-- [ ] Add tests ensuring saved queries accept parameters (`--month`, `--limit`) and produce expected output shapes.
+- [x] Implement CLI command with mutual exclusive options (`sql`, `--saved`, `--list`, `--schema`) using Click groups.
+- [x] Create `fin-query/queries/` directory populated with SQL templates referenced by saved query names (e.g., `recent.sql`, `summary.sql`).
+- [x] Implement renderer that outputs Rich tables by default with optional TSV/CSV/JSON serialization.
+- [x] Implement schema introspection command that prints table definitions and indexes from SQLite pragma data.
+- [x] Add tests ensuring saved queries accept parameters (`--month`, `--limit`) and produce expected output shapes.
+  - Notes: 2025-09-24 — fin-query now ships with executor/render stack, saved query manifest (recent imports, merchant patterns, categories, etc.), per-command `--db` overrides, Rich/CSV/JSON outputs, schema inspector, and pytest coverage for executor, renderer, and CLI flows. README documents usage patterns.
 
 ## Phase 8 — `fin-analyze` Analysis Modules
 **Notes:** Provide analytical computations leveraging pandas and reusable query helpers.
@@ -106,6 +99,15 @@
 - [ ] Support `--output` to write files and default to stdout, ensuring directories are created as needed.
 - [ ] Encode alert indicators (e.g., ⚠️, ✅, ❌) and ensure ASCII fallbacks for environments without emoji support.
 - [ ] Add tests rendering sample reports to verify section inclusion/exclusion and placeholder replacement.
+
+## Phase 6 — Additional PDF Extractors & Robustness
+**Notes:** Expand bank coverage and introduce Camelot fallback for complex tables.
+- [ ] Implement Bank of America extractor with support for both checking and credit layouts, including header parsing for date ranges.
+- [ ] Implement Mercury business checking extractor handling two-line transaction entries if present.
+- [ ] Integrate Camelot fallback for PDFs where `pdfplumber` fails, with configuration toggle and documented performance caveats.
+- [ ] Extend auto-detection heuristics to differentiate supported banks reliably and emit `UnsupportedFormatError` for unknown inputs.
+- [ ] Add regression tests using synthetic BofA and Mercury PDFs to validate multi-page table stitching and currency parsing.
+
 
 ## Phase 10 — Testing, Tooling, and Distribution
 **Notes:** Final hardening before release and agent integration.

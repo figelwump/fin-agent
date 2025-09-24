@@ -21,3 +21,7 @@ class CategorizationError(FinAgentError):
 
 class DatabaseError(FinAgentError):
     """Raised for database-related issues."""
+
+
+class QueryError(DatabaseError):
+    """Raised when query orchestration or execution fails."""
