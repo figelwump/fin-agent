@@ -48,6 +48,19 @@ def _build_duplicated_glyph_document() -> PdfDocument:
     return PdfDocument(text=text, tables=[])
 
 
+def _build_sapphire_reserve_document() -> PdfDocument:
+    text = """
+    Chase Statement
+    Ultimate Rewards®
+    Earn an annual travel credit for your first $300 in travel purchases.
+    Earn 3x points on travel purchases after that.
+    ACCOUNT ACTIVITY
+    PURCHASE
+    08/01 SAMPLE MERCHANT 123.45
+    """
+    return PdfDocument(text=text, tables=[])
+
+
 def test_chase_extractor_supports_document() -> None:
     document = _build_document()
     extractor = ChaseExtractor()
@@ -98,3 +111,11 @@ def test_document_with_duplicated_glyphs_supported() -> None:
     txn = result.transactions[0]
     assert txn.merchant == "GOOGLE *YouTubePremium g.co/helppay# CA"
     assert txn.amount == -13.99
+
+
+def test_sapphire_reserve_branding_detected() -> None:
+    document = _build_sapphire_reserve_document()
+    extractor = detect_extractor(document)
+    assert isinstance(extractor, ChaseExtractor)
+    result = extractor.extract(document)
+    assert result.metadata.account_name == "Chase Sapphire Reserve"

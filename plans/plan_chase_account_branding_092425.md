@@ -7,7 +7,7 @@
 
 ## Phase 1 — Branding Heuristics Design
 - [x] Catalogue branding markers from the provided statement (and other known Chase card templates if available). — Statement text includes phrases like "Amazon Prime Visa", "www.chase.com/amazon", and "Prime Visa Points" suitable for matching.
-- [x] Define a lightweight pattern → display-name mapping, ensuring case-insensitive matching and avoiding false positives. — Added `_ACCOUNT_NAME_PATTERNS` with regex-powered matching based on `_contains_keyword` for robustness against duplicated glyphs.
+- [x] Define a lightweight pattern → display-name mapping, ensuring case-insensitive matching and avoiding false positives. — Added `_ACCOUNT_NAME_PATTERNS` with regex-powered matching based on `_contains_keyword`; current mappings cover Amazon Prime Visa and Chase Sapphire Reserve.
 - [x] Decide fallbacks (e.g., retain "Chase Account" when no marker matches). — Helper `_infer_account_name` returns the friendly name when patterns match, otherwise defaults to "Chase Account".
 
 ## Phase 2 — Extraction Updates & Tests

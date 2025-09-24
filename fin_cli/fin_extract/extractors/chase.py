@@ -44,6 +44,7 @@ _KEYWORD_PATTERN_CACHE: dict[str, re.Pattern[str]] = {}
 
 _ACCOUNT_NAME_PATTERNS: list[tuple[tuple[str, ...], str]] = [
     (("amazon", "prime visa"), "Amazon Prime Visa"),
+    (("ultimate rewards", "travel credit", "first $300"), "Chase Sapphire Reserve"),
 ]
 
 
