@@ -91,6 +91,12 @@ def apply_review_file(connection: sqlite3.Connection, file_path: Path) -> tuple[
             method=method,
         )
         models.increment_category_usage(connection, category_id)
+        models.set_category_suggestion_status(
+            connection,
+            category=category,
+            subcategory=subcategory,
+            status="approved",
+        )
         if learn:
             merchant = str(txn_row["merchant"])
             pattern = merchant_pattern_key(merchant)

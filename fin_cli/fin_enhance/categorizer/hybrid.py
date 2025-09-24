@@ -269,26 +269,6 @@ class HybridCategorizer:
             subcategory=best.subcategory,
         )
 
-        created_missing_category = False
-        if (
-            existing_category_id is None
-            and confidence >= options.auto_assign_threshold
-            and options.apply_side_effects
-        ):
-            # The LLM referenced a known taxonomy entry that we have not seen locally yet.
-            # Create it on the fly so we can honor the high-confidence suggestion.
-            existing_category_id = models.get_or_create_category(
-                self.connection,
-                category=best.category,
-                subcategory=best.subcategory,
-                auto_generated=True,
-                user_approved=False,
-            )
-            created_missing_category = True
-            key = (best.category, best.subcategory)
-            if key not in auto_created:
-                auto_created.append(key)
-
         if existing_category_id is not None and confidence >= options.auto_assign_threshold:
             category_id = existing_category_id
             needs_review = False
@@ -336,52 +316,10 @@ class HybridCategorizer:
         support_count = int(existing_row["support_count"]) if existing_row else 0
         total_amount = float(existing_row["total_amount"]) if existing_row else 0.0
         max_conf = float(existing_row["max_confidence"]) if existing_row else 0.0
-        status = str(existing_row["status"]) if existing_row else "pending"
 
         pending_support = support_count + 1
         pending_amount = total_amount + abs(txn.amount)
         pending_conf = max(max_conf, suggestion.confidence)
-
-        if status == "auto-approved":
-            category_id = models.find_category_id(
-                self.connection,
-                category=suggestion.category,
-                subcategory=suggestion.subcategory,
-            )
-            if category_id is not None:
-                return category_id, False, "llm:auto-new-category"
-
-        auto_threshold = self._dynamic_cfg.auto_approve_confidence
-        min_support = self._dynamic_cfg.min_transactions_for_new
-
-        if (
-            suggestion.confidence >= auto_threshold
-            and pending_support >= min_support
-            and options.apply_side_effects
-        ):
-            category_id = models.get_or_create_category(
-                self.connection,
-                category=suggestion.category,
-                subcategory=suggestion.subcategory,
-                auto_generated=True,
-                user_approved=True,
-            )
-            models.record_category_suggestion(
-                self.connection,
-                category=suggestion.category,
-                subcategory=suggestion.subcategory,
-                amount=txn.amount,
-                confidence=suggestion.confidence,
-            )
-            models.set_category_suggestion_status(
-                self.connection,
-                category=suggestion.category,
-                subcategory=suggestion.subcategory,
-                status="auto-approved",
-            )
-            auto_created.append(key)
-            self._record_merchant_pattern(txn, category_id, suggestion.confidence)
-            return category_id, False, "llm:auto-new-category"
 
         proposal = category_proposals_map.get(key)
         if proposal is None:

@@ -202,24 +202,16 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
     )
 
     row = conn.execute(
-        "SELECT id, auto_generated, user_approved FROM categories WHERE category = ? AND subcategory = ?",
+        "SELECT id FROM categories WHERE category = ? AND subcategory = ?",
         ("Shopping", "Online Retail"),
     ).fetchone()
-    assert row is not None
-    assert row[1] == 1  # auto_generated
-    assert row[2] == 0  # user_approved remains False until reviewed
-    assert result.outcomes[0].category_id == int(row[0])
-    assert result.outcomes[0].needs_review is False
-    assert not result.transaction_reviews
-    assert ("Shopping", "Online Retail") in result.auto_created_categories
+    assert row is None  # new categories are not auto-created
 
-    # Ensure merchant pattern stored for reuse
-    pattern_row = conn.execute(
-        "SELECT category_id FROM merchant_patterns WHERE pattern = ?",
-        (merchant_pattern_key(example_merchant),),
-    ).fetchone()
-    assert pattern_row is not None
-    assert int(pattern_row[0]) == int(row[0])
+    assert result.outcomes[0].category_id is None
+    assert result.outcomes[0].needs_review is True
+    assert result.transaction_reviews  # unresolved transaction queued for review
+    assert not result.category_proposals  # proposals reserved for new taxonomy entries
+    assert result.auto_created_categories == []
 
     categorizer.llm_client.calls.clear()
     second_transactions = [_make_transaction("Amazon.com*NEWID123 AMZN.COM/BILL WA")]
@@ -232,11 +224,10 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
         ),
     )
 
-    assert result_second.outcomes[0].category_id == int(row[0])
-    assert result_second.outcomes[0].method == "rule:pattern"
-    assert result_second.outcomes[0].needs_review is False
-    assert not result_second.transaction_reviews
-    assert not categorizer.llm_client.calls
+    assert result_second.outcomes[0].category_id is None
+    assert result_second.outcomes[0].needs_review is True
+    assert result_second.transaction_reviews  # still queued because category not approved yet
+    assert categorizer.llm_client.calls  # LLM invoked since no pattern available
 
 
 def test_hybrid_flags_review_when_below_auto_threshold() -> None:
@@ -300,7 +291,7 @@ def test_hybrid_handles_llm_failure() -> None:
     assert result.transaction_reviews
 
 
-def test_hybrid_auto_creates_new_category_after_threshold() -> None:
+def test_hybrid_new_category_requires_review_even_with_support() -> None:
     conn = _init_db()
     logger = Logger(verbose=False)
     config = _make_config()
@@ -329,6 +320,5 @@ def test_hybrid_auto_creates_new_category_after_threshold() -> None:
         "SELECT id FROM categories WHERE category = ? AND subcategory = ?",
         ("Eco Living", "Sustainable Goods"),
     ).fetchone()
-    assert auto_created is not None
-    assert len(result.auto_created_categories) == 1
-    assert result.auto_created_categories[0] == ("Eco Living", "Sustainable Goods")
+    assert auto_created is None
+    assert result.auto_created_categories == []
