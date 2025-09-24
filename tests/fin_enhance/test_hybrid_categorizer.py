@@ -384,3 +384,52 @@ def test_hybrid_new_category_requires_review_even_with_support() -> None:
     ).fetchone()
     assert auto_created is None
     assert result.auto_created_categories == []
+
+
+def test_force_auto_assign_creates_category() -> None:
+    conn = _init_db()
+    logger = Logger(verbose=False)
+    config = _make_config()
+    categorizer = HybridCategorizer(conn, config, logger, track_usage=False)
+    merchant = "Fresh Greens"
+    merchant_key = merchant_pattern_key(merchant)
+    suggestion = LLMSuggestion(
+        category="Farmers Market",
+        subcategory="Local Produce",
+        confidence=0.2,
+        is_new_category=True,
+    )
+    mapping = {
+        merchant_key: LLMResult(
+            merchant_normalized=merchant_key,
+            pattern_key="FRESH GREENS",
+            pattern_display="Fresh Greens",
+            merchant_metadata={"platform": "Local"},
+            suggestions=[suggestion],
+        )
+    }
+    categorizer.llm_client = DummyLLMClient(mapping)
+
+    transactions = [_make_transaction(merchant)]
+    result = categorizer.categorize_transactions(
+        transactions,
+        options=CategorizationOptions(
+            skip_llm=False,
+            apply_side_effects=True,
+            auto_assign_threshold=0.9,
+            force_auto_assign=True,
+        ),
+    )
+
+    outcome = result.outcomes[0]
+    assert outcome.needs_review is False
+    assert outcome.method == "llm:auto-force"
+    assert outcome.category_id is not None
+    row = conn.execute(
+        "SELECT category, subcategory FROM categories WHERE id = ?",
+        (outcome.category_id,),
+    ).fetchone()
+    assert row is not None
+    assert row["category"] == "Farmers Market"
+    assert row["subcategory"] == "Local Produce"
+    assert result.transaction_reviews == []

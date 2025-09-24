@@ -26,6 +26,7 @@ from .review import ReviewApplicationError, apply_review_file, write_review_file
 @click.option("--confidence", type=float, help="Override auto-categorization confidence threshold (default from config).")
 @click.option("--skip-llm", is_flag=True, help="Use only rules-based categorization (no LLM calls).")
 @click.option("--force", is_flag=True, help="Skip duplicate detection safeguards.")
+@click.option("--auto", is_flag=True, help="Auto-approve all categorizations; skip review queue output.")
 @common_cli_options
 @handle_cli_errors
 def main(
@@ -37,6 +38,7 @@ def main(
     confidence: float | None,
     skip_llm: bool,
     force: bool,
+    auto: bool,
     cli_ctx: CLIContext,
 ) -> None:
     if apply_review:
@@ -68,12 +70,17 @@ def main(
 
     csv_paths = [Path("-")] if stdin else [Path(p) for p in csv_files]
 
+    if auto and review_output is not None:
+        cli_ctx.logger.info("--auto specified; skipping review output despite --review-output flag.")
+        review_output = None
+
     if cli_ctx.dry_run:
         result = _handle_dry_run(
             csv_paths,
             cli_ctx,
             skip_llm=effective_skip_llm,
             auto_assign_threshold=threshold,
+            force_auto_assign=auto,
         )
     else:
         result = _handle_import(
@@ -83,6 +90,7 @@ def main(
             skip_llm=effective_skip_llm,
             auto_assign_threshold=threshold,
             include_enhanced=stdout,
+            force_auto_assign=auto,
         )
 
     if review_output:
@@ -94,7 +102,7 @@ def main(
             cli_ctx.logger.info(
                 f"Wrote {len(result.review.transactions)} transaction review item(s) to {review_path}. Use --apply-review once decisions are ready."
             )
-    elif result.review.transactions:
+    elif result.review.transactions and not auto:
         cli_ctx.logger.warning(
             f"{len(result.review.transactions)} transaction(s) remain uncategorized. Re-run with --review-output to export them for review."
         )
@@ -117,6 +125,7 @@ def _handle_dry_run(
     *,
     skip_llm: bool,
     auto_assign_threshold: float,
+    force_auto_assign: bool,
 ) -> ImportResult:
     with connect(cli_ctx.config) as connection:
         pipeline = ImportPipeline(connection, cli_ctx.logger, cli_ctx.config, track_usage=False)
@@ -131,6 +140,7 @@ def _handle_dry_run(
             transactions,
             skip_llm=skip_llm,
             auto_assign_threshold=auto_assign_threshold,
+            force_auto_assign=force_auto_assign,
         )
     _print_summary(cli_ctx, result.stats, dry_run=True)
     return result
@@ -144,6 +154,7 @@ def _handle_import(
     skip_llm: bool,
     auto_assign_threshold: float,
     include_enhanced: bool = False,
+    force_auto_assign: bool,
 ) -> ImportResult:
     with connect(cli_ctx.config) as connection:
         pipeline = ImportPipeline(connection, cli_ctx.logger, cli_ctx.config)
@@ -157,6 +168,7 @@ def _handle_import(
             skip_llm=skip_llm,
             auto_assign_threshold=auto_assign_threshold,
             include_enhanced=include_enhanced,
+            force_auto_assign=force_auto_assign,
         )
     _print_summary(cli_ctx, result.stats, dry_run=False)
     if result.auto_created_categories:

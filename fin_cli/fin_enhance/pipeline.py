@@ -99,13 +99,19 @@ class ImportPipeline:
         skip_llm: bool = False,
         auto_assign_threshold: float | None = None,
         include_enhanced: bool = False,
+        force_auto_assign: bool = False,
     ) -> ImportResult:
         result = self._run_categorizer(
             transactions,
             skip_llm=skip_llm,
             apply_side_effects=True,
             auto_assign_threshold=auto_assign_threshold,
+            force_auto_assign=force_auto_assign,
         )
+        if force_auto_assign:
+            result.transaction_reviews = []
+            result.category_proposals = []
+
         stats = self._persist_transactions(
             transactions,
             result.outcomes,
@@ -137,6 +143,7 @@ class ImportPipeline:
         skip_llm: bool,
         apply_side_effects: bool,
         auto_assign_threshold: float | None,
+        force_auto_assign: bool,
     ) -> HybridCategorizerResult:
         effective_auto_threshold = (
             auto_assign_threshold
@@ -147,6 +154,7 @@ class ImportPipeline:
             skip_llm=skip_llm or not self.config.categorization.llm.enabled,
             apply_side_effects=apply_side_effects,
             auto_assign_threshold=effective_auto_threshold,
+            force_auto_assign=force_auto_assign,
         )
         return self.categorizer.categorize_transactions(transactions, options=options)
 
@@ -265,6 +273,7 @@ def dry_run_preview(
     *,
     skip_llm: bool = False,
     auto_assign_threshold: float | None = None,
+    force_auto_assign: bool = False,
 ) -> ImportResult:
     pipeline = ImportPipeline(connection, logger, config, track_usage=False)
     result = pipeline._run_categorizer(
@@ -272,7 +281,11 @@ def dry_run_preview(
         skip_llm=skip_llm,
         apply_side_effects=False,
         auto_assign_threshold=auto_assign_threshold,
+        force_auto_assign=force_auto_assign,
     )
+    if force_auto_assign:
+        result.transaction_reviews = []
+        result.category_proposals = []
     stats = ImportStats()
     stats.inserted = len(transactions)
     stats.categorized = sum(1 for outcome in result.outcomes if outcome.category_id)

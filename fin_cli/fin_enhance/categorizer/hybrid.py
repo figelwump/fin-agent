@@ -83,6 +83,7 @@ class CategorizationOptions:
     skip_llm: bool
     apply_side_effects: bool
     auto_assign_threshold: float
+    force_auto_assign: bool = False
 
 
 class HybridCategorizer:
@@ -163,6 +164,11 @@ class HybridCategorizer:
                     transaction_reviews.append(detail.review)
 
         category_proposals = list(category_proposals_map.values())
+        if options.force_auto_assign:
+            for outcome in outcomes:
+                outcome.needs_review = False
+            transaction_reviews = []
+            category_proposals = []
         return HybridCategorizerResult(
             outcomes=outcomes,
             transaction_reviews=transaction_reviews,
@@ -277,7 +283,22 @@ class HybridCategorizer:
             subcategory=best.subcategory,
         )
 
-        if existing_category_id is not None and confidence >= options.auto_assign_threshold:
+        if options.force_auto_assign:
+            if existing_category_id is None and options.apply_side_effects:
+                existing_category_id = models.get_or_create_category(
+                    self.connection,
+                    category=best.category,
+                    subcategory=best.subcategory,
+                    auto_generated=True,
+                    user_approved=False,
+                )
+                key = (best.category, best.subcategory)
+                if key not in auto_created:
+                    auto_created.append(key)
+            category_id = existing_category_id
+            needs_review = False
+            method = "llm:auto-force"
+        elif existing_category_id is not None and confidence >= options.auto_assign_threshold:
             category_id = existing_category_id
             needs_review = False
             method = "llm:auto"

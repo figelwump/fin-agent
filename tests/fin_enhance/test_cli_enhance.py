@@ -98,6 +98,36 @@ def test_cli_import_persists_transactions(tmp_path: Path) -> None:
     assert "UNKNOWN MERCHANT" in review_file.read_text(encoding="utf-8")
 
 
+def test_cli_auto_skips_review(tmp_path: Path) -> None:
+    csv_path = tmp_path / "transactions.csv"
+    _write_sample_csv(
+        csv_path,
+        [
+            "2024-11-27,WHOLEFDS #10234,-127.34,WHOLEFDS #10234,Test Account,Test Bank,credit,1\n",
+            "2024-11-28,UNKNOWN MERCHANT,-42.00,UNKNOWN MERCHANT,Test Account,Test Bank,credit,1\n",
+        ],
+    )
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    runner = CliRunner()
+    result = runner.invoke(
+        enhance_cli,
+        [str(csv_path), "--db", str(db_path), "--auto"],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+    default_review = csv_path.with_name(f"{csv_path.stem}-review.json")
+    assert not default_review.exists()
+    config = load_config(env=env)
+    with connect(config) as connection:
+        rows = connection.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+        assert rows == 2
+        pending = connection.execute(
+            "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL"
+        ).fetchone()[0]
+        # UNKNOWN MERCHANT remains uncategorized but we should not have review artifacts
+        assert pending == 1
 def test_cli_dry_run(tmp_path: Path) -> None:
     csv_path = tmp_path / "transactions.csv"
     _write_sample_csv(
