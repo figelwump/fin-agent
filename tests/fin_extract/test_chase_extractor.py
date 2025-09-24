@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from fin_cli.fin_extract.extractors import detect_extractor
-from fin_cli.fin_extract.extractors.chase import ChaseExtractor
+from fin_cli.fin_extract.extractors.chase import ChaseExtractor, _contains_keyword
 from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable
 
 
@@ -32,6 +32,18 @@ def _build_text_only_document() -> PdfDocument:
     09/14 AUTOMATIC PAYMENT - THANK YOU -554.38
     PURCHASE
     09/15 WHOLEFDS #10234 127.34
+    """
+    return PdfDocument(text=text, tables=[])
+
+
+def _build_duplicated_glyph_document() -> PdfDocument:
+    text = """
+    CChhaassee Prime Visa Statement
+    AACCCCOOUUNNTT AACCTTIIVVIITTYY
+    PAYMENTS AND OTHER CREDITS
+    07/14 AUTOMATIC PAYMENT - THANK YOU -2,742.06
+    PURCHASE
+    07/17 GOOGLE *YouTubePremium g.co/helppay# CA 13.99
     """
     return PdfDocument(text=text, tables=[])
 
@@ -66,3 +78,20 @@ def test_text_only_document_supported() -> None:
     result = extractor.extract(document)
     assert len(result.transactions) == 1
     assert result.transactions[0].merchant == "WHOLEFDS #10234"
+
+
+def test_keyword_search_handles_duplicated_letters() -> None:
+    assert _contains_keyword("CChhaassee", "chase")
+    assert _contains_keyword("AACCCCOOUUNNTT AACCTTIIVVIITTYY", "account activity")
+
+
+def test_document_with_duplicated_glyphs_supported() -> None:
+    document = _build_duplicated_glyph_document()
+    extractor = detect_extractor(document)
+    assert isinstance(extractor, ChaseExtractor)
+    result = extractor.extract(document)
+    # Payment should be filtered as a credit; only the purchase remains.
+    assert len(result.transactions) == 1
+    txn = result.transactions[0]
+    assert txn.merchant == "GOOGLE *YouTubePremium g.co/helppay# CA"
+    assert txn.amount == -13.99

@@ -40,18 +40,48 @@ class _ColumnMapping:
     type_index: int | None = None
 
 
+_KEYWORD_PATTERN_CACHE: dict[str, re.Pattern[str]] = {}
+
+
+def _contains_keyword(text: str, keyword: str) -> bool:
+    """Return True when `keyword` is present even if letters are duplicated.
+
+    Some Chase PDFs render bold uppercase text as duplicated glyphs (e.g.,
+    ``CChhaassee``). We treat repeated alphabetic characters as the same
+    letter so that format detection still works without rewriting the entire
+    document. The helper keeps numeric sequences intact so transaction values
+    are not affected downstream.
+    """
+
+    pattern = _KEYWORD_PATTERN_CACHE.get(keyword)
+    if pattern is None:
+        parts: list[str] = []
+        for char in keyword:
+            if char.isalpha():
+                parts.append(f"{re.escape(char)}+")
+            elif char.isspace():
+                parts.append(r"\s+")
+            else:
+                parts.append(re.escape(char))
+        pattern = re.compile("".join(parts), re.IGNORECASE)
+        _KEYWORD_PATTERN_CACHE[keyword] = pattern
+    return bool(pattern.search(text))
+
+
 class ChaseExtractor(StatementExtractor):
     name = "chase"
 
     def supports(self, document: PdfDocument) -> bool:
-        text = document.text.lower()
-        if "chase" not in text:
+        text = document.text
+        if not _contains_keyword(text, "chase"):
             return False
         # Look for tables with header containing description + amount
         if any(self._find_column_mapping(table.headers) for table in document.tables):
             return True
         # Fallback: check for textual markers if tables were not detected
-        return "account activity" in text or "account activity (continued)" in text
+        return _contains_keyword(text, "account activity") or _contains_keyword(
+            text, "account activity (continued)"
+        )
 
     def extract(self, document: PdfDocument) -> ExtractionResult:
         transactions: list[ExtractedTransaction] = []
@@ -145,10 +175,10 @@ class ChaseExtractor(StatementExtractor):
             if not line:
                 continue
             upper_line = line.upper()
-            if "PAYMENTS AND OTHER CREDITS" in upper_line:
+            if _contains_keyword(upper_line, "PAYMENTS AND OTHER CREDITS"):
                 current_section = "credit"
                 continue
-            if "PURCHASE" in upper_line or "PURCHASES" in upper_line:
+            if _contains_keyword(upper_line, "PURCHASE") or _contains_keyword(upper_line, "PURCHASES"):
                 current_section = "purchase"
                 continue
             match = _STATEMENT_LINE_RE.match(line)
