@@ -57,7 +57,7 @@ def main(
         default_review_path = _derive_default_review_path(Path(csv_files[0]))
     if stdin and review_output is None:
         cli_ctx.logger.info("Provide --review-output <file> to capture unresolved transactions when reading from stdin.")
-    elif review_output is None and default_review_path is not None:
+    elif review_output is None and default_review_path is not None and not auto:
         review_output = str(default_review_path)
         cli_ctx.logger.info(f"No --review-output provided; defaulting to {review_output}.")
 
