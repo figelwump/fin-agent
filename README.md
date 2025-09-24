@@ -60,10 +60,16 @@ fin-extract statement.pdf --output transactions.csv
 fin-enhance transactions.csv
 ```
 
-New pipe mode for direct processing:
+Pipe mode for direct processing:
 ```bash
 # Extract and enhance in one pipeline
-fin-extract statement.pdf | fin-enhance --stdin
+fin-extract statement.pdf --stdout | fin-enhance --stdin
+
+# Enhanced CSV output (updates DB and outputs enhanced CSV)
+fin-enhance transactions.csv --stdout > enhanced.csv
+
+# Inspect categorization results without files
+fin-enhance transactions.csv --stdout | grep "Shopping"
 ```
 
 ### Advanced Examples
@@ -71,20 +77,31 @@ fin-extract statement.pdf | fin-enhance --stdin
 Process multiple PDFs in one pipeline:
 ```bash
 for pdf in *.pdf; do
-    fin-extract "$pdf"
-done | fin-enhance --stdin
+    fin-extract "$pdf" --stdout
+done | fin-enhance --stdin --stdout > all_enhanced.csv
 ```
 
 Filter transactions before import:
 ```bash
 # Exclude pending transactions
-fin-extract statement.pdf | grep -v "PENDING" | fin-enhance --stdin
+fin-extract statement.pdf --stdout | grep -v "PENDING" | fin-enhance --stdin
 ```
 
 Inspect data mid-pipeline:
 ```bash
 # Use 'tee' to save intermediate data for debugging
-fin-extract statement.pdf | tee extracted.csv | fin-enhance --stdin
+fin-extract statement.pdf --stdout | tee extracted.csv | fin-enhance --stdin
+
+# Save both extracted and enhanced versions
+fin-extract statement.pdf --stdout | tee raw.csv | \
+  fin-enhance --stdin --stdout | tee enhanced.csv > /dev/null
+```
+
+Audit categorization quality:
+```bash
+# Show low-confidence categorizations
+fin-enhance transactions.csv --stdout | \
+  awk -F, '$11 < 0.5 && $11 != "" {print $2, $9, $10, $11}'
 ```
 
 ### Benefits of Pipe Mode
@@ -102,8 +119,7 @@ fin-extract statement.pdf | tee extracted.csv | fin-enhance --stdin
 
 ### CSV Output & Metadata
 
-`fin-extract` writes eight columns so downstream tools can recreate account
-context without touching the database during extraction:
+`fin-extract` outputs eight columns (requires `--stdout` or `--output`):
 
 ```
 date,merchant,amount,original_description,account_name,institution,account_type,account_key
@@ -114,6 +130,16 @@ date,merchant,amount,original_description,account_name,institution,account_type,
 - `account_key` is a deterministic SHA-256 hash based on the three descriptive
   fields; it helps deduplicate statements before a numeric `account_id` exists.
 - `fin-enhance` recomputes the key if the column is missing (for legacy CSVs).
+
+`fin-enhance --stdout` adds four categorization columns:
+
+```
+date,merchant,amount,original_description,account_name,institution,account_type,account_key,category,subcategory,confidence,method
+```
+
+- `category` and `subcategory`: The assigned categories (empty if uncategorized)
+- `confidence`: Categorization confidence score (0.0-1.0)
+- `method`: How the category was determined (e.g., "rule:pattern", "llm:auto")
 
 ## Development Workflow
 

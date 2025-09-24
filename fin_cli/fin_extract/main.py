@@ -20,13 +20,15 @@ from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
 
 @click.command(help="Extract transactions from financial PDFs.")
 @click.argument("pdf_file", type=click.Path(path_type=str), required=True)
-@click.option("--output", "output_path", type=click.Path(path_type=str), help="Optional output CSV path.")
+@click.option("--output", "output_path", type=click.Path(path_type=str), help="Output CSV to file.")
+@click.option("--stdout", is_flag=True, help="Output CSV to stdout.")
 @click.option("--account-name", type=str, help="Override auto-detected account name.")
 @common_cli_options(run_migrations_on_start=False)
 @handle_cli_errors
 def main(
     pdf_file: str,
     output_path: str | None,
+    stdout: bool,
     account_name: str | None,
     cli_ctx: CLIContext,
 ) -> None:
@@ -52,8 +54,14 @@ def main(
         _emit_dry_run_summary(cli_ctx, extractor.name, result)
         return
 
-    _write_csv_output(result, output_path, cli_ctx)
-    destination = f"written to {output_path}" if output_path else "sent to stdout"
+    if not output_path and not stdout:
+        raise click.UsageError("Specify either --output <file> or --stdout for CSV output.")
+    if output_path and stdout:
+        raise click.UsageError("Cannot use both --output and --stdout simultaneously.")
+
+    use_stdout = stdout and not output_path
+    _write_csv_output(result, output_path if not use_stdout else None, cli_ctx)
+    destination = "sent to stdout" if use_stdout else f"written to {output_path}"
     cli_ctx.logger.success(f"Extraction complete. Output {destination}.")
 
 

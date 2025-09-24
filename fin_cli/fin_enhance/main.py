@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import sys
 from pathlib import Path
 from typing import Sequence
 
@@ -11,13 +13,14 @@ from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors
 from fin_cli.shared.database import connect
 
 from .importer import CSVImportError
-from .pipeline import ImportPipeline, ImportResult, ImportStats, ReviewQueue, dry_run_preview
+from .pipeline import EnhancedTransaction, ImportPipeline, ImportResult, ImportStats, ReviewQueue, dry_run_preview
 from .review import ReviewApplicationError, apply_review_file, write_review_file
 
 
 @click.command(help="Import transactions with intelligent categorization.")
 @click.argument("csv_files", type=click.Path(path_type=str), nargs=-1)
 @click.option("--stdin", is_flag=True, help="Read CSV input from stdin instead of files.")
+@click.option("--stdout", is_flag=True, help="Output enhanced CSV to stdout (in addition to DB updates).")
 @click.option("--review-output", type=click.Path(path_type=str), help="Write unresolved items to JSON for agent review.")
 @click.option("--apply-review", type=click.Path(path_type=str), help="Apply review decisions from file.")
 @click.option("--confidence", type=float, help="Override auto-categorization confidence threshold (default from config).")
@@ -28,6 +31,7 @@ from .review import ReviewApplicationError, apply_review_file, write_review_file
 def main(
     csv_files: tuple[str, ...],
     stdin: bool,
+    stdout: bool,
     review_output: str | None,
     apply_review: str | None,
     confidence: float | None,
@@ -78,6 +82,7 @@ def main(
             skip_dedupe=force,
             skip_llm=effective_skip_llm,
             auto_assign_threshold=threshold,
+            include_enhanced=stdout,
         )
 
     if review_output:
@@ -93,6 +98,9 @@ def main(
         cli_ctx.logger.warning(
             f"{len(result.review.transactions)} transaction(s) remain uncategorized. Re-run with --review-output to export them for review."
         )
+
+    if stdout and result.enhanced_transactions:
+        _write_enhanced_csv_to_stdout(result.enhanced_transactions)
 
 
 def _derive_default_review_path(csv_path: Path) -> Path:
@@ -135,6 +143,7 @@ def _handle_import(
     skip_dedupe: bool,
     skip_llm: bool,
     auto_assign_threshold: float,
+    include_enhanced: bool = False,
 ) -> ImportResult:
     with connect(cli_ctx.config) as connection:
         pipeline = ImportPipeline(connection, cli_ctx.logger, cli_ctx.config)
@@ -147,6 +156,7 @@ def _handle_import(
             skip_dedupe=skip_dedupe,
             skip_llm=skip_llm,
             auto_assign_threshold=auto_assign_threshold,
+            include_enhanced=include_enhanced,
         )
     _print_summary(cli_ctx, result.stats, dry_run=False)
     if result.auto_created_categories:
@@ -176,6 +186,37 @@ def _handle_apply_review(decisions_path: Path, cli_ctx: CLIContext) -> None:
     cli_ctx.logger.info(
         f"Applied {applied} review decision(s). Skipped {skipped} invalid or missing entries."
     )
+
+
+def _write_enhanced_csv_to_stdout(enhanced_transactions: list[EnhancedTransaction]) -> None:
+    """Write enhanced transactions to stdout as CSV."""
+    writer = csv.writer(sys.stdout)
+
+    # Write header
+    writer.writerow([
+        "date", "merchant", "amount", "original_description",
+        "account_name", "institution", "account_type", "account_key",
+        "category", "subcategory", "confidence", "method"
+    ])
+
+    # Write data rows
+    for enhanced in enhanced_transactions:
+        txn = enhanced.transaction
+        writer.writerow([
+            txn.date.isoformat(),
+            txn.merchant,
+            f"{txn.amount:.2f}",
+            txn.original_description,
+            txn.account_name,
+            txn.institution,
+            txn.account_type,
+            txn.account_key or "",
+            enhanced.category or "",
+            enhanced.subcategory or "",
+            f"{enhanced.confidence:.2f}" if enhanced.confidence is not None else "",
+            enhanced.method or ""
+        ])
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":  # pragma: no cover

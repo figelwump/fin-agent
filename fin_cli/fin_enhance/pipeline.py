@@ -40,10 +40,21 @@ class ReviewQueue:
 
 
 @dataclass(slots=True)
+class EnhancedTransaction:
+    """Transaction with categorization results."""
+    transaction: ImportedTransaction
+    category: str | None = None
+    subcategory: str | None = None
+    confidence: float | None = None
+    method: str | None = None
+
+
+@dataclass(slots=True)
 class ImportResult:
     stats: ImportStats
     review: ReviewQueue
     auto_created_categories: list[tuple[str, str]]
+    enhanced_transactions: list[EnhancedTransaction] | None = None
 
 
 class ImportPipeline:
@@ -87,6 +98,7 @@ class ImportPipeline:
         skip_dedupe: bool = False,
         skip_llm: bool = False,
         auto_assign_threshold: float | None = None,
+        include_enhanced: bool = False,
     ) -> ImportResult:
         result = self._run_categorizer(
             transactions,
@@ -104,10 +116,18 @@ class ImportPipeline:
             transactions=result.transaction_reviews,
             category_proposals=result.category_proposals,
         )
+
+        enhanced_transactions = None
+        if include_enhanced:
+            enhanced_transactions = self._build_enhanced_transactions(
+                transactions, result.outcomes
+            )
+
         return ImportResult(
             stats=stats,
             review=review,
             auto_created_categories=result.auto_created_categories,
+            enhanced_transactions=enhanced_transactions,
         )
 
     def _run_categorizer(
@@ -193,6 +213,37 @@ class ImportPipeline:
         txn.account_key = cache_key
         return account_id
 
+    def _build_enhanced_transactions(
+        self,
+        transactions: Sequence[ImportedTransaction],
+        outcomes: Sequence[CategorizationOutcome],
+    ) -> list[EnhancedTransaction]:
+        """Build enhanced transactions with category information."""
+        enhanced = []
+        for txn, outcome in zip(transactions, outcomes, strict=False):
+            category = None
+            subcategory = None
+            if outcome.category_id:
+                # Fetch category details
+                row = self.connection.execute(
+                    "SELECT category, subcategory FROM categories WHERE id = ?",
+                    (outcome.category_id,),
+                ).fetchone()
+                if row:
+                    category = row["category"]
+                    subcategory = row["subcategory"]
+
+            enhanced.append(
+                EnhancedTransaction(
+                    transaction=txn,
+                    category=category,
+                    subcategory=subcategory,
+                    confidence=outcome.confidence if outcome.category_id else None,
+                    method=outcome.method,
+                )
+            )
+        return enhanced
+
 
 def dry_run_preview(
     connection: sqlite3.Connection,
@@ -226,6 +277,7 @@ def dry_run_preview(
 
 
 __all__ = [
+    "EnhancedTransaction",
     "ImportPipeline",
     "ImportResult",
     "ImportStats",
