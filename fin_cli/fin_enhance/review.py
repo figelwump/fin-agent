@@ -17,6 +17,7 @@ from .categorizer.hybrid import (
     ReviewSuggestion,
     TransactionReview,
 )
+from .categorizer.llm_client import merchant_pattern_key
 from .pipeline import ReviewQueue
 
 
@@ -92,12 +93,14 @@ def apply_review_file(connection: sqlite3.Connection, file_path: Path) -> tuple[
         models.increment_category_usage(connection, category_id)
         if learn:
             merchant = str(txn_row["merchant"])
-            models.record_merchant_pattern(
-                connection,
-                pattern=merchant,
-                category_id=category_id,
-                confidence=confidence,
-            )
+            pattern = merchant_pattern_key(merchant)
+            if pattern:  # Only record if we get a valid pattern
+                models.record_merchant_pattern(
+                    connection,
+                    pattern=pattern,
+                    category_id=category_id,
+                    confidence=confidence,
+                )
         applied += 1
     return applied, skipped
 
