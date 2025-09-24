@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from datetime import date
+
+import pytest
+
+from fin_cli.fin_query import executor
+from fin_cli.fin_query.types import QueryResult
+from fin_cli.shared import paths
+from fin_cli.shared.config import load_config
+from fin_cli.shared.database import connect, run_migrations
+from fin_cli.shared.exceptions import QueryError
+
+
+def _config(tmp_path) -> tuple[str, Mapping[str, str]]:
+    db_path = tmp_path / "fin_query.db"
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+    run_migrations(config)
+    return config, env
+
+
+def _seed_transactions(config) -> None:
+    with connect(config) as connection:
+        connection.execute(
+            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?)",
+            ("Primary", "TestBank", "checking"),
+        )
+        groceries_id = connection.execute(
+            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
+            ("Food & Dining", "Groceries"),
+        ).fetchone()[0]
+        shopping_id = connection.execute(
+            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
+            ("Shopping", "Online"),
+        ).fetchone()[0]
+        rows = [
+            (
+                date(2025, 8, 1).isoformat(),
+                "Amazon",
+                -42.10,
+                shopping_id,
+                None,
+                "AMAZON MKTPLACE",
+                "2025-09-01T09:30:00",
+                0.9,
+                "rule:pattern",
+                "2025-08-01--42.10-Amazon",
+            ),
+            (
+                date(2025, 8, 2).isoformat(),
+                "Whole Foods",
+                -115.55,
+                groceries_id,
+                None,
+                "WHOLEFDS 123",
+                "2025-09-02T10:15:00",
+                1.0,
+                "review:manual",
+                "2025-08-02--115.55-WholeFoods",
+            ),
+            (
+                date(2025, 9, 3).isoformat(),
+                "Amazon",
+                -19.99,
+                shopping_id,
+                None,
+                "AMAZON MKTPLACE",
+                "2025-09-15T08:45:00",
+                0.8,
+                "rule:pattern",
+                "2025-09-03--19.99-Amazon",
+            ),
+        ]
+        connection.executemany(
+            """
+            INSERT INTO transactions (
+                date, merchant, amount, category_id, account_id, original_description,
+                import_date, categorization_confidence, categorization_method, fingerprint
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
+
+        connection.execute(
+            """
+            INSERT INTO merchant_patterns (pattern, category_id, confidence, usage_count)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("AMAZON", shopping_id, 0.9, 12),
+        )
+
+
+def test_execute_sql_applies_limit(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.execute_sql(
+        config=config,
+        query="SELECT merchant FROM transactions ORDER BY date",
+        params={},
+        limit=1,
+    )
+
+    assert isinstance(result, QueryResult)
+    assert result.limit_applied is True
+    assert result.limit_value == 1
+    assert result.truncated is True
+    assert result.rows == [("Amazon",)]
+
+
+def test_run_saved_query_requires_params(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    with pytest.raises(QueryError):
+        executor.run_saved_query(config=config, name="category_summary", runtime_params={})
+
+
+def test_run_saved_query_success(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="category_summary",
+        runtime_params={"month": "2025-08"},
+        limit=10,
+    )
+
+    assert result.description == "Total amount per category for the selected month."
+    assert any(row[0] == "Food & Dining" for row in result.rows)
+    assert result.limit_applied is True
+    assert result.truncated is False
+
+
+def test_list_saved_queries_sorted(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    names = [summary.name for summary in executor.list_saved_queries(config=config)]
+    assert names == sorted(names)
+
+
+def test_run_merchant_patterns_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="merchant_patterns",
+        runtime_params={"pattern": "%AMAZON%"},
+        limit=10,
+    )
+
+    assert any(row[0] == "AMAZON" for row in result.rows)
+    assert result.limit_applied is True
+
+
+def test_run_categories_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="categories",
+        runtime_params={"category": "%Dining%"},
+        limit=10,
+    )
+
+    assert any("Dining" in row[0] for row in result.rows)
+    assert result.limit_applied is True
+
+
+def test_run_recent_imports_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="recent_imports",
+        runtime_params={},
+        limit=2,
+    )
+
+    assert result.limit_value == 2
+    # First row should be the most recently imported transaction
+    assert result.rows[0][1] >= result.rows[1][1]

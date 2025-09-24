@@ -1,15 +1,17 @@
 # General
 
 - Write comments in the code if it will help a future LLM understand details or nuance about how the code works.
+- When addressing a CLI/runtime error, rerun the user-reported command locally to confirm the fix before reporting back.
 
 # How to write implementation plans
 - Prefix the plan name with "plan_" and suffix with a date like "_092325"
-- Read the specs carefully to understand the requirements and the overall architecture.
+- After you create a new plan, pause to ask the user to review and verify before continuing. Show the user the plan in your output when you ask them to verify.
+- Read the specs carefully (or consider the user's instructions carefully) to understand the requirements and the overall architecture.
 - Use markdown to write plans.
 - Use checkboxes to track progress on todo items.
 - Todo items should be specific and actionable. 
 - Todo items should be organized into logical phases.
-- Add notes on architecture, relevant files, technical decisions, choices made, etc as needed.
+- Add notes on architecture, schema changes, relevant files, technical decisions, choices made, etc as needed.
 - The plan is meant for an LLM to work on it.
 - Persist the plan to the plans/ directory
 

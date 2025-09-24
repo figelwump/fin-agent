@@ -167,6 +167,42 @@ Once inside the prompt, helpful commands include:
 
 Exit the shell with `.quit` when finished.
 
+## Using `fin-query`
+
+`fin-query` provides read-only access to the SQLite database with support for
+ad-hoc SQL, saved templates, and schema exploration.
+
+```bash
+# Run ad-hoc SQL (defaults to Rich table output)
+fin-query sql "SELECT merchant, amount FROM transactions ORDER BY date DESC LIMIT 5;"
+
+# Execute a saved query (parameters use KEY=VALUE syntax)
+fin-query saved category_summary --param month=2025-08 --format json
+
+# Inspect merchant pattern catalog with optional wildcard filter
+fin-query saved merchant_patterns --param pattern=%AMAZON% --limit 20
+
+# View the most recently imported transactions (ordered by import timestamp)
+fin-query saved recent_imports --limit 15
+
+# Review the category catalog with optional filters
+fin-query saved categories --param category=%Dining% --format table
+
+# List available saved queries and their parameters
+fin-query list
+
+# Inspect table metadata (tables, columns, indexes, foreign keys)
+fin-query schema --table transactions --format table
+
+# Point a single command at an alternate database path
+fin-query saved recent_transactions --db /tmp/alt.db --limit 10
+```
+
+Output formats include `table` (Rich), `csv`, `tsv`, and `json`. Results are
+limited to 200 rows by default; pass `--limit` on `sql` or `saved` to adjust.
+You can supply `--db` either globally (`fin-query --db … saved …`) or per
+command as shown above when you need to inspect another SQLite file.
+
 ## Repository Structure
 
 ```
