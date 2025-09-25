@@ -164,7 +164,11 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
             if platform:
                 # Group all platform transactions together (e.g., all Lyft, all DoorDash)
                 canonical_keys.append(platform.upper())
-                display_names.append(pattern_display or platform)
+                # For certain types of merchants, just use the platform name without location details
+                if any(keyword in platform.upper() for keyword in ["AIRLINE", "HOTEL", "RENTAL"]):
+                    display_names.append(platform)
+                else:
+                    display_names.append(pattern_display or platform)
             elif metadata.get("merchant_pattern_key"):
                 # Use the LLM-provided canonical key
                 pattern_key = metadata.get("merchant_pattern_key")
@@ -206,9 +210,22 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
         # Prefer display names from metadata
         display_hints = list(group["display_name_hint"].unique())
 
-        # For platforms like Lyft or DoorDash, use simple platform name
-        if canonical in ["LYFT", "DOORDASH", "INSTACART", "UBER", "GRUBHUB"]:
+        # For platforms and airlines, use simple names without location details
+        known_platforms = ["LYFT", "DOORDASH", "INSTACART", "UBER", "GRUBHUB"]
+        known_airlines = ["UNITED AIRLINES", "AMERICAN AIRLINES", "DELTA", "SOUTHWEST", "ALASKA AIRLINES", "JETBLUE", "SPIRIT"]
+
+        if canonical in known_platforms:
             display_name = canonical.title()
+        elif canonical in known_airlines or "AIRLINES" in canonical:
+            # For airlines, strip location information from display hints
+            clean_hints = []
+            for hint in display_hints:
+                if "•" in hint:
+                    # Take only the part before the bullet (e.g., "United Airlines" from "United Airlines • Houston")
+                    clean_hints.append(hint.split("•")[0].strip())
+                else:
+                    clean_hints.append(hint)
+            display_name = clean_hints[0] if clean_hints else canonical.title()
         elif display_hints:
             # Filter out raw merchant names to prefer enriched display names
             enriched_names = [h for h in display_hints if h not in variants and "•" in h]
