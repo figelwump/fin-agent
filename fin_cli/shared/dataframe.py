@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Mapping
 
 try:
     import pandas as pd
@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover - pandas is an optional dependency
 
 from fin_cli.fin_analyze.types import AnalysisContext, TimeWindow, WindowFrameSet
 from fin_cli.shared.database import connect
+from fin_cli.shared.merchants import AGGREGATOR_LABELS, GENERIC_PLATFORMS, friendly_display_name, merchant_pattern_key, normalize_merchant
 
 # Known column order for transaction datasets; maintained manually to avoid repeated PRAGMA calls.
 TRANSACTION_COLUMNS = [
@@ -119,6 +120,7 @@ def load_transactions_frame(
 
     _normalise_transactions(frame, pandas=pandas)
     _attach_temporal_columns(frame, pandas=pandas)
+    _attach_merchant_fields(frame)
     frame["window_label"] = target_window.label
 
     return frame
@@ -203,6 +205,89 @@ def build_window_frames(context: AnalysisContext) -> WindowFrameSet:
         metadata=metadata,
     )
 
+
+
+def _attach_merchant_fields(frame: "pd.DataFrame") -> None:
+    canonical_keys: list[str] = []
+    display_names: list[str] = []
+    for merchant, metadata in zip(frame.get("merchant", []), frame.get("transaction_metadata", [])):
+        canonical, display = _derive_merchant_fields(str(merchant), metadata)
+        canonical_keys.append(canonical)
+        display_names.append(display)
+    frame["merchant_canonical"] = canonical_keys
+    frame["merchant_display"] = display_names
+
+
+def _derive_merchant_fields(merchant: str, metadata: Any) -> tuple[str, str]:
+    meta = metadata if isinstance(metadata, Mapping) else {}
+    canonical: str | None = None
+    display_candidates: list[str] = []
+
+    pattern_display = meta.get("merchant_pattern_display") if isinstance(meta, Mapping) else None
+    if isinstance(pattern_display, str) and pattern_display.strip():
+        display_candidates.append(pattern_display.strip())
+
+    display_hint = meta.get("merchant_display") if isinstance(meta, Mapping) else None
+    if isinstance(display_hint, str) and display_hint.strip():
+        display_candidates.append(display_hint.strip())
+
+    pattern_key = meta.get("merchant_pattern_key") if isinstance(meta, Mapping) else None
+
+    metadata_block = meta.get("merchant_metadata") if isinstance(meta, Mapping) else None
+    platform = None
+    if isinstance(metadata_block, Mapping):
+        platform = metadata_block.get("platform")
+        for key in ("restaurant_name", "hotel_name", "merchant_name", "business_name"):
+            value = metadata_block.get(key)
+            if isinstance(value, str) and value.strip():
+                display_candidates.append(value.strip())
+
+    if platform:
+        platform_upper = normalize_merchant(str(platform))
+        if platform_upper in AGGREGATOR_LABELS:
+            canonical = platform_upper
+            display_candidates.insert(0, AGGREGATOR_LABELS[platform_upper])
+        elif platform_upper == "HOTEL" and isinstance(metadata_block, Mapping) and metadata_block.get("hotel_name"):
+            hotel_name = str(metadata_block["hotel_name"]).strip()
+            if hotel_name:
+                canonical = normalize_merchant(hotel_name)
+                display_candidates.insert(0, hotel_name)
+        elif platform_upper not in GENERIC_PLATFORMS and platform_upper:
+            canonical = platform_upper
+            display_candidates.insert(0, str(platform).strip())
+
+    if canonical is None and isinstance(pattern_key, str) and pattern_key.strip():
+        canonical = normalize_merchant(pattern_key)
+
+    normalized_merchant = normalize_merchant(merchant)
+    if canonical is None or canonical not in AGGREGATOR_LABELS:
+        for agg_key, label in AGGREGATOR_LABELS.items():
+            if agg_key in normalized_merchant:
+                canonical = agg_key
+                if label not in display_candidates:
+                    display_candidates.insert(0, label)
+                break
+
+    if canonical is None:
+        canonical = merchant_pattern_key(merchant) or normalized_merchant or "UNKNOWN"
+
+    display = _select_display(canonical, display_candidates, merchant)
+    return canonical, display
+
+
+def _select_display(canonical: str, candidates: list[str], merchant: str) -> str:
+    for candidate in candidates:
+        cleaned = candidate.strip()
+        if not cleaned:
+            continue
+        if "•" in cleaned:
+            parts = [part.strip().title() for part in cleaned.split("•") if part.strip()]
+            if parts:
+                return " • ".join(parts)
+        if cleaned.isupper() and len(cleaned) > 3:
+            return cleaned.title()
+        return cleaned
+    return friendly_display_name(canonical, [merchant])
 
 def _normalise_transactions(frame: "pd.DataFrame", *, pandas: "pd") -> None:
     """Coerce types and derived columns in place."""
