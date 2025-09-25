@@ -54,16 +54,16 @@ def test_subscription_detection_flags_new_and_price_increase(
     result = subscription_detect.analyze(context)
     payload = result.json_payload
 
-    merchants = {entry["merchant"] for entry in payload["subscriptions"]}
+    merchants = {entry["merchant"].upper() for entry in payload["subscriptions"]}
     assert "NETFLIX" in merchants
 
-    price_merchants = {entry["merchant"] for entry in payload["price_increases"]}
+    price_merchants = {entry["merchant"].upper() for entry in payload["price_increases"]}
     assert "NETFLIX" in price_merchants
 
-    new_names = {entry["merchant"] for entry in payload["new_merchants"]}
+    new_names = {entry["merchant"].upper() for entry in payload["new_merchants"]}
     assert "DISNEY+" in new_names
 
-    cancelled_names = {entry["merchant"] for entry in payload["cancelled"]}
+    cancelled_names = {entry["merchant"].upper() for entry in payload["cancelled"]}
     assert "HULU" in cancelled_names
 
 

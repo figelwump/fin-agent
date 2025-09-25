@@ -179,6 +179,7 @@ def load_recurring_candidates(
         ])
 
     frame["date"] = pandas.to_datetime(frame["date"], errors="coerce")
+    _attach_merchant_fields(frame)
     frame["window_label"] = target_window.label
     return frame
 

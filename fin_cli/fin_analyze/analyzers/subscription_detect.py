@@ -19,6 +19,7 @@ from ...shared.dataframe import load_recurring_candidates
 @dataclass(frozen=True)
 class SubscriptionRecord:
     merchant: str
+    canonical: str
     average_amount: float
     total_amount: float
     occurrences: int
@@ -48,6 +49,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
     comparison_stats = _summarise_merchants(comparison_frame) if comparison_frame is not None else {}
     current_stats = _summarise_merchants(current)
+    combined_stats = _build_combined_stats(current, comparison_frame)
 
     if not current_stats:
         raise AnalysisError("No subscription-like merchants detected in the selected window.")
@@ -57,8 +59,28 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     price_increases: list[dict[str, Any]] = []
 
     window_end = pd.Timestamp(context.window.end)
-    for merchant, stats in current_stats.items():
-        baseline = comparison_stats.get(merchant)
+    for canonical, stats in current_stats.items():
+        combined = combined_stats.get(canonical)
+        if combined is None:
+            continue
+
+        baseline = comparison_stats.get(canonical)
+        total_occurrences = combined.occurrences
+        cadence = combined.cadence_days
+
+        if total_occurrences < 2:
+            continue
+
+        if cadence is None or cadence <= 0 or cadence < 20 or cadence > 40:
+            continue
+
+        if combined.average_amount == 0:
+            continue
+
+        rel_std = combined.amount_std / combined.average_amount if combined.average_amount else 0.0
+        if rel_std > 0.3:
+            continue
+
         change_pct = None
         notes: list[str] = []
         if baseline:
@@ -67,7 +89,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
                 notes.append(f"price +{change_pct * 100:.1f}%")
                 price_increases.append(
                     {
-                        "merchant": merchant,
+                        "merchant": stats.display_name,
                         "change_pct": round(change_pct, 4),
                         "previous_average": round(baseline.average_amount, 2),
                         "current_average": round(stats.average_amount, 2),
@@ -77,7 +99,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
             notes.append("new")
             new_merchants.append(
                 {
-                    "merchant": merchant,
+                    "merchant": stats.display_name,
                     "average_amount": round(stats.average_amount, 2),
                     "occurrences": stats.occurrences,
                 }
@@ -87,17 +109,18 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         if status != "active" and not include_inactive:
             continue
 
-        confidence = _estimate_confidence(stats)
+        confidence = _estimate_confidence(total_occurrences=total_occurrences, cadence=cadence)
         if confidence < min_confidence:
             continue
 
         records.append(
             SubscriptionRecord(
-                merchant=merchant,
+                merchant=stats.display_name,
+                canonical=canonical,
                 average_amount=stats.average_amount,
                 total_amount=stats.total_amount,
                 occurrences=stats.occurrences,
-                cadence_days=stats.cadence_days,
+                cadence_days=cadence,
                 last_charge=stats.last_charge,
                 status=status,
                 confidence=confidence,
@@ -109,11 +132,11 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     cancelled: list[dict[str, Any]] = []
     if comparison_stats:
         missing = set(comparison_stats) - set(current_stats)
-        for merchant in missing:
-            stats = comparison_stats[merchant]
+        for canonical in missing:
+            stats = comparison_stats[canonical]
             cancelled.append(
                 {
-                    "merchant": merchant,
+                    "merchant": stats.display_name,
                     "last_seen": stats.last_charge.date().isoformat(),
                     "average_amount": round(stats.average_amount, 2),
                 }
@@ -161,11 +184,22 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
 @dataclass(frozen=True)
 class _MerchantStats:
+    canonical: str
+    display_name: str
     average_amount: float
     total_amount: float
     occurrences: int
     cadence_days: float | None
     last_charge: pd.Timestamp
+    amount_std: float
+
+
+@dataclass(frozen=True)
+class _CombinedStats:
+    occurrences: int
+    cadence_days: float | None
+    average_amount: float
+    amount_std: float
 
 
 def _summarise_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats]:
@@ -177,23 +211,67 @@ def _summarise_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
     working.sort_values(["merchant", "date"], inplace=True)
 
     stats: dict[str, _MerchantStats] = {}
-    for merchant, group in working.groupby("merchant"):
+    canonical_col = "merchant_canonical" if "merchant_canonical" in working.columns else "merchant"
+    display_col = "merchant_display" if "merchant_display" in working.columns else "merchant"
+
+    for canonical, group in working.groupby(canonical_col):
+        occurrences = int(len(group))
+
         amounts = group["amount"]
         total = safe_float(amounts.sum())
         avg = safe_float(amounts.mean())
-        occurrences = int(len(group))
         cadence = None
         if occurrences > 1:
             diffs = group["date"].diff().dt.days.dropna()
             if not diffs.empty:
                 cadence = float(diffs.median())
         last_charge = group["date"].max()
-        stats[merchant] = _MerchantStats(
+        display_series = group[display_col].dropna().astype(str)
+        if not display_series.empty:
+            mode_values = display_series.mode()
+            display_name = mode_values.iloc[0] if not mode_values.empty else display_series.iloc[0]
+        else:
+            display_name = str(canonical)
+        stats[str(canonical)] = _MerchantStats(
+            canonical=str(canonical),
+            display_name=display_name,
             average_amount=avg,
             total_amount=total,
             occurrences=occurrences,
             cadence_days=cadence,
             last_charge=last_charge,
+            amount_std=float(amounts.std(ddof=0) or 0.0),
+        )
+    return stats
+
+
+def _build_combined_stats(current: pd.DataFrame, comparison: pd.DataFrame | None) -> dict[str, _CombinedStats]:
+    frames = [current]
+    if comparison is not None and not comparison.empty:
+        frames.append(comparison)
+    combined = pd.concat(frames, ignore_index=True)
+    if combined.empty:
+        return {}
+
+    canonical_col = "merchant_canonical" if "merchant_canonical" in combined.columns else "merchant"
+    combined["amount"] = combined["amount"].astype(float).abs()
+    combined.sort_values([canonical_col, "date"], inplace=True)
+
+    stats: dict[str, _CombinedStats] = {}
+    for canonical, group in combined.groupby(canonical_col):
+        occurrences = int(len(group))
+        if occurrences < 2:
+            continue
+
+        diffs = group["date"].diff().dt.days.dropna()
+        cadence = float(diffs.median()) if not diffs.empty else None
+        avg = safe_float(group["amount"].mean())
+        amount_std = float(group["amount"].std(ddof=0) or 0.0)
+        stats[str(canonical)] = _CombinedStats(
+            occurrences=occurrences,
+            cadence_days=cadence,
+            average_amount=avg,
+            amount_std=amount_std,
         )
     return stats
 
@@ -205,13 +283,12 @@ def _resolve_status(last_charge: pd.Timestamp, window_end: pd.Timestamp) -> str:
     return "inactive"
 
 
-def _estimate_confidence(stats: _MerchantStats) -> float:
-    base = min(1.0, stats.occurrences / 6)
-    cadence_boost = 0.0
-    if stats.cadence_days is not None:
-        # Encourage near-monthly cadence (approx 25-35 days)
-        deviation = abs(stats.cadence_days - 30)
-        cadence_boost = max(0.0, 1 - min(deviation, 30) / 30)
+def _estimate_confidence(*, total_occurrences: int, cadence: float | None) -> float:
+    if cadence is None or cadence <= 0:
+        return 0.0
+    base = min(1.0, total_occurrences / 6)
+    deviation = abs(cadence - 30)
+    cadence_boost = max(0.0, 1 - min(deviation, 30) / 30)
     confidence = (base * 0.6) + (cadence_boost * 0.4)
     return round(min(1.0, confidence), 3)
 
@@ -267,4 +344,3 @@ def _build_summary(
     if price_increases:
         lines.append(f"Price increases flagged: {len(price_increases)}.")
     return lines
-

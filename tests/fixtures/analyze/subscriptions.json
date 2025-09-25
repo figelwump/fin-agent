@@ -56,12 +56,20 @@
       "original_description": "SPOTIFY P456"
     },
     {
-      "date": "2025-08-20",
+      "date": "2025-08-01",
       "merchant": "DISNEY+",
       "amount": -13.99,
       "account": "checking",
       "category": "subscriptions_streaming",
       "original_description": "DISNEY PLUS 789"
+    },
+    {
+      "date": "2025-08-28",
+      "merchant": "DISNEY+",
+      "amount": -13.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "DISNEY PLUS 456"
     }
   ]
 }
