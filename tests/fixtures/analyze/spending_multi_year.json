@@ -1,0 +1,484 @@
+{
+  "accounts": [
+    {
+      "key": "checking",
+      "name": "Primary Checking",
+      "institution": "TestBank",
+      "account_type": "checking"
+    }
+  ],
+  "categories": [
+    {
+      "key": "shopping_online",
+      "category": "Shopping",
+      "subcategory": "Online"
+    },
+    {
+      "key": "food_restaurants",
+      "category": "Food & Dining",
+      "subcategory": "Restaurants"
+    },
+    {
+      "key": "travel_ridehail",
+      "category": "Travel",
+      "subcategory": "Ridehail"
+    },
+    {
+      "key": "home_hardware",
+      "category": "Home Improvement",
+      "subcategory": "Hardware"
+    },
+    {
+      "key": "utilities_power",
+      "category": "Utilities",
+      "subcategory": "Electric"
+    },
+    {
+      "key": "income_salary",
+      "category": "Income",
+      "subcategory": "Salary"
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2024-09-05",
+      "merchant": "AMAZON",
+      "amount": -40.8,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2024-09-09",
+      "merchant": "LOCAL CAFE",
+      "amount": -18.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2024-09-13",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2024-09-15",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2024-10-06",
+      "merchant": "AMAZON",
+      "amount": -43.199999999999996,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2024-10-10",
+      "merchant": "LOCAL CAFE",
+      "amount": -19.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2024-10-14",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2024-10-16",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2024-11-07",
+      "merchant": "AMAZON",
+      "amount": -46.8,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2024-11-11",
+      "merchant": "LOCAL CAFE",
+      "amount": -19.5,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2024-11-15",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2024-11-17",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2024-12-08",
+      "merchant": "AMAZON",
+      "amount": -51.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2024-12-12",
+      "merchant": "LOCAL CAFE",
+      "amount": -21.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2024-12-16",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2024-12-18",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-01-09",
+      "merchant": "AMAZON",
+      "amount": -52.8,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-01-13",
+      "merchant": "LOCAL CAFE",
+      "amount": -21.5,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-01-17",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-01-19",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-02-05",
+      "merchant": "AMAZON",
+      "amount": -54.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-02-09",
+      "merchant": "LOCAL CAFE",
+      "amount": -22.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-02-13",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-02-15",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-03-06",
+      "merchant": "AMAZON",
+      "amount": -55.199999999999996,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-03-10",
+      "merchant": "LOCAL CAFE",
+      "amount": -22.5,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-03-14",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-03-16",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-04-07",
+      "merchant": "AMAZON",
+      "amount": -57.599999999999994,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-04-11",
+      "merchant": "LOCAL CAFE",
+      "amount": -23.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-04-15",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-04-17",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-05-08",
+      "merchant": "AMAZON",
+      "amount": -60.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-05-12",
+      "merchant": "LOCAL CAFE",
+      "amount": -24.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-05-16",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-05-18",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-06-09",
+      "merchant": "AMAZON",
+      "amount": -61.199999999999996,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-06-13",
+      "merchant": "LOCAL CAFE",
+      "amount": -24.5,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-06-17",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-06-19",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-07-05",
+      "merchant": "AMAZON",
+      "amount": -66.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-07-09",
+      "merchant": "LOCAL CAFE",
+      "amount": -26.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-07-12",
+      "merchant": "AMAZON",
+      "amount": -45.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-07-13",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-07-15",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-07-16",
+      "merchant": "HOME DEPOT",
+      "amount": -65.0,
+      "category": "home_hardware",
+      "account": "checking",
+      "original_description": "HOME DEPOT"
+    },
+    {
+      "date": "2025-07-20",
+      "merchant": "TARGET",
+      "amount": -80.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "TARGET"
+    },
+    {
+      "date": "2025-08-05",
+      "merchant": "AMAZON",
+      "amount": -120.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-08-10",
+      "merchant": "LOCAL CAFE",
+      "amount": -28.0,
+      "category": "food_restaurants",
+      "account": "checking",
+      "original_description": "LOCAL CAFE"
+    },
+    {
+      "date": "2025-08-12",
+      "merchant": "AMAZON",
+      "amount": -95.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-08-14",
+      "merchant": "POWER CO",
+      "amount": -95.0,
+      "category": "utilities_power",
+      "account": "checking",
+      "original_description": "POWER CO"
+    },
+    {
+      "date": "2025-08-16",
+      "merchant": "ACME PAYROLL",
+      "amount": 5200.0,
+      "category": "income_salary",
+      "account": "checking",
+      "original_description": "ACME PAYROLL"
+    },
+    {
+      "date": "2025-08-20",
+      "merchant": "AMAZON",
+      "amount": -110.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "AMAZON"
+    },
+    {
+      "date": "2025-08-22",
+      "merchant": "TESLA SUPERCHARGER",
+      "amount": -60.0,
+      "category": "shopping_online",
+      "account": "checking",
+      "original_description": "TESLA SUPERCHARGER"
+    },
+    {
+      "date": "2025-08-26",
+      "merchant": "UBER",
+      "amount": -38.5,
+      "category": "travel_ridehail",
+      "account": "checking",
+      "original_description": "UBER"
+    }
+  ]
+}

@@ -1,168 +1,54 @@
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from fin_cli.fin_analyze.analyzers import (
+    category_breakdown,
+    category_evolution,
     category_suggestions,
     merchant_frequency,
     spending_patterns,
+    spending_trends,
     subscription_detect,
     unusual_spending,
 )
-from fin_cli.fin_analyze.types import AnalysisContext, TimeWindow
-from fin_cli.shared import paths
-from fin_cli.shared.cli import CLIContext
-from fin_cli.shared.config import load_config
-from fin_cli.shared.database import connect, run_migrations
-from fin_cli.shared.logging import get_logger
+from fin_cli.fin_analyze.types import AnalysisContext, AnalysisError
 
 
-@pytest.fixture()
-def app_config(tmp_path):
-    db_path = tmp_path / "analytics.db"
-    env = {paths.DATABASE_PATH_ENV: str(db_path)}
-    config = load_config(env=env)
-    run_migrations(config)
-    return config
-
-
-def _cli_context(config):
-    return CLIContext(
-        config=config,
-        db_path=config.database.path,
-        dry_run=False,
-        verbose=False,
-        logger=get_logger(verbose=False),
-    )
-
-
-def _window(year: int, month: int) -> TimeWindow:
-    start = date(year, month, 1)
-    if month == 12:
-        end = date(year + 1, 1, 1)
-    else:
-        end = date(year, month + 1, 1)
-    return TimeWindow(label=f"month_{year}_{month:02d}", start=start, end=end)
-
-
-def _insert_transaction(connection, *, txn_date: date, merchant: str, amount: float, category_id: int) -> None:
-    connection.execute(
-        """
-        INSERT INTO transactions (
-            date, merchant, amount, category_id, account_id,
-            original_description, import_date, categorization_confidence,
-            categorization_method, fingerprint
-        ) VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, 0.9, 'rule:test', ?)
-        """,
+@pytest.mark.parametrize(
+    "fixture_name, window_label, window_start, window_end, comparison_label, comparison_start, comparison_end, options, threshold",
+    [
         (
-            txn_date.isoformat(),
-            merchant,
-            amount,
-            category_id,
-            merchant,
-            f"{txn_date.isoformat()}-{merchant}-{amount}",
+            "subscriptions",
+            "month_2025_08",
+            "2025-08-01",
+            "2025-09-01",
+            "month_2025_07",
+            "2025-07-01",
+            "2025-08-01",
+            {"include_inactive": True},
+            0.05,
         ),
-    )
-
-
-def _seed_subscription_dataset(config) -> None:
-    with connect(config) as connection:
-        account_id = connection.execute(
-            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?) RETURNING id",
-            ("Primary", "TestBank", "checking"),
-        ).fetchone()[0]
-        connection.execute("UPDATE accounts SET id = 1 WHERE id = ?", (account_id,))
-        connection.execute("DELETE FROM accounts WHERE id <> 1")
-        subscription_cat = connection.execute(
-            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
-            ("Subscriptions", "Streaming"),
-        ).fetchone()[0]
-
-        # July charges (comparison window)
-        _insert_transaction(connection, txn_date=date(2025, 7, 5), merchant="NETFLIX", amount=-15.99, category_id=subscription_cat)
-        _insert_transaction(connection, txn_date=date(2025, 7, 18), merchant="SPOTIFY", amount=-12.99, category_id=subscription_cat)
-        _insert_transaction(connection, txn_date=date(2025, 7, 10), merchant="HULU", amount=-11.99, category_id=subscription_cat)
-
-        # August charges (analysis window)
-        _insert_transaction(connection, txn_date=date(2025, 8, 5), merchant="NETFLIX", amount=-19.99, category_id=subscription_cat)
-        _insert_transaction(connection, txn_date=date(2025, 8, 18), merchant="SPOTIFY", amount=-12.99, category_id=subscription_cat)
-        _insert_transaction(connection, txn_date=date(2025, 8, 20), merchant="DISNEY+", amount=-13.99, category_id=subscription_cat)
-
-
-def _seed_spending_dataset(config) -> None:
-    with connect(config) as connection:
-        account_id = connection.execute(
-            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?) RETURNING id",
-            ("Primary", "TestBank", "checking"),
-        ).fetchone()[0]
-        connection.execute("UPDATE accounts SET id = 1 WHERE id = ?", (account_id,))
-        connection.execute("DELETE FROM accounts WHERE id <> 1")
-        shopping_id = connection.execute(
-            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
-            ("Shopping", "Online"),
-        ).fetchone()[0]
-        dining_id = connection.execute(
-            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
-            ("Food & Dining", "Restaurants"),
-        ).fetchone()[0]
-
-        # Baseline month (July)
-        _insert_transaction(connection, txn_date=date(2025, 7, 8), merchant="AMAZON", amount=-45.00, category_id=shopping_id)
-        _insert_transaction(connection, txn_date=date(2025, 7, 15), merchant="AMAZON", amount=-35.00, category_id=shopping_id)
-        _insert_transaction(connection, txn_date=date(2025, 7, 12), merchant="LOCAL CAFE", amount=-22.00, category_id=dining_id)
-        _insert_transaction(connection, txn_date=date(2025, 7, 20), merchant="TARGET", amount=-80.00, category_id=shopping_id)
-
-        # Analysis month (August)
-        for day, amt in [(5, -120.0), (12, -95.0), (20, -110.0)]:
-            _insert_transaction(connection, txn_date=date(2025, 8, day), merchant="AMAZON", amount=amt, category_id=shopping_id)
-        _insert_transaction(connection, txn_date=date(2025, 8, 10), merchant="LOCAL CAFE", amount=-18.00, category_id=dining_id)
-        _insert_transaction(connection, txn_date=date(2025, 8, 22), merchant="TESLA SUPERCHARGER", amount=-60.00, category_id=shopping_id)
-
-
-
-def _seed_category_overlap_dataset(config) -> None:
-    with connect(config) as connection:
-        account_id = connection.execute(
-            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?) RETURNING id",
-            ("Primary", "TestBank", "checking"),
-        ).fetchone()[0]
-        connection.execute("UPDATE accounts SET id = 1 WHERE id = ?", (account_id,))
-        connection.execute("DELETE FROM accounts WHERE id <> 1")
-        coffee_id = connection.execute(
-            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
-            ("Coffee", "General"),
-        ).fetchone()[0]
-        coffee_shops_id = connection.execute(
-            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
-            ("Coffee Shops", "Specialty"),
-        ).fetchone()[0]
-        tea_id = connection.execute(
-            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
-            ("Beverages", "Tea"),
-        ).fetchone()[0]
-
-        for merchant in ["BLUE BOTTLE", "STARBUCKS", "PHILZ COFFEE"]:
-            _insert_transaction(connection, txn_date=date(2025, 8, 5), merchant=merchant, amount=-12.50, category_id=coffee_id)
-            _insert_transaction(connection, txn_date=date(2025, 8, 12), merchant=merchant, amount=-13.75, category_id=coffee_shops_id)
-
-        _insert_transaction(connection, txn_date=date(2025, 8, 9), merchant="PEETS TEA BAR", amount=-9.50, category_id=tea_id)
-        _insert_transaction(connection, txn_date=date(2025, 8, 16), merchant="MATCHA PLACE", amount=-11.25, category_id=tea_id)
-
-
-def test_subscription_detection_flags_new_and_price_increase(app_config):
-    _seed_subscription_dataset(app_config)
-    context = AnalysisContext(
-        cli_ctx=_cli_context(app_config),
-        app_config=app_config,
-        window=_window(2025, 8),
-        comparison_window=_window(2025, 7),
-        output_format="json",
-        compare=True,
-        threshold=0.05,
-        options={"include_inactive": True},
-    )
+    ],
+)
+def test_subscription_detection_flags_new_and_price_increase(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+    fixture_name,
+    window_label,
+    window_start,
+    window_end,
+    comparison_label,
+    comparison_start,
+    comparison_end,
+    options,
+    threshold,
+) -> None:
+    load_analysis_dataset(fixture_name)
+    window = window_factory(window_label, window_start, window_end)
+    comparison = window_factory(comparison_label, comparison_start, comparison_end)
+    context = analysis_context(window, comparison, options, compare=True, threshold=threshold)
 
     result = subscription_detect.analyze(context)
     payload = result.json_payload
@@ -180,18 +66,23 @@ def test_subscription_detection_flags_new_and_price_increase(app_config):
     assert "HULU" in cancelled_names
 
 
-def test_unusual_spending_flags_large_increase(app_config):
-    _seed_spending_dataset(app_config)
-    context = AnalysisContext(
-        cli_ctx=_cli_context(app_config),
-        app_config=app_config,
-        window=_window(2025, 8),
-        comparison_window=_window(2025, 7),
-        output_format="json",
-        compare=True,
-        threshold=0.10,
-        options={"sensitivity": 3},
-    )
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"sensitivity": 3},
+        {"sensitivity": 4},
+    ],
+)
+def test_unusual_spending_flags_large_increase(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+    options,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    context = analysis_context(window, comparison, options, compare=True, threshold=0.10)
 
     result = unusual_spending.analyze(context)
     payload = result.json_payload
@@ -202,19 +93,15 @@ def test_unusual_spending_flags_large_increase(app_config):
     assert "TESLA SUPERCHARGER" in payload["new_merchants"]
 
 
-
-def test_merchant_frequency_reports_new_and_dropped(app_config):
-    _seed_spending_dataset(app_config)
-    context = AnalysisContext(
-        cli_ctx=_cli_context(app_config),
-        app_config=app_config,
-        window=_window(2025, 8),
-        comparison_window=_window(2025, 7),
-        output_format="json",
-        compare=True,
-        threshold=0.10,
-        options={"min_visits": 1},
-    )
+def test_merchant_frequency_reports_new_and_dropped(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    context = analysis_context(window, comparison, {"min_visits": 1}, compare=True, threshold=0.10)
 
     result = merchant_frequency.analyze(context)
     payload = result.json_payload
@@ -226,18 +113,15 @@ def test_merchant_frequency_reports_new_and_dropped(app_config):
     assert any(name.startswith("Target") for name in payload["dropped_merchants"])
 
 
-def test_spending_patterns_day_group(app_config):
-    _seed_spending_dataset(app_config)
-    context = AnalysisContext(
-        cli_ctx=_cli_context(app_config),
-        app_config=app_config,
-        window=_window(2025, 8),
-        comparison_window=_window(2025, 7),
-        output_format="json",
-        compare=True,
-        threshold=0.10,
-        options={"group_by": "day"},
-    )
+def test_spending_patterns_day_group(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    context = analysis_context(window, comparison, {"group_by": "day"}, compare=True, threshold=0.10)
 
     result = spending_patterns.analyze(context)
     patterns = {entry["label"]: entry for entry in result.json_payload["patterns"]}
@@ -246,18 +130,14 @@ def test_spending_patterns_day_group(app_config):
     assert patterns["Tuesday"]["spend"] > patterns["Sunday"]["spend"]
 
 
-def test_category_suggestions_overlap(app_config):
-    _seed_category_overlap_dataset(app_config)
-    context = AnalysisContext(
-        cli_ctx=_cli_context(app_config),
-        app_config=app_config,
-        window=_window(2025, 8),
-        comparison_window=None,
-        output_format="json",
-        compare=False,
-        threshold=0.10,
-        options={"min_overlap": 0.8},
-    )
+def test_category_suggestions_overlap(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("category_overlap")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    context = analysis_context(window, None, {"min_overlap": 0.8}, compare=False, threshold=0.10)
 
     result = category_suggestions.analyze(context)
     suggestions = result.json_payload["suggestions"]
@@ -265,3 +145,168 @@ def test_category_suggestions_overlap(app_config):
         suggestion["from"] == "Coffee > General" and suggestion["to"] == "Coffee Shops > Specialty"
         for suggestion in suggestions
     )
+
+
+def test_spending_trends_with_categories_and_comparison(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("summer_2025", "2025-05-01", "2025-09-01")
+    comparison = window_factory("spring_2025", "2025-01-01", "2025-05-01")
+    context = analysis_context(
+        window,
+        comparison,
+        {"show_categories": True},
+        compare=True,
+        threshold=0.15,
+    )
+
+    result = spending_trends.analyze(context)
+    payload = result.json_payload
+
+    assert payload["trend_slope"] and payload["trend_slope"] > 0
+    assert payload["monthly"][-1]["month"] == "2025-08"
+    assert "category_breakdown" in payload and payload["category_breakdown"][0]["category"] == "Shopping"
+
+
+def test_category_breakdown_min_amount_and_change(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    context = analysis_context(
+        window,
+        comparison,
+        {"min_amount": 50},
+        compare=True,
+        threshold=0.10,
+    )
+
+    result = category_breakdown.analyze(context)
+    payload = result.json_payload
+
+    categories = {entry["category"]: entry for entry in payload["categories"]}
+    shopping = categories.get("Shopping")
+    assert shopping and shopping["spend"] > 0
+    assert shopping["transaction_count"] >= 4
+    assert shopping["change_pct"] and shopping["change_pct"] > 0
+    comparison = payload.get("comparison")
+    assert comparison and comparison["total_spend"] < payload["total_spend"]
+    assert all(entry["spend"] >= 50 for entry in payload["categories"])
+
+
+def test_category_evolution_new_and_dormant(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    context = analysis_context(window, comparison, compare=True, threshold=0.10)
+
+    result = category_evolution.analyze(context)
+    payload = result.json_payload
+
+    new_categories = {(entry["category"], entry["subcategory"]) for entry in payload["new_categories"]}
+    dormant_categories = {(entry["category"], entry["subcategory"]) for entry in payload["dormant_categories"]}
+
+    assert ("Travel", "Ridehail") in new_categories
+    assert ("Home Improvement", "Hardware") in dormant_categories
+
+
+def test_spending_trends_handles_sparse_and_empty_windows(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("sparse")
+    data_window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    data_context = analysis_context(data_window, None, compare=False)
+    result = spending_trends.analyze(data_context)
+    assert len(result.json_payload["monthly"]) == 1
+
+    empty_window = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    empty_context = analysis_context(empty_window, None, compare=False)
+    with pytest.raises(AnalysisError):
+        spending_trends.analyze(empty_context)
+
+
+def test_json_payload_keys_remain_stable(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+
+    trends_context = analysis_context(
+        window,
+        comparison,
+        {"show_categories": True},
+        compare=True,
+        threshold=0.10,
+    )
+    trends_payload = spending_trends.analyze(trends_context).json_payload
+    assert set(trends_payload.keys()) == {
+        "window",
+        "total_spend",
+        "monthly",
+        "comparison",
+        "options",
+        "threshold",
+        "trend_slope",
+        "category_breakdown",
+    }
+
+    breakdown_context = analysis_context(window, comparison, {"min_amount": 0}, compare=True, threshold=0.10)
+    breakdown_payload = category_breakdown.analyze(breakdown_context).json_payload
+    assert set(breakdown_payload.keys()) == {
+        "window",
+        "threshold",
+        "total_spend",
+        "categories",
+        "comparison",
+    }
+
+    evolution_context = analysis_context(window, comparison, compare=True, threshold=0.10)
+    evolution_payload = category_evolution.analyze(evolution_context).json_payload
+    assert set(evolution_payload.keys()) == {
+        "window",
+        "new_categories",
+        "dormant_categories",
+        "changes",
+        "threshold",
+    }
+
+    load_analysis_dataset("subscriptions")
+    subs_window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    subs_comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    subs_context = analysis_context(subs_window, subs_comparison, {"include_inactive": True}, compare=True)
+    subs_payload = subscription_detect.analyze(subs_context).json_payload
+    assert set(subs_payload.keys()) == {
+        "window",
+        "subscriptions",
+        "price_increases",
+        "new_merchants",
+        "cancelled",
+        "threshold",
+    }
+
+    load_analysis_dataset("spending_multi_year")
+    unusual_context = analysis_context(window, comparison, {"sensitivity": 3}, compare=True, threshold=0.10)
+    unusual_payload = unusual_spending.analyze(unusual_context).json_payload
+    assert set(unusual_payload.keys()) == {
+        "window",
+        "threshold_pct",
+        "sensitivity",
+        "anomalies",
+        "new_merchants",
+    }
+

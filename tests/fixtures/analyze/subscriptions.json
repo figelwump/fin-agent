@@ -1,0 +1,67 @@
+{
+  "accounts": [
+    {
+      "key": "checking",
+      "name": "Primary Checking",
+      "institution": "TestBank",
+      "account_type": "checking"
+    }
+  ],
+  "categories": [
+    {
+      "key": "subscriptions_streaming",
+      "category": "Subscriptions",
+      "subcategory": "Streaming"
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2025-07-05",
+      "merchant": "NETFLIX",
+      "amount": -15.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "NETFLIX 12345"
+    },
+    {
+      "date": "2025-07-18",
+      "merchant": "SPOTIFY",
+      "amount": -12.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "SPOTIFY P123"
+    },
+    {
+      "date": "2025-07-10",
+      "merchant": "HULU",
+      "amount": -11.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "HULU 23456"
+    },
+    {
+      "date": "2025-08-05",
+      "merchant": "NETFLIX",
+      "amount": -19.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "NETFLIX 67890"
+    },
+    {
+      "date": "2025-08-18",
+      "merchant": "SPOTIFY",
+      "amount": -12.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "SPOTIFY P456"
+    },
+    {
+      "date": "2025-08-20",
+      "merchant": "DISNEY+",
+      "amount": -13.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "DISNEY PLUS 789"
+    }
+  ]
+}

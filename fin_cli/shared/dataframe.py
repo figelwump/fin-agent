@@ -57,13 +57,15 @@ WHERE t.date >= ? AND t.date < ?
 ORDER BY t.date ASC, t.id ASC
 """
 
+# Negative ledger amounts represent spend; convert to absolute values so analyzers
+# receive comparable positive numbers while preserving positive income values.
 CATEGORY_TOTALS_QUERY = """
 SELECT
     COALESCE(c.category, 'Uncategorized') AS category,
     COALESCE(c.subcategory, 'Uncategorized') AS subcategory,
     SUM(t.amount) AS total_amount,
-    SUM(CASE WHEN t.amount >= 0 THEN t.amount ELSE 0 END) AS spend_amount,
-    SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) AS income_amount,
+    SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) AS spend_amount,
+    SUM(CASE WHEN t.amount >= 0 THEN t.amount ELSE 0 END) AS income_amount,
     COUNT(*) AS transaction_count
 FROM transactions t
 LEFT JOIN categories c ON t.category_id = c.id
@@ -327,4 +329,3 @@ def _safe_json_load(value: Any) -> Any:
         return json.loads(value)
     except (TypeError, json.JSONDecodeError):  # pragma: no cover - defensive fallback
         return value
-

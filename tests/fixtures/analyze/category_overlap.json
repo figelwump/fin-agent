@@ -1,0 +1,93 @@
+{
+  "accounts": [
+    {
+      "key": "checking",
+      "name": "Primary Checking",
+      "institution": "TestBank",
+      "account_type": "checking"
+    }
+  ],
+  "categories": [
+    {
+      "key": "coffee_general",
+      "category": "Coffee",
+      "subcategory": "General"
+    },
+    {
+      "key": "coffee_specialty",
+      "category": "Coffee Shops",
+      "subcategory": "Specialty"
+    },
+    {
+      "key": "tea",
+      "category": "Beverages",
+      "subcategory": "Tea"
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2025-08-05",
+      "merchant": "BLUE BOTTLE",
+      "amount": -12.5,
+      "category": "coffee_general",
+      "account": "checking",
+      "original_description": "BLUE BOTTLE 001"
+    },
+    {
+      "date": "2025-08-12",
+      "merchant": "BLUE BOTTLE",
+      "amount": -13.75,
+      "category": "coffee_specialty",
+      "account": "checking",
+      "original_description": "BLUE BOTTLE 002"
+    },
+    {
+      "date": "2025-08-05",
+      "merchant": "STARBUCKS",
+      "amount": -12.5,
+      "category": "coffee_general",
+      "account": "checking",
+      "original_description": "STARBUCKS 001"
+    },
+    {
+      "date": "2025-08-12",
+      "merchant": "STARBUCKS",
+      "amount": -13.75,
+      "category": "coffee_specialty",
+      "account": "checking",
+      "original_description": "STARBUCKS 002"
+    },
+    {
+      "date": "2025-08-05",
+      "merchant": "PHILZ COFFEE",
+      "amount": -12.5,
+      "category": "coffee_general",
+      "account": "checking",
+      "original_description": "PHILZ COFFEE 001"
+    },
+    {
+      "date": "2025-08-12",
+      "merchant": "PHILZ COFFEE",
+      "amount": -13.75,
+      "category": "coffee_specialty",
+      "account": "checking",
+      "original_description": "PHILZ COFFEE 002"
+    },
+    {
+      "date": "2025-08-09",
+      "merchant": "PEETS TEA BAR",
+      "amount": -9.5,
+      "category": "tea",
+      "account": "checking",
+      "original_description": "PEETS TEA BAR"
+    },
+    {
+      "date": "2025-08-09",
+      "merchant": "MATCHA PLACE",
+      "amount": -11.25,
+      "category": "tea",
+      "account": "checking",
+      "original_description": "MATCHA PLACE"
+    }
+  ]
+}

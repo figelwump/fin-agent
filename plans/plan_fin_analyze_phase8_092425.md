@@ -54,11 +54,12 @@
   - Notes: 2025-09-25 — Added renderer module with Rich/JSON output, CLI now streams results directly, docs include JSON schema reference, and README shows live usage examples.
 
 ## Phase 8G — Testing & Fixtures
-- [ ] Prepare synthetic datasets under `tests/fixtures/analyze/` covering recurring subscriptions, seasonal trends, anomalies, and sparse data edge cases, including fixtures that span multiple years to validate yearly rollups.
-- [ ] Add unit tests per analyzer module verifying numeric outputs, flagging behaviour in low-data scenarios, and comparison-mode fallbacks when prior data is absent.
-- [ ] Add CLI integration tests (`tests/fin_analyze/test_cli.py`) using `CliRunner` to exercise dispatch, invalid analyzer names, option parsing, text vs JSON rendering, and exit codes; include cases for `--year 2024` and `--last-12-months`.
-- [ ] Include regression tests ensuring JSON payload keys remain stable (snapshot or schema comparison) to protect Claude Code integrations.
-- [ ] Update `pytest` fixtures to seed SQLite databases with shared migrations and fixture data for reproducible analytics runs.
+- [x] Prepare synthetic datasets under `tests/fixtures/analyze/` covering recurring subscriptions, seasonal trends, anomalies, and sparse data edge cases, including fixtures that span multiple years to validate yearly rollups.
+- [x] Add unit tests per analyzer module verifying numeric outputs, flagging behaviour in low-data scenarios, and comparison-mode fallbacks when prior data is absent.
+- [x] Add CLI integration tests (`tests/fin_analyze/test_cli.py`) using `CliRunner` to exercise dispatch, invalid analyzer names, option parsing, text vs JSON rendering, and exit codes; include cases for `--year 2024` and `--last-12-months`.
+- [x] Include regression tests ensuring JSON payload keys remain stable (snapshot or schema comparison) to protect Claude Code integrations.
+- [x] Update `pytest` fixtures to seed SQLite databases with shared migrations and fixture data for reproducible analytics runs.
+  - Notes: 2025-09-25 — Added fixture loader + dataset suite (`tests/fixtures/analyze/*.json`, `tests/fin_analyze/conftest.py`), expanded analyzer tests (trend/breakdown/evolution, sparse handling, payload contracts), new CLI coverage for yearly & rolling windows, and corrected category totals query to treat debits as spend so tests reflect real analytics behaviour.
 
 ## Risks & Dependencies
 - Accurate comparison periods depend on consistent timezone-free date handling; mismatches could skew deltas if transactions cross period boundaries.

@@ -1,0 +1,27 @@
+{
+  "accounts": [
+    {
+      "key": "checking",
+      "name": "Primary Checking",
+      "institution": "TestBank",
+      "account_type": "checking"
+    }
+  ],
+  "categories": [
+    {
+      "key": "misc_other",
+      "category": "Misc",
+      "subcategory": "Other"
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2025-08-15",
+      "merchant": "ONE OFF PURCHASE",
+      "amount": -25.0,
+      "category": "misc_other",
+      "account": "checking",
+      "original_description": "ONE OFF PURCHASE REF123"
+    }
+  ]
+}

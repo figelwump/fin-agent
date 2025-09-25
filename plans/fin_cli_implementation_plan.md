@@ -84,21 +84,23 @@
 
 ## Phase 8 — `fin-analyze` Analysis Modules
 **Notes:** Provide analytical computations leveraging pandas and reusable query helpers.
-- [ ] Implement dispatcher in `fin-analyze/main.py` mapping analysis types to analyzer modules.
-- [ ] Build analyzers for spending trends, category breakdown, subscription detection, anomaly detection, merchant frequency, spending patterns, category evolution, and category suggestions as described in the product spec.
-- [ ] Share data access utilities (e.g., `shared/dataframe.py`) to pull transactions into pandas DataFrames efficiently.
-- [ ] Implement comparison logic for `--compare` option, including period-over-period calculations and significance thresholds.
-- [ ] Provide both text (Rich tables + summaries) and JSON outputs, ensuring JSON schema is AI-friendly and documented.
-- [ ] Add targeted unit/integration tests per analyzer using fixture datasets to verify calculations and edge cases (insufficient data, zero transactions).
+- [x] Implement dispatcher in `fin-analyze/main.py` mapping analysis types to analyzer modules.
+- [x] Build analyzers for spending trends, category breakdown, subscription detection, anomaly detection, merchant frequency, spending patterns, category evolution, and category suggestions as described in the product spec.
+- [x] Share data access utilities (e.g., `shared/dataframe.py`) to pull transactions into pandas DataFrames efficiently.
+- [x] Implement comparison logic for `--compare` option, including period-over-period calculations and significance thresholds.
+- [x] Provide both text (Rich tables + summaries) and JSON outputs, ensuring JSON schema is AI-friendly and documented.
+- [x] Add targeted unit/integration tests per analyzer using fixture datasets to verify calculations and edge cases (insufficient data, zero transactions).
+  - Notes: 2025-09-25 — Dispatcher + registry wired to full analyzer suite using shared pandas loaders, comparison math, and Rich/JSON renderers; regression-focused tests now run against synthetic fixtures (subscriptions, multi-year spend, sparse data) to lock JSON contracts.
 
-## Phase 9 — `fin-export` Markdown Reporting
-**Notes:** Transform analytical outputs into human-readable Markdown with templating support.
-- [ ] Implement CLI command orchestrating underlying analyses to gather data for requested sections.
+## Phase 9 — `fin-export` Markdown & JSON Reporting
+**Notes:** Transform analytical outputs into human-readable Markdown with templating support, and expose a machine-readable JSON export for downstream web tooling (define schema + versioning to keep LLM integrations stable).
+- [ ] Implement CLI command orchestrating underlying analyses to gather data for requested sections, decoupling data assembly from renderers.
 - [ ] Create default Markdown templates in `fin-export/templates/` with Jinja2 or lightweight string formatting for summary, categories, subscriptions, patterns, unusual, merchants, trends, evolution sections.
 - [ ] Implement section registry allowing selective export via `--sections` and multi-month context via `--period`.
-- [ ] Support `--output` to write files and default to stdout, ensuring directories are created as needed.
-- [ ] Encode alert indicators (e.g., ⚠️, ✅, ❌) and ensure ASCII fallbacks for environments without emoji support.
-- [ ] Add tests rendering sample reports to verify section inclusion/exclusion and placeholder replacement.
+- [ ] Introduce JSON renderer (e.g., `--format json` or `--json`) emitting structured payloads `{ "version": "1.0", "generated_at": ..., "sections": { ... } }` suitable for webapp consumption; document schema and keep Markdown output unaffected.
+- [ ] Support `--output` targets per format (stdout default, file path when provided), ensuring directories are created as needed and enforcing `.json` vs `.md` suffixes when auto-detecting formats.
+- [ ] Encode alert indicators (e.g., ⚠️, ✅, ❌) and ensure ASCII fallbacks for environments without emoji support (JSON renderer should use canonical codes without emoji by default unless flagged).
+- [ ] Add tests rendering sample reports validating Markdown placeholder replacement plus JSON schema adherence (use pydantic or jsonschema helpers for structure assertions).
 
 ## Phase 6 — Additional PDF Extractors & Robustness
 **Notes:** Expand bank coverage and introduce Camelot fallback for complex tables.
