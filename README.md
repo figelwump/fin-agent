@@ -175,7 +175,50 @@ fin-analyze spending-trends --month 2025-08
 
 # Merchant frequency with JSON output suitable for automation
 fin-analyze merchant-frequency --month 2025-08 --min-visits 2 --format json
+
+# Category timeline for Shopping spend over the last 6 months with merchant drilldown
+fin-analyze category-timeline --period 6m --category "Shopping" --include-merchants --format json
+
+# Merchant frequency scoped to Shopping category only
+fin-analyze merchant-frequency --month 2025-08 --category "Shopping"
 ```
+
+## Using `fin-export`
+
+`fin-export` turns the analyses above into shareable reports. Make sure your
+SQLite database already contains enhanced transactions (via `fin-enhance`) so
+the analyzers have data to summarize.
+
+```bash
+# Default Markdown report for a single month (written to stdout)
+fin-export --month 2025-08
+
+# Save Markdown to disk
+fin-export --month 2025-08 --output ~/reports/august.md
+
+# Emit machine-readable JSON (explicit flag)
+fin-export --month 2025-08 --format json > august.json
+
+# Emit JSON inferred from output extension
+fin-export --month 2025-08 --output ~/reports/august.json
+
+# Limit to specific sections in the final report
+fin-export --month 2025-08 --sections summary,trends,unusual
+
+# Use the trailing 3 months instead of a specific calendar month
+fin-export --period 3m --sections all
+
+# Skip comparison to the prior window and loosen change sensitivity
+fin-export --month 2025-08 --no-compare --threshold 0.2
+
+# Render with a custom Jinja2 template (Markdown only)
+fin-export --month 2025-08 --template ~/my_templates/audit.md.j2
+```
+
+Section slugs currently available: `summary`, `categories`, `subscriptions`,
+`patterns`, `unusual`, `merchants`, `trends`, `evolution`, and `all` (alias for
+the full default set). JSON exports follow a stable `version: "1.0"` schema, so
+web apps and agents can ingest `sections` directly without scraping Markdown.
 
 ## Using `fin-query`
 The current saved query catalog includes:

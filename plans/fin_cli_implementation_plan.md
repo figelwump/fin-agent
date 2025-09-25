@@ -94,13 +94,14 @@
 
 ## Phase 9 — `fin-export` Markdown & JSON Reporting
 **Notes:** Transform analytical outputs into human-readable Markdown with templating support, and expose a machine-readable JSON export for downstream web tooling (define schema + versioning to keep LLM integrations stable).
-- [ ] Implement CLI command orchestrating underlying analyses to gather data for requested sections, decoupling data assembly from renderers.
-- [ ] Create default Markdown templates in `fin-export/templates/` with Jinja2 or lightweight string formatting for summary, categories, subscriptions, patterns, unusual, merchants, trends, evolution sections.
-- [ ] Implement section registry allowing selective export via `--sections` and multi-month context via `--period`.
-- [ ] Introduce JSON renderer (e.g., `--format json` or `--json`) emitting structured payloads `{ "version": "1.0", "generated_at": ..., "sections": { ... } }` suitable for webapp consumption; document schema and keep Markdown output unaffected.
-- [ ] Support `--output` targets per format (stdout default, file path when provided), ensuring directories are created as needed and enforcing `.json` vs `.md` suffixes when auto-detecting formats.
-- [ ] Encode alert indicators (e.g., ⚠️, ✅, ❌) and ensure ASCII fallbacks for environments without emoji support (JSON renderer should use canonical codes without emoji by default unless flagged).
-- [ ] Add tests rendering sample reports validating Markdown placeholder replacement plus JSON schema adherence (use pydantic or jsonschema helpers for structure assertions).
+- [x] Implement CLI command orchestrating underlying analyses to gather data for requested sections, decoupling data assembly from renderers.
+- [x] Create default Markdown templates in `fin-export/templates/` with Jinja2 or lightweight string formatting for summary, categories, subscriptions, patterns, unusual, merchants, trends, evolution sections.
+- [x] Implement section registry allowing selective export via `--sections` and multi-month context via `--period`.
+- [x] Introduce JSON renderer (e.g., `--format json` or `--json`) emitting structured payloads `{ "version": "1.0", "generated_at": ..., "sections": { ... } }` suitable for webapp consumption; document schema and keep Markdown output unaffected.
+- [x] Support `--output` targets per format (stdout default, file path when provided), ensuring directories are created as needed and enforcing `.json` vs `.md` suffixes when auto-detecting formats.
+- [x] Encode alert indicators (e.g., ⚠️, ✅, ❌) and ensure ASCII fallbacks for environments without emoji support (JSON renderer should use canonical codes without emoji by default unless flagged).
+- [x] Add tests rendering sample reports validating Markdown placeholder replacement plus JSON schema adherence (use pydantic or jsonschema helpers for structure assertions).
+  - Notes: 2025-09-25 — Implemented `fin_cli.fin_export.exporter` with section registry, summary metrics, Markdown template (`standard.md.j2`), JSON renderer v1 schema, CLI `--format`/`--sections`/`--period` support, emoji+ASCII indicators, and coverage via `tests/fin_export/test_cli.py`.
 
 ## Phase 6 — Additional PDF Extractors & Robustness
 **Notes:** Expand bank coverage and introduce Camelot fallback for complex tables.

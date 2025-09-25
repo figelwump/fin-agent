@@ -1,0 +1,21 @@
+# {{ metadata.report_title }}
+
+_Generated at {{ metadata.generated_at }}_
+
+{% for section in sections %}
+## {{ section.title }}
+{% if section.summary %}
+{% for line in section.summary %}- {{ line }}
+{% endfor %}
+{% endif %}
+{% if section.tables %}
+{% for table in section.tables %}{{ table }}
+
+{% endfor %}
+{% endif %}
+{% if section.extra_markdown %}
+{% for block in section.extra_markdown %}{{ block }}
+
+{% endfor %}
+{% endif %}
+{% endfor %}
