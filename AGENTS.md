@@ -2,6 +2,7 @@
 
 - Write comments in the code if it will help a future LLM understand details or nuance about how the code works.
 - When addressing a CLI/runtime error, rerun the user-reported command locally to confirm the fix before reporting back.
+- Activate the project virtualenv (`source .venv/bin/activate`) before running tests or CLI commands so dependencies like pandas are available.
 
 # How to write implementation plans
 - Prefix the plan name with "plan_" and suffix with a date like "_092325"

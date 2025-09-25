@@ -165,7 +165,7 @@ def render_schema_overview(
             print("", file=output_stream)
 
     if not overview.tables:
-        logger.info("No tables found in database %s.", overview.database_path)
+        logger.info(f"No tables found in database {overview.database_path}.")
 
 
 def _render_table(result: QueryResult, *, logger: Logger, stream: IO[str]) -> None:

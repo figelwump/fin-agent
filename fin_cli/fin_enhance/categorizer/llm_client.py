@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
+from fin_cli.shared.merchants import merchant_pattern_key, normalize_merchant
 
 try:  # Optional dependency
     from openai import OpenAI  # type: ignore
@@ -48,17 +49,33 @@ class LLMResult:
     merchant_metadata: Mapping[str, Any] | None = None
     suggestions: list[LLMSuggestion] = field(default_factory=list)
 
+class LLMClientError(RuntimeError):
+    """Raised when the LLM client cannot fulfill a request."""
+
+
+
+
+
+def _normalize_metadata(value: Any) -> dict[str, Any] | None:
+    """Normalize arbitrary metadata payloads from the LLM."""
+
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        normalized: dict[str, Any] = {}
+        for key, val in value.items():
+            if key is None:
+                continue
+            normalized[str(key)] = val
+        return normalized if normalized else None
+    return None
+
 
 class LLMClientError(RuntimeError):
     """Raised when the LLM client cannot fulfill a request."""
 
 
-_TRANSACTION_ID_RE = re.compile(r"\b\d{10,16}\b")
-_PHONE_RE = re.compile(r"\d{3}[-.]?\d{3}[-.]?\d{4}")
-_DATE_RE = re.compile(r"\b\d{2}[-/]\d{2}\b")
-_URL_RE = re.compile(r"\b[\w.-]+\.\w{2,4}\b", re.IGNORECASE)
-_ORDER_PREFIX_RE = re.compile(r"^[A-Z0-9]+\s*\*\d+\s*", re.IGNORECASE)
-_STRIP_PATTERNS = (_TRANSACTION_ID_RE, _PHONE_RE, _DATE_RE, _URL_RE)
+
 
 
 def _normalize_metadata(value: Any) -> dict[str, Any] | None:
@@ -118,7 +135,6 @@ def merchant_pattern_key(merchant: str) -> str:
     if not cleaned:
         cleaned = normalized
     return cleaned[:80]
-
 
 class LLMClient:
     """Thin wrapper around the configured LLM provider."""

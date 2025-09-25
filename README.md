@@ -167,7 +167,27 @@ Once inside the prompt, helpful commands include:
 
 Exit the shell with `.quit` when finished.
 
+## Using `fin-analyze`
+
+```bash
+# Spending trends for August 2025 printed as Rich tables
+fin-analyze spending-trends --month 2025-08
+
+# Merchant frequency with JSON output suitable for automation
+fin-analyze merchant-frequency --month 2025-08 --min-visits 2 --format json
+```
+
 ## Using `fin-query`
+The current saved query catalog includes:
+
+- `recent_transactions` – most recent transactions, optional month filter.
+- `category_summary` – total spend per category for a required month.
+- `transactions_month` – denormalised transactions for a YYYY-MM window, matching `fin-analyze` time slices and supporting optional `account_id`/category filters.
+- `uncategorized` – transactions without category assignments.
+- `merchant_patterns` – learned merchant rules with confidence/usage metrics.
+- `recent_imports` – most recent imports ordered by `import_date`.
+- `categories` – category catalog with usage counts and approval flags.
+
 
 `fin-query` provides read-only access to the SQLite database with support for
 ad-hoc SQL, saved templates, and schema exploration.

@@ -1,62 +1,82 @@
 version: 1
 queries:
-  - name: recent_transactions
-    file: recent_transactions.sql
-    description: "Most recent transactions with category metadata."
-    parameters:
-      limit:
-        type: integer
-        default: 25
-      month:
-        type: string
-        default: null
-        description: "Optional YYYY-MM filter applied to transaction date."
-  - name: category_summary
-    file: category_summary.sql
-    description: "Total amount per category for the selected month."
-    parameters:
-      month:
-        type: string
-        required: true
-        description: "Required YYYY-MM period to summarise."
-      account_id:
-        type: integer
-        default: null
-        description: "Optional account id filter."
-  - name: uncategorized
-    file: uncategorized.sql
-    description: "Transactions missing category assignments."
-    parameters: {}
-  - name: merchant_patterns
-    file: merchant_patterns.sql
-    description: "Learned merchant pattern catalog with usage stats."
-    parameters:
-      limit:
-        type: integer
-        default: 50
-      pattern:
-        type: string
-        default: null
-        description: "Optional LIKE filter (use % wildcards)."
-  - name: recent_imports
-    file: recent_imports.sql
-    description: "Most recently added transactions ordered by import timestamp."
-    parameters:
-      limit:
-        type: integer
-        default: 25
-  - name: categories
-    file: categories.sql
-    description: "Category catalog with usage counts and approval flags."
-    parameters:
-      limit:
-        type: integer
-        default: 100
-      category:
-        type: string
-        default: null
-        description: "Optional category LIKE filter."
-      subcategory:
-        type: string
-        default: null
-        description: "Optional subcategory LIKE filter."
+- name: recent_transactions
+  file: recent_transactions.sql
+  description: Most recent transactions with category metadata.
+  parameters:
+    limit:
+      type: integer
+      default: 25
+    month:
+      type: string
+      default: null
+      description: Optional YYYY-MM filter applied to transaction date.
+- name: category_summary
+  file: category_summary.sql
+  description: Total amount per category for the selected month.
+  parameters:
+    month:
+      type: string
+      required: true
+      description: Required YYYY-MM period to summarise.
+    account_id:
+      type: integer
+      default: null
+      description: Optional account id filter.
+- name: uncategorized
+  file: uncategorized.sql
+  description: Transactions missing category assignments.
+  parameters: {}
+- name: merchant_patterns
+  file: merchant_patterns.sql
+  description: Learned merchant pattern catalog with usage stats.
+  parameters:
+    limit:
+      type: integer
+      default: 50
+    pattern:
+      type: string
+      default: null
+      description: Optional LIKE filter (use % wildcards).
+- name: recent_imports
+  file: recent_imports.sql
+  description: Most recently added transactions ordered by import timestamp.
+  parameters:
+    limit:
+      type: integer
+      default: 25
+- name: categories
+  file: categories.sql
+  description: Category catalog with usage counts and approval flags.
+  parameters:
+    limit:
+      type: integer
+      default: 100
+    category:
+      type: string
+      default: null
+      description: Optional category LIKE filter.
+    subcategory:
+      type: string
+      default: null
+      description: Optional subcategory LIKE filter.
+- name: transactions_month
+  file: transactions_month.sql
+  description: Transactions for a calendar month (aligned with fin-analyze windows).
+  parameters:
+    month:
+      type: string
+      required: true
+      description: Month to filter in YYYY-MM format.
+    account_id:
+      type: integer
+      default: null
+      description: Optional account filter.
+    category:
+      type: string
+      default: null
+      description: Optional category LIKE filter (use % wildcards).
+    subcategory:
+      type: string
+      default: null
+      description: Optional subcategory LIKE filter (use % wildcards).

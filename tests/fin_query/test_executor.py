@@ -23,10 +23,10 @@ def _config(tmp_path) -> tuple[str, Mapping[str, str]]:
 
 def _seed_transactions(config) -> None:
     with connect(config) as connection:
-        connection.execute(
-            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?)",
+        account_id = connection.execute(
+            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?) RETURNING id",
             ("Primary", "TestBank", "checking"),
-        )
+        ).fetchone()[0]
         groceries_id = connection.execute(
             "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
             ("Food & Dining", "Groceries"),
@@ -41,7 +41,7 @@ def _seed_transactions(config) -> None:
                 "Amazon",
                 -42.10,
                 shopping_id,
-                None,
+                account_id,
                 "AMAZON MKTPLACE",
                 "2025-09-01T09:30:00",
                 0.9,
@@ -53,7 +53,7 @@ def _seed_transactions(config) -> None:
                 "Whole Foods",
                 -115.55,
                 groceries_id,
-                None,
+                account_id,
                 "WHOLEFDS 123",
                 "2025-09-02T10:15:00",
                 1.0,
@@ -65,7 +65,7 @@ def _seed_transactions(config) -> None:
                 "Amazon",
                 -19.99,
                 shopping_id,
-                None,
+                account_id,
                 "AMAZON MKTPLACE",
                 "2025-09-15T08:45:00",
                 0.8,
@@ -187,3 +187,29 @@ def test_run_recent_imports_query(tmp_path) -> None:
     assert result.limit_value == 2
     # First row should be the most recently imported transaction
     assert result.rows[0][1] >= result.rows[1][1]
+
+
+def test_run_transactions_month_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="transactions_month",
+        runtime_params={"month": "2025-08"},
+        limit=50,
+    )
+
+    assert result.limit_applied is True
+    assert len(result.rows) == 2
+    date_idx = result.columns.index("date")
+    assert all(str(row[date_idx]).startswith("2025-08") for row in result.rows)
+
+    filtered = executor.run_saved_query(
+        config=config,
+        name="transactions_month",
+        runtime_params={"month": "2025-08", "category": "Food%"},
+        limit=50,
+    )
+    category_idx = filtered.columns.index("category")
+    assert {row[category_idx] for row in filtered.rows} == {"Food & Dining"}

@@ -19,10 +19,9 @@ from .llm_client import (
     LLMResult,
     LLMSuggestion,
     deserialize_llm_results,
-    merchant_pattern_key,
-    normalize_merchant,
     serialize_llm_results,
 )
+from fin_cli.shared.merchants import merchant_pattern_key, normalize_merchant
 from .rules import CategorizationOutcome, RuleCategorizer
 from ..importer import ImportedTransaction
 

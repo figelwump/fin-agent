@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
@@ -26,6 +26,7 @@ class CLIContext:
     dry_run: bool
     verbose: bool
     logger: Logger
+    state: dict[str, Any] = field(default_factory=dict)
 
 
 pass_cli_context = click.make_pass_decorator(CLIContext)
