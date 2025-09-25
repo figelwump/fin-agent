@@ -183,6 +183,149 @@ def load_recurring_candidates(
     return frame
 
 
+def filter_frame_by_category(
+    frame: "pd.DataFrame",
+    *,
+    category: str | None = None,
+    subcategory: str | None = None,
+) -> "pd.DataFrame":
+    """Return a copy of *frame* filtered by the supplied category/subcategory.
+
+    Filtering is performed case-insensitively and leaves the original DataFrame
+    untouched. When no filters are provided the original frame is returned
+    unchanged (aside from copying when non-empty) so callers can safely chain
+    additional operations.
+    """
+
+    pandas = _ensure_pandas()
+    if frame is None:
+        raise ValueError("frame must not be None")
+    if frame.empty or (category is None and subcategory is None):
+        return frame.copy() if hasattr(frame, "copy") else frame
+
+    working = frame.copy()
+    mask = pandas.Series(True, index=working.index)
+
+    if category is not None:
+        category_norm = category.casefold()
+        mask &= (
+            working["category"]
+            .fillna("")
+            .astype(str)
+            .str.casefold()
+            .eq(category_norm)
+        )
+
+    if subcategory is not None:
+        subcategory_norm = subcategory.casefold()
+        mask &= (
+            working["subcategory"]
+            .fillna("")
+            .astype(str)
+            .str.casefold()
+            .eq(subcategory_norm)
+        )
+
+    return working.loc[mask].copy()
+
+
+def summarize_merchants(frame: "pd.DataFrame") -> dict[str, list[str]]:
+    """Return canonical/display merchant lists present in *frame*.
+
+    The helper is used by category-scoped analyzers to surface which merchants
+    contributed to a filtered dataset without re-deriving unique values in each
+    call site. When the frame is empty the lists are empty as well.
+    """
+
+    _ensure_pandas()
+    if frame is None or frame.empty:
+        return {"canonical": [], "display": []}
+
+    canonical_column = "merchant_canonical" if "merchant_canonical" in frame.columns else "merchant"
+    display_column = "merchant_display" if "merchant_display" in frame.columns else "merchant"
+
+    canonical = sorted({str(value) for value in frame[canonical_column].dropna()})
+    display = sorted({str(value) for value in frame[display_column].dropna()})
+
+    return {"canonical": canonical, "display": display}
+
+
+def prepare_grouped_spend(
+    frame: "pd.DataFrame",
+    *,
+    interval: str = "month",
+) -> "pd.DataFrame":
+    """Aggregate spending metrics for *frame* grouped by the supplied interval.
+
+    Parameters
+    ----------
+    frame:
+        Transaction DataFrame (as returned by :func:`load_transactions_frame`).
+    interval:
+        One of ``"month"``, ``"quarter"``, or ``"year"`` determining the
+        aggregation grain. Values are case-insensitive.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns: ``interval`` (string label), ``start`` (date), ``end`` (exclusive
+        date), ``spend`` (float), ``income`` (float), ``net`` (float), and
+        ``transaction_count`` (int). Rows are ordered by interval start.
+    """
+
+    pandas = _ensure_pandas()
+    if frame is None:
+        raise ValueError("frame must not be None")
+
+    supported: dict[str, str] = {"month": "M", "quarter": "Q", "year": "Y"}
+    interval_key = interval.casefold()
+    if interval_key not in supported:
+        raise ValueError(
+            f"Unsupported interval '{interval}'. Use one of: {', '.join(sorted(supported))}."
+        )
+
+    if frame.empty:
+        return pandas.DataFrame(
+            columns=[
+                "interval",
+                "start",
+                "end",
+                "spend",
+                "income",
+                "net",
+                "transaction_count",
+            ]
+        )
+
+    working = frame.copy()
+    period = working["date"].dt.to_period(supported[interval_key])
+    working["__interval_label"] = period.astype(str)
+    working["__interval_start"] = period.dt.to_timestamp().dt.date
+    working["__interval_end_exclusive"] = (period + 1).dt.to_timestamp().dt.date
+
+    grouped = (
+        working.sort_values("date")
+        .groupby("__interval_label", sort=True)
+        .agg(
+            start=("__interval_start", "min"),
+            end=("__interval_end_exclusive", "max"),
+            spend=("spend_amount", "sum"),
+            income=("income_amount", "sum"),
+            net=("amount", "sum"),
+            transaction_count=("transaction_id", "count"),
+        )
+        .reset_index()
+    )
+
+    grouped.rename(columns={"__interval_label": "interval"}, inplace=True)
+    grouped["spend"] = grouped["spend"].astype(float)
+    grouped["income"] = grouped["income"].astype(float)
+    grouped["net"] = grouped["net"].astype(float)
+    grouped["transaction_count"] = grouped["transaction_count"].astype(int)
+
+    return grouped[["interval", "start", "end", "spend", "income", "net", "transaction_count"]]
+
+
 def build_window_frames(context: AnalysisContext) -> WindowFrameSet:
     """Load primary/comparison transaction frames for an analysis run."""
 

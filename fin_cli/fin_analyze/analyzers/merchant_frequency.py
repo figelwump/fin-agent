@@ -14,7 +14,7 @@ from fin_cli.shared.merchants import friendly_display_name, merchant_pattern_key
 
 from ..metrics import percentage_change, safe_float
 from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
-from ...shared.dataframe import build_window_frames
+from ...shared.dataframe import build_window_frames, filter_frame_by_category
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,14 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
     frames = build_window_frames(context)
     frame = frames.frame
+    category = context.options.get("category")
+    subcategory = context.options.get("subcategory")
+    if category or subcategory:
+        frame = filter_frame_by_category(
+            frame,
+            category=str(category) if category else None,
+            subcategory=str(subcategory) if subcategory else None,
+        )
     if frame.empty:
         raise AnalysisError("No transactions available for the selected window.")
 
@@ -53,11 +61,16 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     if not current_stats:
         raise AnalysisError("No merchants matched the provided filters.")
 
-    comparison_stats = (
-        _aggregate_merchants(frames.comparison_frame)
-        if frames.comparison_frame is not None and not frames.comparison_empty()
-        else {}
-    )
+    comparison_stats = {}
+    if frames.comparison_frame is not None and not frames.comparison_empty():
+        comparison_frame = frames.comparison_frame
+        if category or subcategory:
+            comparison_frame = filter_frame_by_category(
+                comparison_frame,
+                category=str(category) if category else None,
+                subcategory=str(subcategory) if subcategory else None,
+            )
+        comparison_stats = _aggregate_merchants(comparison_frame)
 
     threshold = context.threshold if context.threshold is not None else 0.10
 
@@ -123,12 +136,21 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         "dropped_merchants": dropped_merchants,
     }
 
-    return AnalysisResult(
+    filter_metadata = None
+    if category or subcategory:
+        filter_metadata = {"category": category, "subcategory": subcategory}
+
+    result = AnalysisResult(
         title="Merchant Frequency",
         summary=summary_lines,
         tables=[table],
         json_payload=json_payload,
     )
+
+    if filter_metadata is not None:
+        json_payload["filter"] = filter_metadata
+
+    return result
 
 
 def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats]:
@@ -205,4 +227,3 @@ def _build_summary(
     if dropped_merchants:
         lines.append(f"Merchants missing this window: {len(dropped_merchants)}.")
     return lines
-

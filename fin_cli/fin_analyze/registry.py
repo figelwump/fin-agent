@@ -9,6 +9,7 @@ from typing import Iterable, Mapping, Sequence
 from .analyzers import (
     category_breakdown,
     category_evolution,
+    category_timeline,
     category_suggestions,
     merchant_frequency,
     spending_patterns,
@@ -113,6 +114,57 @@ _ANALYZER_SPECS: Sequence[AnalyzerSpec] = (
                 flags=("--min-visits",),
                 help="Minimum number of visits to include a merchant.",
                 type=int,
+            ),
+            AnalyzerOption(
+                name="category",
+                flags=("--category",),
+                help="Filter merchants to a specific category.",
+                type=str,
+            ),
+            AnalyzerOption(
+                name="subcategory",
+                flags=("--subcategory",),
+                help="Filter merchants to a specific subcategory.",
+                type=str,
+            ),
+        ),
+    ),
+    AnalyzerSpec(
+        slug="category-timeline",
+        title="Category Timeline",
+        summary="Aggregate spend for a category across months/quarters/years.",
+        factory=category_timeline.analyze,
+        options=(
+            AnalyzerOption(
+                name="interval",
+                flags=("--interval",),
+                help="Grouping interval: month, quarter, or year.",
+                type=str,
+                default="month",
+            ),
+            AnalyzerOption(
+                name="category",
+                flags=("--category",),
+                help="Category to filter by (optional).",
+                type=str,
+            ),
+            AnalyzerOption(
+                name="subcategory",
+                flags=("--subcategory",),
+                help="Subcategory to filter by (optional).",
+                type=str,
+            ),
+            AnalyzerOption(
+                name="top_n",
+                flags=("--top-n",),
+                help="Limit output to the latest N intervals.",
+                type=int,
+            ),
+            AnalyzerOption(
+                name="include_merchants",
+                flags=("--include-merchants",),
+                help="Include merchant lists contributing to the totals.",
+                is_flag=True,
             ),
         ),
     ),
@@ -256,4 +308,3 @@ def _add_option(parser: argparse.ArgumentParser, option: AnalyzerOption) -> None
         if option.default is not None:
             kwargs["default"] = option.default
     parser.add_argument(*option.flags, **kwargs)
-

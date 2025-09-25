@@ -3,6 +3,7 @@
 from . import (
     category_breakdown,
     category_evolution,
+    category_timeline,
     category_suggestions,
     merchant_frequency,
     spending_patterns,
@@ -14,6 +15,7 @@ from . import (
 __all__ = [
     "category_breakdown",
     "category_evolution",
+    "category_timeline",
     "category_suggestions",
     "merchant_frequency",
     "spending_patterns",

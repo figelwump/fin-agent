@@ -169,19 +169,93 @@ Exit the shell with `.quit` when finished.
 
 ## Using `fin-analyze`
 
+`fin-analyze` provides analytical views over the local SQLite ledger. The CLI
+has three layers of flags: window selectors (choose *one*), global modifiers,
+and analyzer-specific options.
+
+### Window Selection (mutually exclusive)
+
+- `--month YYYY-MM` – specific calendar month.
+- `--period Nd|Nw|Nm` – rolling window ending today (e.g., `--period 6m`).
+- `--year YYYY` – calendar year.
+- `--last-12-months` – trailing 12 full months.
+- Default: current month when nothing is supplied.
+- Add `--compare` to include the immediately preceding window.
+
+### Global Options
+
+- `--format text|json` (default `text`).
+- `--threshold FLOAT` – significance threshold for change markers.
+- `--db PATH` – alternate SQLite location (defaults to `~/.findata/transactions.db`).
+- `--help-list` – list available analyzers and exit.
+- Standard `--verbose`, `--dry-run`, etc., come from shared CLI helpers.
+
+### Analyzers & Key Flags
+
+- `spending-trends` – add `--show-categories` for top-category breakdowns.
+- `category-breakdown` – `--min-amount FLOAT` to ignore small totals.
+- `category-evolution` – tracks category churn and significance.
+- `category-timeline` *(new)* – interval rollups per category. Flags:
+  - `--interval month|quarter|year` (default `month`)
+  - `--category NAME`, `--subcategory NAME`
+  - `--top-n INT` (limit table rows to most recent N intervals)
+  - `--include-merchants` (append contributing merchant lists)
+- `merchant-frequency` – `--min-visits INT`; now accepts `--category` / `--subcategory` filters.
+- `spending-patterns` – `--by day|week|date`.
+- `subscription-detect` – `--all` (include inactive), `--min-confidence`.
+- `unusual-spending` – `--sensitivity 1-5`.
+- `category-suggestions` – `--min-overlap FLOAT`.
+
+Run `fin-analyze <type> --help` to see analyzer-specific usage.
+
+### Common Workflows
+
 ```bash
-# Spending trends for August 2025 printed as Rich tables
+# Spending trends for August 2025 (Rich text tables)
 fin-analyze spending-trends --month 2025-08
 
-# Merchant frequency with JSON output suitable for automation
+# Merchant frequency in JSON for automation
 fin-analyze merchant-frequency --month 2025-08 --min-visits 2 --format json
 
-# Category timeline for Shopping spend over the last 6 months with merchant drilldown
-fin-analyze category-timeline --period 6m --category "Shopping" --include-merchants --format json
+# Rolling six-month Shopping timeline with merchant drilldown
+fin-analyze category-timeline --period 6m --category "Shopping" \
+  --include-merchants --format json
 
-# Merchant frequency scoped to Shopping category only
+# Category-filtered merchant leaderboard for August
 fin-analyze merchant-frequency --month 2025-08 --category "Shopping"
+
+# Calendar-year breakdown with comparison
+fin-analyze category-breakdown --year 2024 --compare --format json
+
+# Detect subscriptions above a confidence threshold
+fin-analyze subscription-detect --month 2025-08 --min-confidence 0.6
 ```
+
+### JSON Output Schema
+
+When `--format json` is supplied, responses follow the documented schema in
+`docs/json/fin_analyze.md`:
+
+```json
+{
+  "title": "Category Timeline",
+  "summary": ["..."],
+  "tables": [...],
+  "payload": {
+    "window": {...},
+    "interval": "month",
+    "filter": {"category": "Shopping", "subcategory": null},
+    "intervals": [...],
+    "totals": {...},
+    "metadata": {...},
+    "comparison": {...},
+    "merchants": {...}
+  }
+}
+```
+
+See the docs file for the full contract covering each analyzer (including the
+new filter metadata and timeline payload).
 
 ## Using `fin-export`
 

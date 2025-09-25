@@ -5,6 +5,7 @@ import pytest
 from fin_cli.fin_analyze.analyzers import (
     category_breakdown,
     category_evolution,
+    category_timeline,
     category_suggestions,
     merchant_frequency,
     spending_patterns,
@@ -147,6 +148,30 @@ def test_category_suggestions_overlap(
     )
 
 
+def test_merchant_frequency_with_category_filter(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
+    context = analysis_context(
+        window,
+        comparison,
+        {"min_visits": 1, "category": "Shopping"},
+        compare=True,
+        threshold=0.10,
+    )
+
+    result = merchant_frequency.analyze(context)
+    payload = result.json_payload
+
+    assert payload.get("filter") == {"category": "Shopping", "subcategory": None}
+    merchants = {entry["canonical"] for entry in payload["merchants"]}
+    assert "AMAZON" in merchants
+
+
 def test_spending_trends_with_categories_and_comparison(
     load_analysis_dataset,
     analysis_context,
@@ -218,6 +243,50 @@ def test_category_evolution_new_and_dormant(
 
     assert ("Travel", "Ridehail") in new_categories
     assert ("Home Improvement", "Hardware") in dormant_categories
+
+
+def test_category_timeline_month_interval_with_merchants(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("rolling_year", "2024-09-01", "2025-09-01")
+    comparison = window_factory("preceding_year", "2023-09-01", "2024-09-01")
+    context = analysis_context(
+        window,
+        comparison,
+        {
+            "interval": "month",
+            "category": "Shopping",
+            "include_merchants": True,
+            "top_n": 6,
+        },
+        compare=True,
+        threshold=0.10,
+    )
+
+    result = category_timeline.analyze(context)
+    payload = result.json_payload
+
+    assert payload["interval"] == "month"
+    assert payload["filter"] == {"category": "Shopping", "subcategory": None}
+    assert payload["intervals"][-1]["interval"].startswith("2025-08")
+    assert payload["totals"]["intervals"] >= 12
+    assert "merchants" in payload and "AMAZON" in payload["merchants"]["canonical"]
+
+
+def test_category_timeline_raises_when_no_matches(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("spending_multi_year")
+    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
+    context = analysis_context(window, None, {"category": "Nonexistent"}, compare=False)
+
+    with pytest.raises(AnalysisError):
+        category_timeline.analyze(context)
 
 
 def test_spending_trends_handles_sparse_and_empty_windows(
@@ -310,3 +379,13 @@ def test_json_payload_keys_remain_stable(
         "new_merchants",
     }
 
+    timeline_context = analysis_context(
+        window,
+        comparison,
+        {"interval": "quarter", "category": "Shopping", "top_n": 4},
+        compare=True,
+        threshold=0.10,
+    )
+    timeline_payload = category_timeline.analyze(timeline_context).json_payload
+    assert set(timeline_payload.keys()) >= {"window", "interval", "filter", "intervals", "totals", "metadata"}
+    assert timeline_payload["interval"] == "quarter"

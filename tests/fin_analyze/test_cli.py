@@ -61,6 +61,56 @@ def test_cli_renders_text(load_analysis_dataset, app_config, runner) -> None:
     assert "Tuesday" in output
 
 
+def test_cli_category_timeline_with_period(load_analysis_dataset, app_config, runner) -> None:
+    load_analysis_dataset("spending_multi_year")
+    exit_code, output = _invoke_cli(
+        runner,
+        [
+            "category-timeline",
+            "--period",
+            "6m",
+            "--format",
+            "json",
+            "--db",
+            str(app_config.database.path),
+            "--category",
+            "Shopping",
+            "--include-merchants",
+            "--top-n",
+            "3",
+        ],
+    )
+    assert exit_code == 0, output
+    payload = json.loads(output)["payload"]
+    assert payload["interval"] == "month"
+    assert payload["filter"] == {"category": "Shopping", "subcategory": None}
+    assert payload["metadata"]["top_n"] == 3
+    assert "merchants" in payload and "AMAZON" in payload["merchants"]["canonical"]
+
+
+def test_cli_merchant_frequency_category_filter(load_analysis_dataset, app_config, runner) -> None:
+    load_analysis_dataset("spending_multi_year")
+    exit_code, output = _invoke_cli(
+        runner,
+        [
+            "merchant-frequency",
+            "--month",
+            "2025-08",
+            "--format",
+            "json",
+            "--db",
+            str(app_config.database.path),
+            "--category",
+            "Shopping",
+        ],
+    )
+    assert exit_code == 0, output
+    payload = json.loads(output)["payload"]
+    assert payload.get("filter") == {"category": "Shopping", "subcategory": None}
+    merchants = {entry["canonical"] for entry in payload["merchants"]}
+    assert "AMAZON" in merchants
+
+
 def test_cli_errors_on_unknown_analyzer(app_config, runner) -> None:
     exit_code, output = _invoke_cli(
         runner,
@@ -121,4 +171,3 @@ def test_cli_last_12_months_window(monkeypatch, load_analysis_dataset, app_confi
     payload = json.loads(output)["payload"]
     assert payload["window"]["label"].startswith("last_12_months_2024_09")
     assert payload["window"]["end"] == "2025-09-01"
-

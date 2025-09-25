@@ -138,6 +138,7 @@ Each entry in `tables` contains:
 {
   "window": {...},
   "min_visits": 2,
+  "filter": {"category": "Shopping", "subcategory": null},
   "merchants": [
     {
       "canonical": "AMAZON",
@@ -153,6 +154,43 @@ Each entry in `tables` contains:
   ],
   "new_merchants": ["TESLA SUPERCHARGER"],
   "dropped_merchants": ["TARGET"]
+}
+```
+
+### Category Timeline
+```json
+{
+  "window": {...},
+  "interval": "month",
+  "filter": {"category": "Shopping", "subcategory": null},
+  "intervals": [
+    {
+      "interval": "2025-06",
+      "start": "2025-06-01",
+      "end": "2025-07-01",
+      "spend": 420.0,
+      "income": 0.0,
+      "net": -420.0,
+      "transaction_count": 5,
+      "cumulative_spend": 1140.0
+    }
+  ],
+  "totals": {
+    "spend": 1560.0,
+    "income": 0.0,
+    "net": -1560.0,
+    "intervals": 4
+  },
+  "metadata": {"top_n": 3, "table_intervals": 3},
+  "comparison": {
+    "spend": 1200.0,
+    "intervals": 4,
+    "change_pct": 0.3
+  },
+  "merchants": {
+    "canonical": ["AMAZON", "TARGET"],
+    "display": ["Amazon", "Target"]
+  }
 }
 ```
 
@@ -187,4 +225,3 @@ Each entry in `tables` contains:
 ```
 
 > All numeric percentages are expressed as decimals in the payload (e.g., `0.25` equals 25%). Table rows retain raw values for downstream formatting.
-
