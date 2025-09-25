@@ -12,6 +12,14 @@ from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
 from fin_cli.shared.merchants import merchant_pattern_key, normalize_merchant
 
+TRANSACTION_ID_RE = re.compile(r"\b[A-Z0-9]{6,}\b")
+PHONE_RE = re.compile(r"\b\d{3}[-\s]?\d{3}[-\s]?\d{4}\b")
+DATE_RE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
+URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+ORDER_PREFIX_RE = re.compile(r"^[A-Z0-9]+\s*\*\w+\s*", re.IGNORECASE)
+STRIP_PATTERNS = (TRANSACTION_ID_RE, PHONE_RE, DATE_RE, URL_RE)
+
+
 try:  # Optional dependency
     from openai import OpenAI  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - dependency optional at runtime
@@ -111,7 +119,7 @@ def merchant_pattern_key(merchant: str) -> str:
     if not normalized:
         return normalized
 
-    cleaned = _ORDER_PREFIX_RE.sub("", normalized)
+    cleaned = ORDER_PREFIX_RE.sub("", normalized)
 
     if "*" in cleaned:
         prefix, rest = cleaned.split("*", 1)
@@ -123,7 +131,7 @@ def merchant_pattern_key(merchant: str) -> str:
                 suffix = parts[1]
         cleaned = f"{prefix.strip()} {suffix.strip()}".strip()
 
-    for pattern in _STRIP_PATTERNS:
+    for pattern in STRIP_PATTERNS:
         cleaned = pattern.sub(" ", cleaned)
 
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
