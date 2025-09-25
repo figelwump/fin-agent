@@ -163,26 +163,54 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
             pattern_display = metadata.get("merchant_pattern_display")
 
             if platform:
-                # Group all platform transactions together (e.g., all Lyft, all DoorDash)
-                canonical_keys.append(platform.upper())
-
-                # Detect merchant type from platform name or metadata
                 platform_upper = platform.upper()
-                if any(word in platform_upper for word in ["AIRLINE", "AIRWAYS", "JET", "FLIGHT"]):
-                    merchant_type = "airline"
-                    display_names.append(platform)  # Just the airline name, no location
-                elif any(word in platform_upper for word in ["HOTEL", "INN", "RESORT", "SUITES"]):
+
+                # For hotels, use the hotel name as canonical if available
+                if platform_upper == "HOTEL" and merchant_meta.get("hotel_name"):
+                    hotel_name = merchant_meta["hotel_name"]
+                    canonical_keys.append(hotel_name.upper())
                     merchant_type = "hotel"
-                    display_names.append(platform)  # Just the hotel brand
-                elif any(word in platform_upper for word in ["RENTAL", "HERTZ", "AVIS", "ENTERPRISE"]):
-                    merchant_type = "rental"
-                    display_names.append(platform)  # Just the rental company
-                elif merchant_meta.get("restaurant_name"):
-                    merchant_type = "food_delivery"
-                    display_names.append(pattern_display or platform)  # Keep restaurant info
+                    # Use the pattern display but strip location for aggregation
+                    if pattern_display and "•" in pattern_display:
+                        display_names.append(pattern_display.split("•")[0].strip())
+                    else:
+                        display_names.append(hotel_name)
+                # For generic or non-meaningful platforms, use pattern key
+                elif platform_upper in ["N/A", "AIRPORT DINING", "TST", "SQ", "SQUARE"]:
+                    # These are too generic or just payment processors, use the pattern key instead
+                    if pattern_display:
+                        # Extract a sensible canonical from the display name
+                        canonical = pattern_display.split("•")[0].strip().upper() if "•" in pattern_display else pattern_display.upper()
+                        canonical_keys.append(canonical)
+                        display_names.append(pattern_display)
+                    elif metadata.get("merchant_pattern_key"):
+                        canonical_keys.append(metadata["merchant_pattern_key"])
+                        display_names.append(merchant)
+                    else:
+                        canonical = merchant_pattern_key(merchant) or normalize_merchant(merchant)
+                        canonical_keys.append(canonical)
+                        display_names.append(merchant)
+                    merchant_type = "merchant"
                 else:
-                    merchant_type = "platform"
-                    display_names.append(pattern_display or platform)
+                    # Group all platform transactions together (e.g., all Lyft, all DoorDash)
+                    canonical_keys.append(platform.upper())
+
+                    # Detect merchant type from platform name or metadata
+                    if any(word in platform_upper for word in ["AIRLINE", "AIRWAYS", "JET", "FLIGHT"]):
+                        merchant_type = "airline"
+                        display_names.append(platform)  # Just the airline name, no location
+                    elif any(word in platform_upper for word in ["HOTEL", "INN", "RESORT", "SUITES"]):
+                        merchant_type = "hotel"
+                        display_names.append(platform)  # Just the hotel brand
+                    elif any(word in platform_upper for word in ["RENTAL", "HERTZ", "AVIS", "ENTERPRISE"]):
+                        merchant_type = "rental"
+                        display_names.append(platform)  # Just the rental company
+                    elif merchant_meta.get("restaurant_name"):
+                        merchant_type = "food_delivery"
+                        display_names.append(pattern_display or platform)  # Keep restaurant info
+                    else:
+                        merchant_type = "platform"
+                        display_names.append(pattern_display or platform)
                 merchant_types.append(merchant_type)
             elif metadata.get("merchant_pattern_key"):
                 # Use the LLM-provided canonical key
