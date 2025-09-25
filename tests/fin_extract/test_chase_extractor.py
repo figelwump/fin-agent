@@ -74,7 +74,7 @@ def test_chase_extractor_extracts_transactions() -> None:
     assert len(result.transactions) == 1
     grocery = result.transactions[0]
     assert grocery.date == date(2024, 11, 27)
-    assert grocery.amount == -127.34  # sale should be negative
+    assert grocery.amount == 127.34  # spending should be positive
     assert grocery.original_description == "WHOLEFDS #10234"
     assert result.metadata.account_name == "Chase Account"
 
@@ -110,7 +110,7 @@ def test_document_with_duplicated_glyphs_supported() -> None:
     assert len(result.transactions) == 1
     txn = result.transactions[0]
     assert txn.merchant == "GOOGLE *YouTubePremium g.co/helppay# CA"
-    assert txn.amount == -13.99
+    assert txn.amount == 13.99  # spending should be positive
 
 
 def test_sapphire_reserve_branding_detected() -> None:

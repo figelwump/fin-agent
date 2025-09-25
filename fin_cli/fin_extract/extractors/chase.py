@@ -211,9 +211,9 @@ class ChaseExtractor(StatementExtractor):
             except ValueError:
                 continue
             if current_section == "purchase" and amount > 0:
-                amount = -abs(amount)
+                amount = abs(amount)  # Spending is positive
             elif current_section == "credit" and amount > 0:
-                amount = abs(amount)
+                amount = -abs(amount)  # Credits are negative
             else:
                 amount = _apply_charge_sign(amount, description, current_section or "")
             transactions.append(
@@ -255,16 +255,16 @@ def _parse_amount(value: str) -> float:
 
 
 def _apply_charge_sign(amount: float, description: str, type_value: str) -> float:
-    """Convert positive amounts into expenses when appropriate."""
+    """Convert amounts to positive for spending (charges) and negative for credits."""
     normalized_desc = description.lower()
     if type_value:
         if any(keyword in type_value for keyword in {"payment", "credit"}):
-            return abs(amount)
+            return -abs(amount)  # Credits are negative
         if any(keyword in type_value for keyword in {"sale", "purchase", "debit"}):
-            return -abs(amount)
+            return abs(amount)  # Spending is positive
     if "payment" in normalized_desc or "credit" in normalized_desc:
-        return abs(amount)
-    return -abs(amount)
+        return -abs(amount)  # Credits are negative
+    return abs(amount)  # Default: spending is positive
 
 
 def _is_credit_entry(description: str, type_value: str) -> bool:
