@@ -145,27 +145,86 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
 
     working = frame.copy()
     working["merchant"] = working["merchant"].fillna("").astype(str)
-    working["canonical_raw"] = working["merchant"].apply(merchant_pattern_key)
-    mask = working["canonical_raw"].eq("")
-    if mask.any():
-        working.loc[mask, "canonical_raw"] = working.loc[mask, "merchant"].apply(normalize_merchant)
-    working["canonical"] = working["canonical_raw"].apply(_bucket_key)
 
+    # Extract canonical key and display name from metadata when available
+    canonical_keys = []
+    display_names = []
+
+    for idx, row in working.iterrows():
+        merchant = row["merchant"]
+        metadata = row.get("transaction_metadata")
+
+        # Option 1: Use LLM-enriched metadata when available
+        if isinstance(metadata, Mapping):
+            # Check for platform metadata first - these should be grouped together
+            merchant_meta = metadata.get("merchant_metadata", {})
+            platform = merchant_meta.get("platform") if isinstance(merchant_meta, dict) else None
+            pattern_display = metadata.get("merchant_pattern_display")
+
+            if platform:
+                # Group all platform transactions together (e.g., all Lyft, all DoorDash)
+                canonical_keys.append(platform.upper())
+                display_names.append(pattern_display or platform)
+            elif metadata.get("merchant_pattern_key"):
+                # Use the LLM-provided canonical key
+                pattern_key = metadata.get("merchant_pattern_key")
+                # Check if this looks like a platform abbreviation that should be expanded
+                if pattern_key == "IC CA" and "INSTACART" in merchant.upper():
+                    canonical_keys.append("INSTACART")
+                    display_names.append("Instacart")
+                else:
+                    canonical_keys.append(pattern_key)
+                    display_names.append(pattern_display or merchant)
+            else:
+                # Fallback to rule-based normalization
+                canonical = merchant_pattern_key(merchant)
+                if not canonical:
+                    canonical = normalize_merchant(merchant)
+                canonical_keys.append(canonical)
+                display_names.append(merchant)
+        else:
+            # No metadata, use rule-based normalization
+            canonical = merchant_pattern_key(merchant)
+            if not canonical:
+                canonical = normalize_merchant(merchant)
+            canonical_keys.append(canonical)
+            display_names.append(merchant)
+
+    working["canonical"] = canonical_keys
+    working["display_name_hint"] = display_names
+
+    # Group by canonical key
     groups = working.groupby("canonical")
     stats: dict[str, _MerchantStats] = {}
+
     for canonical, group in groups:
         visits = int(len(group))
         spend_total = safe_float(group["spend_amount"].sum())
         average = spend_total / visits if visits else 0.0
         variants = set(group["merchant"].unique())
-        metadata_displays: list[str] = []
-        if "transaction_metadata" in group:
-            for value in group["transaction_metadata"]:
-                if isinstance(value, Mapping):
-                    display = value.get("merchant_display") or value.get("merchant")
-                    if display:
-                        metadata_displays.append(str(display))
-        display_name = friendly_display_name(canonical, metadata_displays or variants)
+
+        # Prefer display names from metadata
+        display_hints = list(group["display_name_hint"].unique())
+
+        # For platforms like Lyft or DoorDash, use simple platform name
+        if canonical in ["LYFT", "DOORDASH", "INSTACART", "UBER", "GRUBHUB"]:
+            display_name = canonical.title()
+        elif display_hints:
+            # Filter out raw merchant names to prefer enriched display names
+            enriched_names = [h for h in display_hints if h not in variants and "•" in h]
+            if enriched_names:
+                # For platform transactions with restaurant names, show them
+                display_name = enriched_names[0]
+            elif any("•" not in h and h not in variants for h in display_hints):
+                # Use clean display names without bullet points
+                clean_names = [h for h in display_hints if "•" not in h and h not in variants]
+                display_name = clean_names[0] if clean_names else display_hints[0]
+            else:
+                display_name = display_hints[0]
+        else:
+            # Fallback to friendly display name logic
+            display_name = friendly_display_name(canonical, variants)
+
         stats[canonical] = _MerchantStats(
             canonical=canonical,
             display_name=display_name,
@@ -174,19 +233,8 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
             total_spend=spend_total,
             average_spend=average,
         )
+
     return stats
-
-def _bucket_key(canonical: str) -> str:
-    tokens = canonical.split()
-    generic = {"THE", "STORE", "MARKET", "SHOP", "LLC", "INC", "CO", "COMPANY"}
-    for token in tokens:
-        if len(token) > 2 and token not in generic and not token.isdigit():
-            if token.startswith("AMZN") or token.startswith("AMAZON"):
-                return "AMAZON"
-            return token
-    return canonical or "UNKNOWN"
-
-
 
 
 
