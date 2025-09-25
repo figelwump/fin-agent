@@ -149,6 +149,7 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
     # Extract canonical key and display name from metadata when available
     canonical_keys = []
     display_names = []
+    merchant_types = []  # Track the type of each merchant for better display logic
 
     for idx, row in working.iterrows():
         merchant = row["merchant"]
@@ -164,11 +165,25 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
             if platform:
                 # Group all platform transactions together (e.g., all Lyft, all DoorDash)
                 canonical_keys.append(platform.upper())
-                # For certain types of merchants, just use the platform name without location details
-                if any(keyword in platform.upper() for keyword in ["AIRLINE", "HOTEL", "RENTAL"]):
-                    display_names.append(platform)
+
+                # Detect merchant type from platform name or metadata
+                platform_upper = platform.upper()
+                if any(word in platform_upper for word in ["AIRLINE", "AIRWAYS", "JET", "FLIGHT"]):
+                    merchant_type = "airline"
+                    display_names.append(platform)  # Just the airline name, no location
+                elif any(word in platform_upper for word in ["HOTEL", "INN", "RESORT", "SUITES"]):
+                    merchant_type = "hotel"
+                    display_names.append(platform)  # Just the hotel brand
+                elif any(word in platform_upper for word in ["RENTAL", "HERTZ", "AVIS", "ENTERPRISE"]):
+                    merchant_type = "rental"
+                    display_names.append(platform)  # Just the rental company
+                elif merchant_meta.get("restaurant_name"):
+                    merchant_type = "food_delivery"
+                    display_names.append(pattern_display or platform)  # Keep restaurant info
                 else:
+                    merchant_type = "platform"
                     display_names.append(pattern_display or platform)
+                merchant_types.append(merchant_type)
             elif metadata.get("merchant_pattern_key"):
                 # Use the LLM-provided canonical key
                 pattern_key = metadata.get("merchant_pattern_key")
@@ -176,9 +191,11 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
                 if pattern_key == "IC CA" and "INSTACART" in merchant.upper():
                     canonical_keys.append("INSTACART")
                     display_names.append("Instacart")
+                    merchant_types.append("platform")
                 else:
                     canonical_keys.append(pattern_key)
                     display_names.append(pattern_display or merchant)
+                    merchant_types.append("merchant")
             else:
                 # Fallback to rule-based normalization
                 canonical = merchant_pattern_key(merchant)
@@ -186,6 +203,7 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
                     canonical = normalize_merchant(merchant)
                 canonical_keys.append(canonical)
                 display_names.append(merchant)
+                merchant_types.append("merchant")
         else:
             # No metadata, use rule-based normalization
             canonical = merchant_pattern_key(merchant)
@@ -193,9 +211,11 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
                 canonical = normalize_merchant(merchant)
             canonical_keys.append(canonical)
             display_names.append(merchant)
+            merchant_types.append("merchant")
 
     working["canonical"] = canonical_keys
     working["display_name_hint"] = display_names
+    working["merchant_type"] = merchant_types
 
     # Group by canonical key
     groups = working.groupby("canonical")
@@ -209,15 +229,14 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
 
         # Prefer display names from metadata
         display_hints = list(group["display_name_hint"].unique())
+        merchant_types = group["merchant_type"].unique()
 
-        # For platforms and airlines, use simple names without location details
-        known_platforms = ["LYFT", "DOORDASH", "INSTACART", "UBER", "GRUBHUB"]
-        known_airlines = ["UNITED AIRLINES", "AMERICAN AIRLINES", "DELTA", "SOUTHWEST", "ALASKA AIRLINES", "JETBLUE", "SPIRIT"]
+        # Determine the dominant merchant type for this group
+        # (should usually be consistent, but take the first if mixed)
+        merchant_type = merchant_types[0] if len(merchant_types) > 0 else "merchant"
 
-        if canonical in known_platforms:
-            display_name = canonical.title()
-        elif canonical in known_airlines or "AIRLINES" in canonical:
-            # For airlines, strip location information from display hints
+        if merchant_type in ["airline", "hotel", "rental"]:
+            # For travel-related merchants, strip location details
             clean_hints = []
             for hint in display_hints:
                 if "•" in hint:
@@ -225,22 +244,32 @@ def _aggregate_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
                     clean_hints.append(hint.split("•")[0].strip())
                 else:
                     clean_hints.append(hint)
-            display_name = clean_hints[0] if clean_hints else canonical.title()
-        elif display_hints:
-            # Filter out raw merchant names to prefer enriched display names
-            enriched_names = [h for h in display_hints if h not in variants and "•" in h]
-            if enriched_names:
-                # For platform transactions with restaurant names, show them
-                display_name = enriched_names[0]
-            elif any("•" not in h and h not in variants for h in display_hints):
-                # Use clean display names without bullet points
-                clean_names = [h for h in display_hints if "•" not in h and h not in variants]
-                display_name = clean_names[0] if clean_names else display_hints[0]
-            else:
-                display_name = display_hints[0]
+            display_name = clean_hints[0] if clean_hints else canonical.title().replace("_", " ")
+        elif merchant_type == "food_delivery":
+            # For food delivery aggregation, just show the platform name
+            # (individual restaurant details would be misleading when aggregated)
+            platform_names = []
+            for hint in display_hints:
+                if "•" in hint:
+                    # Extract platform name from "DoorDash • Restaurant"
+                    platform_names.append(hint.split("•")[0].strip())
+                else:
+                    platform_names.append(hint)
+            # Get the most common platform name or use canonical
+            display_name = platform_names[0] if platform_names else canonical.title()
+        elif merchant_type == "platform":
+            # For other platforms (ride-sharing, etc.), use simple platform name
+            clean_names = [h for h in display_hints if "•" not in h]
+            display_name = clean_names[0] if clean_names else display_hints[0] if display_hints else canonical.title()
         else:
-            # Fallback to friendly display name logic
-            display_name = friendly_display_name(canonical, variants)
+            # For regular merchants
+            if display_hints:
+                # Prefer enriched display names
+                enriched_names = [h for h in display_hints if h not in variants]
+                display_name = enriched_names[0] if enriched_names else display_hints[0]
+            else:
+                # Fallback to friendly display name logic
+                display_name = friendly_display_name(canonical, variants)
 
         stats[canonical] = _MerchantStats(
             canonical=canonical,
