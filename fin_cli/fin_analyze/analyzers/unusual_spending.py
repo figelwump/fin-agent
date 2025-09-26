@@ -13,11 +13,13 @@ except ImportError:  # pragma: no cover - optional dependency
 from ..metrics import percentage_change, safe_float
 from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 from ...shared.dataframe import build_window_frames
+from ...shared.merchants import friendly_display_name
 
 
 @dataclass(frozen=True)
 class AnomalyRecord:
     merchant: str
+    canonical: str
     spend: float
     baseline_spend: float
     spend_change_pct: float | None
@@ -47,21 +49,26 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
     anomalies: list[AnomalyRecord] = []
     new_merchants: list[str] = []
-    increased_frequency: list[str] = []
+    seen_new_merchants: set[str] = set()
+    increased_frequency: set[str] = set()
 
-    for merchant, metrics in current_totals.items():
-        baseline = comparison_totals.get(merchant)
+    for canonical, metrics in current_totals.items():
+        baseline = comparison_totals.get(canonical)
         spend_change = percentage_change(metrics.spend, baseline.spend if baseline else None) if baseline else None
         visit_change = percentage_change(metrics.visits, baseline.visits if baseline else None) if baseline else None
 
         notes: list[str] = []
         if baseline is None:
             notes.append("new merchant")
-            new_merchants.append(merchant)
+            # Track via canonical key so multiple raw variants collapse into one entry.
+            if canonical not in seen_new_merchants:
+                seen_new_merchants.add(canonical)
+                new_merchants.append(metrics.display_name)
             if metrics.spend >= 50.0:
                 anomalies.append(
                     AnomalyRecord(
-                        merchant=merchant,
+                        merchant=metrics.display_name,
+                        canonical=metrics.canonical,
                         spend=metrics.spend,
                         baseline_spend=0.0,
                         spend_change_pct=None,
@@ -75,7 +82,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
         if visit_change and visit_change > threshold_pct:
             notes.append(f"visits +{visit_change * 100:.1f}%")
-            increased_frequency.append(merchant)
+            increased_frequency.add(metrics.display_name)
 
         should_flag = False
         if spend_change is not None and spend_change > threshold_pct and metrics.spend >= 25.0:
@@ -87,7 +94,8 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         if should_flag:
             anomalies.append(
                 AnomalyRecord(
-                    merchant=merchant,
+                    merchant=metrics.display_name,
+                    canonical=metrics.canonical,
                     spend=metrics.spend,
                     baseline_spend=baseline.spend,
                     spend_change_pct=spend_change,
@@ -104,7 +112,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     anomalies.sort(key=lambda record: record.spend_change_pct or 0, reverse=True)
 
     table = _build_table(anomalies)
-    summary_lines = _build_summary(anomalies, new_merchants, increased_frequency)
+    summary_lines = _build_summary(anomalies, new_merchants, sorted(increased_frequency))
 
     json_payload = {
         "window": {
@@ -117,6 +125,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         "anomalies": [
             {
                 "merchant": record.merchant,
+                "canonical": record.canonical,
                 "spend": round(record.spend, 2),
                 "baseline_spend": round(record.baseline_spend, 2),
                 "spend_change_pct": None
@@ -144,6 +153,8 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
 @dataclass(frozen=True)
 class _MerchantMetrics:
+    canonical: str
+    display_name: str
     spend: float
     visits: int
 
@@ -154,14 +165,32 @@ def _merchant_metrics(frame: pd.DataFrame | None) -> dict[str, _MerchantMetrics]
 
     working = frame.copy()
     working["spend_amount"] = working["spend_amount"].astype(float)
-    grouped = working.groupby("merchant", sort=False)
+    canonical_col = "merchant_canonical" if "merchant_canonical" in working.columns else "merchant"
+    display_col = "merchant_display" if "merchant_display" in working.columns else "merchant"
+    # Group by canonical merchant keys so downstream anomaly detection treats
+    # distinct raw strings (e.g., order numbers) as the same merchant.
+    grouped = working.groupby(canonical_col, sort=False)
     metrics: dict[str, _MerchantMetrics] = {}
-    for merchant, group in grouped:
+    for canonical, group in grouped:
         spend_total = safe_float(group["spend_amount"].sum())
         visits = int(len(group))
         if spend_total <= 0:
             continue
-        metrics[merchant] = _MerchantMetrics(spend=spend_total, visits=visits)
+        display_series = group[display_col].dropna().astype(str)
+        if not display_series.empty:
+            mode_values = display_series.mode()
+            display_name = mode_values.iloc[0] if not mode_values.empty else display_series.iloc[0]
+        else:
+            raw_values = set(group["merchant"].astype(str))
+            display_name = friendly_display_name(str(canonical), raw_values)
+        canonical_key = str(canonical) if canonical is not None else "UNKNOWN"
+        canonical_key = canonical_key.strip() or "UNKNOWN"
+        metrics[canonical_key] = _MerchantMetrics(
+            canonical=canonical_key,
+            display_name=display_name,
+            spend=spend_total,
+            visits=visits,
+        )
     return metrics
 
 
@@ -214,4 +243,3 @@ def _build_summary(
     if not lines:
         lines.append("No unusual spending patterns detected.")
     return lines
-

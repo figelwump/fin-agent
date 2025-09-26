@@ -14,6 +14,7 @@ from fin_cli.fin_analyze import registry, temporal
 from fin_cli.fin_analyze.metrics import percentage_change, safe_float
 from fin_cli.fin_analyze.types import (
     AnalysisContext,
+    AnalysisError,
     AnalysisResult,
     TableSeries,
     TimeWindow,
@@ -395,6 +396,33 @@ class _ReportBuilder:
         )
         try:
             result = analyzer_spec.factory(context)
+        except AnalysisError as exc:
+            # Treat analyzer-level user/data errors as non-fatal so the export can
+            # continue. We surface the message in the section summary and payload
+            # to keep the report informative for downstream LLMs/consumers.
+            message = str(exc) or "Analyzer returned an error."
+            title = spec.title if spec.title else analyzer_spec.title
+            if self.cli_ctx.logger:
+                self.cli_ctx.logger.debug(
+                    f"Analyzer '{analyzer_spec.slug}' returned non-fatal AnalysisError: {message}"
+                )
+            return SectionOutput(
+                slug=spec.slug,
+                title=title,
+                summary=[message],
+                tables_markdown=[],
+                tables_structured=[],
+                extra_markdown=[],
+                payload={
+                    "analyzer": analyzer_spec.slug,
+                    "status": "unavailable",
+                    "error": message,
+                    "window": _window_payload(self.window),
+                    "comparison_window": _window_payload(self.comparison)
+                    if self.compare
+                    else None,
+                },
+            )
         except FinAgentError:
             raise
         except Exception as exc:  # pragma: no cover - analyzer errors

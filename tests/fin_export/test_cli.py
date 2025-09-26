@@ -30,6 +30,21 @@ def test_markdown_report_includes_sections(load_analysis_dataset, app_config) ->
     assert "Top Merchants" in output
 
 
+def test_markdown_report_handles_empty_subscriptions(load_analysis_dataset, app_config) -> None:
+    load_analysis_dataset("sparse")
+    exit_code, output = _invoke(
+        [
+            "--db",
+            str(app_config.database.path),
+            "--month",
+            "2025-08",
+        ]
+    )
+    assert exit_code == 0, output
+    assert "## Active Subscriptions" in output
+    assert "- No subscriptions matched the configured filters." in output
+
+
 def test_json_report_structure(load_analysis_dataset, app_config) -> None:
     load_analysis_dataset("spending_multi_year")
     exit_code, output = _invoke(

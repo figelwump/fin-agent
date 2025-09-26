@@ -88,10 +88,11 @@ def test_unusual_spending_flags_large_increase(
     result = unusual_spending.analyze(context)
     payload = result.json_payload
 
-    anomaly_merchants = {entry["merchant"] for entry in payload["anomalies"]}
-    assert "AMAZON" in anomaly_merchants
+    anomaly_canonicals = {entry["canonical"] for entry in payload["anomalies"]}
+    assert "AMAZON" in anomaly_canonicals
 
-    assert "TESLA SUPERCHARGER" in payload["new_merchants"]
+    new_names = {name.upper() for name in payload["new_merchants"]}
+    assert "TESLA SUPERCHARGER" in new_names
 
 
 def test_merchant_frequency_reports_new_and_dropped(
