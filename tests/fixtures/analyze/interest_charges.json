@@ -1,0 +1,35 @@
+{
+  "accounts": [
+    {
+      "key": "bofa_cc",
+      "name": "Bank of America Credit Card",
+      "institution": "Bank of America",
+      "account_type": "credit"
+    }
+  ],
+  "categories": [
+    {
+      "key": "fees_interest",
+      "category": "Fees & Charges",
+      "subcategory": "Interest"
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2025-07-10",
+      "merchant": "GROCERY PURCHASE",
+      "amount": -120.45,
+      "category": "fees_interest",
+      "account": "bofa_cc",
+      "original_description": "GROCERY PURCHASE"
+    },
+    {
+      "date": "2025-07-22",
+      "merchant": "INTEREST CHARGED ON PURCHASES",
+      "amount": -306.29,
+      "category": "fees_interest",
+      "account": "bofa_cc",
+      "original_description": "INTEREST CHARGED ON PURCHASES"
+    }
+  ]
+}

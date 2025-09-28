@@ -102,3 +102,37 @@ def test_output_path_infers_format(load_analysis_dataset, app_config, tmp_path: 
     assert output_path.exists()
     payload = json.loads(output_path.read_text())
     assert payload["sections"]["summary"]["payload"]["metrics"]["total_spent"] >= 0
+
+
+def test_summary_flags_interest_charges(load_analysis_dataset, app_config) -> None:
+    load_analysis_dataset("interest_charges")
+    exit_code, output = _invoke(
+        [
+            "--db",
+            str(app_config.database.path),
+            "--month",
+            "2025-07",
+            "--sections",
+            "summary",
+        ]
+    )
+    assert exit_code == 0, output
+    assert "Interest charges" in output
+
+    exit_code, output = _invoke(
+        [
+            "--db",
+            str(app_config.database.path),
+            "--month",
+            "2025-07",
+            "--sections",
+            "summary",
+            "--format",
+            "json",
+        ]
+    )
+    assert exit_code == 0, output
+    payload = json.loads(output)
+    interest_metrics = payload["sections"]["summary"]["payload"]["interest_charges"]
+    assert interest_metrics["count"] == 1
+    assert interest_metrics["total"] == 306.29

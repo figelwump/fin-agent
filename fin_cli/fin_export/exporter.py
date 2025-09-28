@@ -350,6 +350,14 @@ class _ReportBuilder:
         net_cash = total_income - total_spend
         summary_lines.append(f"Net cash flow: {_currency(net_cash)}")
 
+        interest_metrics = _interest_charge_metrics(frame)
+        if interest_metrics["count"] > 0 and interest_metrics["total"] > 0:
+            indicator = _indicator_markup("warning")
+            summary_lines.append(
+                f"{indicator} Interest charges: {interest_metrics['count']} transaction(s) totaling "
+                f"{_currency(interest_metrics['total'])}"
+            )
+
         if comparison_payload is not None and change_indicator is not None:
             indicator_markup = _indicator_markup(change_indicator["code"])
             change_pct_val = change_indicator["percent_display"]
@@ -366,6 +374,7 @@ class _ReportBuilder:
                 "total_income": round(total_income, 2),
                 "net_cash_flow": round(net_cash, 2),
             },
+            "interest_charges": interest_metrics,
             "comparison": comparison_payload,
         }
 
@@ -597,6 +606,37 @@ def _window_display_name(window: TimeWindow) -> str:
 
 def _currency(value: float) -> str:
     return f"${value:,.2f}"
+
+
+def _interest_charge_metrics(frame) -> dict[str, Any]:
+    interest_mask = _interest_charge_mask(frame)
+    if interest_mask.sum() == 0:
+        return {"count": 0, "total": 0.0}
+    interest_frame = frame.loc[interest_mask]
+    total = safe_float(interest_frame["spend_amount"].sum())
+    return {
+        "count": int(len(interest_frame)),
+        "total": round(total, 2),
+        "merchants": sorted({str(m) for m in interest_frame["merchant_display"]}),
+    }
+
+
+def _interest_charge_mask(frame) -> Any:
+    columns = []
+    for column in ("merchant", "merchant_display", "original_description"):
+        if column in frame:
+            columns.append(frame[column].astype(str).str.contains("interest", case=False, na=False))
+
+    if not columns:
+        return frame.assign(_interest=False)["_interest"]
+
+    mask = columns[0]
+    for candidate in columns[1:]:
+        mask |= candidate
+
+    if "spend_amount" in frame:
+        mask &= frame["spend_amount"] > 0
+    return mask
 
 
 def _utc_now_iso() -> str:
