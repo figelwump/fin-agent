@@ -109,12 +109,26 @@ class HybridCategorizer:
         *,
         options: CategorizationOptions,
     ) -> HybridCategorizerResult:
+        total_transactions = len(transactions)
+        if total_transactions == 0:
+            self.logger.info("No transactions provided for categorization.")
+            return HybridCategorizerResult(
+                outcomes=[],
+                transaction_reviews=[],
+                category_proposals=[],
+                auto_created_categories=[],
+            )
+
+        self.logger.info(
+            f"Running rules-based categorization for {total_transactions} transaction(s)…"
+        )
         outcomes: list[CategorizationOutcome] = []
         transaction_reviews: list[TransactionReview] = []
         category_proposals_map: dict[tuple[str, str], CategoryProposal] = {}
         auto_created: list[tuple[str, str]] = []
 
         merchant_batches: Dict[str, list[tuple[int, ImportedTransaction]]] = defaultdict(list)
+        rule_auto = 0
 
         for idx, txn in enumerate(transactions):
             outcome = self.rule_categorizer.categorize(txn.merchant)
@@ -129,6 +143,21 @@ class HybridCategorizer:
                     pattern_key = merchant_pattern_key(txn.merchant)
                     merchant_key = pattern_key or normalize_merchant(txn.merchant)
                     merchant_batches[merchant_key].append((idx, txn))
+            else:
+                if not outcome.needs_review:
+                    rule_auto += 1
+
+        llm_candidate_txns = sum(len(entries) for entries in merchant_batches.values())
+        if llm_candidate_txns:
+            self.logger.info(
+                f"Rules pass resolved {rule_auto} transaction(s); "
+                f"{llm_candidate_txns} transaction(s) across {len(merchant_batches)} merchant(s) "
+                "require LLM evaluation."
+            )
+        else:
+            self.logger.info(
+                f"Rules pass resolved {rule_auto} transaction(s); no LLM evaluation needed."
+            )
 
         if merchant_batches and not self.llm_client.enabled:
             self.logger.warning(
@@ -140,10 +169,30 @@ class HybridCategorizer:
         if merchant_batches:
             cached_results, pending_batches = self._resolve_cache(merchant_batches)
             llm_results.update(cached_results)
+            if cached_results:
+                cached_txns = sum(len(merchant_batches[key]) for key in cached_results)
+                self.logger.info(
+                    f"Loaded cached LLM suggestions for {cached_txns} transaction(s) "
+                    f"across {len(cached_results)} merchant(s)."
+                )
             if pending_batches:
+                pending_txns = sum(len(items) for items in pending_batches.values())
+                self.logger.info(
+                    f"Requesting new LLM suggestions for {pending_txns} transaction(s) "
+                    f"across {len(pending_batches)} merchant(s)…"
+                )
                 fetched = self._fetch_from_llm(pending_batches, known_categories)
                 llm_results.update(fetched)
                 self._persist_cache(fetched)
+                if fetched:
+                    fetched_txns = sum(len(merchant_batches[key]) for key in fetched)
+                    self.logger.info(
+                        f"Received LLM suggestions for {fetched_txns} transaction(s)."
+                    )
+                else:
+                    self.logger.info(
+                        "No new LLM suggestions returned; relying on cache or review queue."
+                    )
 
         for merchant_key, entries in merchant_batches.items():
             result = llm_results.get(merchant_key)
@@ -168,6 +217,13 @@ class HybridCategorizer:
                 outcome.needs_review = False
             transaction_reviews = []
             category_proposals = []
+        auto_assigned_total = sum(
+            1 for outcome in outcomes if outcome.category_id and not outcome.needs_review
+        )
+        self.logger.info(
+            "Categorization pipeline finished: "
+            f"{auto_assigned_total} auto-assigned, {len(transaction_reviews)} pending review."
+        )
         return HybridCategorizerResult(
             outcomes=outcomes,
             transaction_reviews=transaction_reviews,

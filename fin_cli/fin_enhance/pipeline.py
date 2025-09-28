@@ -81,14 +81,14 @@ class ImportPipeline:
         transactions: list[ImportedTransaction] = []
         for path in csv_paths:
             path_str = str(path)
+            source_name = "stdin" if path_str == "-" else str(path)
+            self.logger.info(f"Reading transactions from {source_name}…")
             if path_str == "-":
                 rows = load_csv_transactions(None)
-                source_name = "stdin"
             else:
                 rows = load_csv_transactions(path)
-                source_name = str(path)
             transactions.extend(rows)
-            self.logger.info(f"Loaded {len(rows)} rows from {source_name}")
+            self.logger.info(f"Loaded {len(rows)} transaction row(s) from {source_name}")
         return transactions
 
     def import_transactions(
@@ -101,6 +101,21 @@ class ImportPipeline:
         include_enhanced: bool = False,
         force_auto_assign: bool = False,
     ) -> ImportResult:
+        total_transactions = len(transactions)
+        if total_transactions == 0:
+            self.logger.info("No transactions supplied; skipping import pipeline.")
+            empty_stats = ImportStats()
+            empty_review = ReviewQueue(transactions=[], category_proposals=[])
+            return ImportResult(
+                stats=empty_stats,
+                review=empty_review,
+                auto_created_categories=[],
+                enhanced_transactions=None,
+            )
+
+        self.logger.info(
+            f"Stage 1/3: Categorizing {total_transactions} transaction(s)…"
+        )
         result = self._run_categorizer(
             transactions,
             skip_llm=skip_llm,
@@ -112,12 +127,20 @@ class ImportPipeline:
             result.transaction_reviews = []
             result.category_proposals = []
 
+        self.logger.info("Stage 1/3 complete.")
+
+        self.logger.info("Stage 2/3: Persisting transactions to the database…")
+
         stats = self._persist_transactions(
             transactions,
             result.outcomes,
             skip_dedupe=skip_dedupe,
         )
         stats.needs_review = len(result.transaction_reviews)
+        self.logger.info(
+            "Database persistence complete: "
+            f"inserted {stats.inserted}, duplicates skipped {stats.duplicates}."
+        )
         review = ReviewQueue(
             transactions=result.transaction_reviews,
             category_proposals=result.category_proposals,
@@ -125,9 +148,13 @@ class ImportPipeline:
 
         enhanced_transactions = None
         if include_enhanced:
+            self.logger.info("Stage 3/3: Preparing enhanced transaction output…")
             enhanced_transactions = self._build_enhanced_transactions(
                 transactions, result.outcomes
             )
+            self.logger.info("Stage 3/3 complete.")
+
+        self.logger.info("Import pipeline processing finished.")
 
         return ImportResult(
             stats=stats,
@@ -166,7 +193,13 @@ class ImportPipeline:
         skip_dedupe: bool,
     ) -> ImportStats:
         stats = ImportStats()
-        for txn, outcome in zip(transactions, outcomes, strict=False):
+        total = min(len(transactions), len(outcomes))
+        progress_every = 500
+        should_log_progress = total > progress_every
+        for index, (txn, outcome) in enumerate(
+            zip(transactions, outcomes, strict=False),
+            start=1,
+        ):
             account_id = self._resolve_account_id(txn)
             metadata_payload = None
             if outcome.pattern_key or outcome.pattern_display or outcome.merchant_metadata:
@@ -207,6 +240,14 @@ class ImportPipeline:
                     )
             else:
                 stats.duplicates += 1
+            if should_log_progress and index % progress_every == 0:
+                self.logger.info(
+                    f"Database progress: processed {index}/{total} transaction(s)…"
+                )
+        if should_log_progress and total % progress_every != 0:
+            self.logger.info(
+                f"Database progress: processed {total}/{total} transaction(s)."
+            )
         return stats
 
     def _resolve_account_id(self, txn: ImportedTransaction) -> int:

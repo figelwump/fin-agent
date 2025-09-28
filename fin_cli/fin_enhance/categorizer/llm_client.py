@@ -238,8 +238,18 @@ class LLMClient:
 
         results: dict[str, LLMResult] = {}
         merchant_items = list(items.items())
+        total_merchants = len(merchant_items)
+        if total_merchants == 0:
+            return results
+        total_chunks = (total_merchants + max_batch_merchants - 1) // max_batch_merchants
         for start in range(0, len(merchant_items), max_batch_merchants):
             chunk = dict(merchant_items[start : start + max_batch_merchants])
+            batch_index = start // max_batch_merchants + 1
+            chunk_txn_count = sum(len(txn_items) for txn_items in chunk.values())
+            self._logger.info(
+                f"LLM batch {batch_index}/{total_chunks}: submitting {len(chunk)} merchant(s) "
+                f"({chunk_txn_count} transaction(s))…"
+            )
             payload = self.build_payload(chunk, known_categories=known_categories)
             try:
                 chunk_results = self._invoke_llm(payload)
@@ -247,6 +257,10 @@ class LLMClient:
                 self._logger.warning(f"LLM categorization failed for merchants {list(chunk)}: {exc}")
                 continue
             results.update(chunk_results)
+            self._logger.info(
+                f"LLM batch {batch_index}/{total_chunks} complete; "
+                f"received suggestions for {len(chunk_results)} merchant(s)."
+            )
         return results
 
     def _invoke_llm(self, payload: str) -> dict[str, LLMResult]:
