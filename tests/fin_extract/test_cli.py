@@ -18,10 +18,33 @@ def test_cli_dry_run(monkeypatch, tmp_path: Path) -> None:
     pdf_path = tmp_path / "statement.pdf"
     pdf_path.write_text("fake", encoding="utf-8")
 
-    monkeypatch.setattr("fin_cli.fin_extract.main.load_pdf_document", lambda _: _fake_document())
+    monkeypatch.setattr(
+        "fin_cli.fin_extract.main.load_pdf_document",
+        lambda *args, **kwargs: _fake_document(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(main, [str(pdf_path), "--dry-run"])
     assert result.exit_code == 0
     assert "Transactions: 1" in result.output
     assert "Institution: Chase" in result.output
+
+
+def test_cli_defaults_output_path(monkeypatch, tmp_path: Path) -> None:
+    pdf_path = tmp_path / "bofa.pdf"
+    pdf_path.write_text("fake", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "fin_cli.fin_extract.main.load_pdf_document",
+        lambda *args, **kwargs: _fake_document(),
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(main, [str(pdf_path)])
+    assert result.exit_code == 0
+
+    expected_output = tmp_path / "output" / "bofa.csv"
+    assert expected_output.exists()
+    assert "SWEETGREEN" in expected_output.read_text()

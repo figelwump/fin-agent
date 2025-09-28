@@ -32,10 +32,14 @@ def main(
     account_name: str | None,
     cli_ctx: CLIContext,
 ) -> None:
-    document = load_pdf_document(pdf_file)
-    extractor = detect_extractor(document)
-    if extractor is None:
-        raise click.ClickException("Unsupported statement format. No extractor matched this PDF.")
+    document = load_pdf_document(
+        pdf_file,
+        enable_camelot_fallback=cli_ctx.config.extraction.camelot_fallback_enabled,
+    )
+    extractor = detect_extractor(
+        document,
+        allowed_institutions=cli_ctx.config.extraction.supported_banks,
+    )
     cli_ctx.logger.info(f"Detected format: {extractor.name}")
 
     result = extractor.extract(document)
@@ -54,8 +58,14 @@ def main(
         _emit_dry_run_summary(cli_ctx, extractor.name, result)
         return
 
+    auto_output_path: Path | None = None
     if not output_path and not stdout:
-        raise click.UsageError("Specify either --output <file> or --stdout for CSV output.")
+        default_dir = Path("output")
+        auto_output_path = default_dir / (Path(pdf_file).stem + ".csv")
+        output_path = str(auto_output_path)
+        cli_ctx.logger.info(
+            f"No --output provided; defaulting to {auto_output_path} in the output directory."
+        )
     if output_path and stdout:
         raise click.UsageError("Cannot use both --output and --stdout simultaneously.")
 

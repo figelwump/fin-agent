@@ -15,6 +15,10 @@ class ExtractionError(FinAgentError):
     """Raised when PDF extraction fails."""
 
 
+class UnsupportedFormatError(ExtractionError):
+    """Raised when a PDF's institution or layout is not supported."""
+
+
 class CategorizationError(FinAgentError):
     """Raised when transaction categorization fails."""
 

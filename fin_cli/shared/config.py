@@ -26,6 +26,7 @@ class ExtractionSettings:
 
     auto_detect_accounts: bool
     supported_banks: tuple[str, ...]
+    camelot_fallback_enabled: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +87,7 @@ def _default_config(env: Mapping[str, str]) -> dict[str, Any]:
         "extraction": {
             "auto_detect_accounts": True,
             "supported_banks": ["chase", "bofa", "mercury"],
+            "camelot_fallback_enabled": True,
         },
         "categorization": {
             "llm": {
@@ -111,6 +113,7 @@ ENV_OVERRIDE_SPEC: dict[str, tuple[str, type]] = {
     "database.path": (paths.DATABASE_PATH_ENV, str),
     "extraction.auto_detect_accounts": ("FINCLI_EXTRACTION_AUTO_DETECT_ACCOUNTS", bool),
     "extraction.supported_banks": ("FINCLI_EXTRACTION_SUPPORTED_BANKS", list),
+    "extraction.camelot_fallback_enabled": ("FINCLI_EXTRACTION_CAMELOT_FALLBACK", bool),
     "categorization.llm.enabled": ("FINCLI_LLM_ENABLED", bool),
     "categorization.llm.provider": ("FINCLI_LLM_PROVIDER", str),
     "categorization.llm.model": ("FINCLI_LLM_MODEL", str),
@@ -225,6 +228,7 @@ def _build_config(data: Mapping[str, Any], source_path: Path) -> AppConfig:
         extraction = ExtractionSettings(
             auto_detect_accounts=bool(data["extraction"]["auto_detect_accounts"]),
             supported_banks=tuple(data["extraction"]["supported_banks"]),
+            camelot_fallback_enabled=bool(data["extraction"]["camelot_fallback_enabled"]),
         )
         llm_cfg = data["categorization"]["llm"]
         llm = LLMSettings(

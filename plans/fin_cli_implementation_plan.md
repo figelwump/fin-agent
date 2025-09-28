@@ -105,11 +105,12 @@
 
 ## Phase 6 — Additional PDF Extractors & Robustness
 **Notes:** Expand bank coverage and introduce Camelot fallback for complex tables.
-- [ ] Implement Bank of America extractor with support for both checking and credit layouts, including header parsing for date ranges.
-- [ ] Implement Mercury business checking extractor handling two-line transaction entries if present.
-- [ ] Integrate Camelot fallback for PDFs where `pdfplumber` fails, with configuration toggle and documented performance caveats.
-- [ ] Extend auto-detection heuristics to differentiate supported banks reliably and emit `UnsupportedFormatError` for unknown inputs.
-- [ ] Add regression tests using synthetic BofA and Mercury PDFs to validate multi-page table stitching and currency parsing.
+- [x] Implement Bank of America extractor with support for both checking and credit layouts, including header parsing for date ranges.
+- [x] Implement Mercury business checking extractor handling two-line transaction entries if present.
+- [x] Integrate Camelot fallback for PDFs where `pdfplumber` fails, with configuration toggle and documented performance caveats.
+- [x] Extend auto-detection heuristics to differentiate supported banks reliably and emit `UnsupportedFormatError` for unknown inputs.
+- [x] Add regression tests using synthetic BofA and Mercury PDFs to validate multi-page table stitching and currency parsing.
+  - Notes: 2025-09-28 — Added `BankOfAmericaExtractor` and `MercuryExtractor` with multi-line row handling, Camelot fallback gated by config, enhanced detection errors, regression tests covering new formats, and verified extraction against real BofA credit statement (auto defaulting output path when omitted).
 
 
 ## Phase 10 — Testing, Tooling, and Distribution
