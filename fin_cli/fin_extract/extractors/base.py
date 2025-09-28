@@ -49,3 +49,6 @@ class ExtractorRegistry:
 
     def names(self) -> tuple[str, ...]:
         return tuple(extractor.name for extractor in self._extractor_types)
+
+    def iter_types(self) -> Iterable[type[StatementExtractor]]:
+        return tuple(self._extractor_types)

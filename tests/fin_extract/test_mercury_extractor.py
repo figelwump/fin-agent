@@ -41,10 +41,11 @@ def test_mercury_extracts_transactions() -> None:
     assert result.metadata.start_date == date(2024, 8, 1)
     assert result.metadata.end_date == date(2024, 8, 31)
 
-    assert len(result.transactions) == 3
+    assert len(result.transactions) == 2
 
-    payout = result.transactions[0]
-    assert payout.amount == -5000.0
+    first = result.transactions[0]
+    assert first.merchant == "AWS Marketplace"
+    assert first.amount == 320.45
 
     lunch = result.transactions[-1]
     assert lunch.amount == 145.2

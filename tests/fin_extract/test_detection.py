@@ -39,3 +39,21 @@ def test_detection_unknown_institution() -> None:
         detect_extractor(document)
 
     assert "Unsupported statement format" in str(exc.value)
+
+
+def test_detection_prefers_probable_institution() -> None:
+    document = PdfDocument(
+        text="Mercury Savings Statement with ACH from Chase Credit",
+        tables=[
+            PdfTable(
+                headers=("All Transactions /", "", "", "", ""),
+                rows=[
+                    ("Date (UTC)", "Description", "Type", "Amount", "End of Day Balance"),
+                    ("Aug 01", "Savings Interest", "Interest Payment", "$10.00", ""),
+                ],
+            )
+        ],
+    )
+
+    extractor = detect_extractor(document)
+    assert extractor.name == "mercury"

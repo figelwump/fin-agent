@@ -25,13 +25,30 @@ def detect_extractor(
     *,
     allowed_institutions: Iterable[str] | None = None,
 ) -> StatementExtractor:
-    extractor = REGISTRY.detect(document, allowed_names=tuple(allowed_institutions) if allowed_institutions else None)
-    if extractor is not None:
-        return extractor
-
-    probable = _infer_institution(getattr(document, "text", ""))
     allowed = tuple(allowed_institutions) if allowed_institutions is not None else REGISTRY.names()
     allowed_set = {name.lower() for name in allowed}
+
+    probable = _infer_institution(getattr(document, "text", ""))
+    matches: list[StatementExtractor] = []
+
+    for extractor_cls in REGISTRY.iter_types():
+        if allowed_set and extractor_cls.name.lower() not in allowed_set:
+            continue
+        extractor = extractor_cls()
+        try:
+            supported = extractor.supports(document)
+        except Exception:  # pragma: no cover - defensive against extractor bugs
+            supported = False
+        if supported:
+            matches.append(extractor)
+
+    if matches:
+        if probable:
+            for extractor in matches:
+                if extractor.name == probable:
+                    return extractor
+        return matches[0]
+
     if probable and probable not in allowed_set:
         raise UnsupportedFormatError(
             "Detected {friendly} statement but support is disabled via configuration.".format(
@@ -51,10 +68,10 @@ def register_extractor(extractor: type[StatementExtractor]) -> None:
 
 def _infer_institution(text: str) -> str | None:
     lowered = text.lower()
-    if "chase" in lowered:
-        return "chase"
-    if "bank of america" in lowered or "bofa" in lowered:
-        return "bofa"
     if "mercury" in lowered:
         return "mercury"
+    if "bank of america" in lowered or "bofa" in lowered:
+        return "bofa"
+    if "chase" in lowered:
+        return "chase"
     return None

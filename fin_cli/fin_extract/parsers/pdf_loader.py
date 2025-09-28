@@ -131,14 +131,23 @@ def _load_tables_with_camelot(pdf_path: Path) -> list[PdfTable]:
 
     tables: list[PdfTable] = []
     last_error: Exception | None = None
+    import warnings
+
     for flavor in ("lattice", "stream"):
         try:
-            camelot_tables = camelot.read_pdf(
-                str(pdf_path),
-                pages="all",
-                flavor=flavor,
-                strip_text="\n",
-            )
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="No tables found in table area",
+                    category=UserWarning,
+                    module="camelot",
+                )
+                camelot_tables = camelot.read_pdf(
+                    str(pdf_path),
+                    pages="all",
+                    flavor=flavor,
+                    strip_text="\n",
+                )
         except Exception as exc:  # pragma: no cover - library-specific failure paths
             last_error = exc
             continue
