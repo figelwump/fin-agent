@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
@@ -29,6 +29,12 @@ class SubscriptionRecord:
     confidence: float
     change_pct: float | None
     notes: str
+
+
+@dataclass(frozen=True)
+class _MetadataSignals:
+    platforms: tuple[str, ...]
+    services: tuple[str, ...]
 
 
 def analyze(context: AnalysisContext) -> AnalysisResult:
@@ -74,6 +80,18 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         if cadence is None or cadence <= 0 or cadence < 20 or cadence > 40:
             continue
 
+        if _is_incidental_charge(stats):
+            context.cli_ctx.logger.debug(
+                f"Skipping incidental recurring charge for merchant '{stats.display_name}'"
+            )
+            continue
+
+        if _looks_like_domain_service(stats):
+            context.cli_ctx.logger.debug(
+                f"Skipping domain/registration pattern for merchant '{stats.display_name}'"
+            )
+            continue
+
         if combined.average_amount == 0:
             continue
 
@@ -110,6 +128,11 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
             continue
 
         confidence = _estimate_confidence(total_occurrences=total_occurrences, cadence=cadence)
+        confidence = _apply_confidence_penalties(
+            confidence,
+            rel_std=rel_std,
+            cadence_jitter=combined.cadence_jitter,
+        )
         if confidence < min_confidence:
             continue
 
@@ -192,6 +215,11 @@ class _MerchantStats:
     cadence_days: float | None
     last_charge: pd.Timestamp
     amount_std: float
+    amount_min: float
+    amount_max: float
+    category: str | None
+    subcategory: str | None
+    metadata: _MetadataSignals
 
 
 @dataclass(frozen=True)
@@ -200,6 +228,7 @@ class _CombinedStats:
     cadence_days: float | None
     average_amount: float
     amount_std: float
+    cadence_jitter: float | None
 
 
 def _summarise_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats]:
@@ -232,6 +261,29 @@ def _summarise_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
             display_name = mode_values.iloc[0] if not mode_values.empty else display_series.iloc[0]
         else:
             display_name = str(canonical)
+
+        category_value = None
+        category_series = group.get("category")
+        if category_series is not None:
+            category_series = category_series.dropna().astype(str)
+            if not category_series.empty:
+                category_modes = category_series.mode()
+                category_value = (
+                    category_modes.iloc[0] if not category_modes.empty else category_series.iloc[0]
+                )
+
+        subcategory_value = None
+        subcategory_series = group.get("subcategory")
+        if subcategory_series is not None:
+            subcategory_series = subcategory_series.dropna().astype(str)
+            if not subcategory_series.empty:
+                subcategory_modes = subcategory_series.mode()
+                subcategory_value = (
+                    subcategory_modes.iloc[0] if not subcategory_modes.empty else subcategory_series.iloc[0]
+                )
+
+        metadata_signals = _collect_metadata_signals(group.get("transaction_metadata"))
+
         stats[str(canonical)] = _MerchantStats(
             canonical=str(canonical),
             display_name=display_name,
@@ -241,6 +293,11 @@ def _summarise_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
             cadence_days=cadence,
             last_charge=last_charge,
             amount_std=float(amounts.std(ddof=0) or 0.0),
+            amount_min=safe_float(amounts.min()),
+            amount_max=safe_float(amounts.max()),
+            category=category_value,
+            subcategory=subcategory_value,
+            metadata=metadata_signals,
         )
     return stats
 
@@ -265,6 +322,7 @@ def _build_combined_stats(current: pd.DataFrame, comparison: pd.DataFrame | None
 
         diffs = group["date"].diff().dt.days.dropna()
         cadence = float(diffs.median()) if not diffs.empty else None
+        cadence_jitter = float(diffs.std(ddof=0) or 0.0) if not diffs.empty else None
         avg = safe_float(group["amount"].mean())
         amount_std = float(group["amount"].std(ddof=0) or 0.0)
         stats[str(canonical)] = _CombinedStats(
@@ -272,6 +330,7 @@ def _build_combined_stats(current: pd.DataFrame, comparison: pd.DataFrame | None
             cadence_days=cadence,
             average_amount=avg,
             amount_std=amount_std,
+            cadence_jitter=cadence_jitter,
         )
     return stats
 
@@ -291,6 +350,23 @@ def _estimate_confidence(*, total_occurrences: int, cadence: float | None) -> fl
     cadence_boost = max(0.0, 1 - min(deviation, 30) / 30)
     confidence = (base * 0.6) + (cadence_boost * 0.4)
     return round(min(1.0, confidence), 3)
+
+
+def _apply_confidence_penalties(
+    confidence: float,
+    *,
+    rel_std: float,
+    cadence_jitter: float | None,
+) -> float:
+    variance_penalty = max(0.0, rel_std - 0.05)
+    variance_penalty = min(0.4, variance_penalty)
+
+    jitter_penalty = 0.0
+    if cadence_jitter is not None and cadence_jitter > 2:
+        jitter_penalty = min(0.3, cadence_jitter / 30)
+
+    adjusted = confidence - (variance_penalty + jitter_penalty)
+    return round(max(0.0, adjusted), 3)
 
 
 def _build_table(records: Sequence[SubscriptionRecord]) -> TableSeries:
@@ -344,3 +420,90 @@ def _build_summary(
     if price_increases:
         lines.append(f"Price increases flagged: {len(price_increases)}.")
     return lines
+
+
+def _collect_metadata_signals(raw_series: Any) -> _MetadataSignals:
+    if raw_series is None:
+        return _MetadataSignals(platforms=(), services=())
+
+    if isinstance(raw_series, pd.Series):
+        iterable = raw_series.tolist()
+    elif isinstance(raw_series, Sequence):
+        iterable = list(raw_series)
+    else:
+        iterable = [raw_series]
+
+    platforms: set[str] = set()
+    services: set[str] = set()
+
+    for item in iterable:
+        metadata: Mapping[str, Any] | None = item if isinstance(item, Mapping) else None
+        if not metadata:
+            continue
+        merchant_meta = metadata.get("merchant_metadata") if isinstance(metadata, Mapping) else None
+        if isinstance(merchant_meta, Mapping):
+            platform = merchant_meta.get("platform")
+            if isinstance(platform, str) and platform.strip():
+                platforms.add(platform.strip())
+            service = merchant_meta.get("service")
+            if isinstance(service, str) and service.strip():
+                services.add(service.strip())
+
+    return _MetadataSignals(
+        platforms=tuple(sorted(platforms, key=str.casefold)),
+        services=tuple(sorted(services, key=str.casefold)),
+    )
+
+
+NON_SUBSCRIPTION_CATEGORY_RULES = {
+    ("transportation", "parking"),
+    ("transportation", "tolls"),
+    ("transportation", "reimbursable"),
+}
+
+
+DOMAIN_PLATFORM_HINTS = {
+    "NAMECHEAP",
+    "GO DADDY",
+    "GODADDY",
+    "DOMAIN.COM",
+    "GOOGLE DOMAINS",
+    "HOVER",
+    "DYNADOT",
+}
+
+
+DOMAIN_KEYWORDS = ("DOMAIN", "REGISTRAR", "WHOIS", "DNS")
+
+
+def _is_incidental_charge(stats: _MerchantStats) -> bool:
+    category = (stats.category or "").casefold()
+    subcategory = (stats.subcategory or "").casefold()
+    if (category, subcategory) in NON_SUBSCRIPTION_CATEGORY_RULES:
+        return True
+
+    canonical_upper = stats.canonical.upper()
+    if "PARKING" in canonical_upper and stats.amount_max <= 20:
+        return True
+
+    return False
+
+
+def _looks_like_domain_service(stats: _MerchantStats) -> bool:
+    canonical_upper = stats.canonical.upper()
+    if any(keyword in canonical_upper for keyword in DOMAIN_KEYWORDS):
+        return True
+
+    for platform in stats.metadata.platforms:
+        normalized = platform.strip().upper()
+        if normalized in DOMAIN_PLATFORM_HINTS:
+            return True
+        if any(keyword in normalized for keyword in DOMAIN_KEYWORDS):
+            return True
+
+    for service in stats.metadata.services:
+        normalized = service.strip().upper()
+        if any(keyword in normalized for keyword in DOMAIN_KEYWORDS):
+            return True
+
+    return False

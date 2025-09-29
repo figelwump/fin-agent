@@ -67,6 +67,27 @@ def test_subscription_detection_flags_new_and_price_increase(
     assert "HULU" in cancelled_names
 
 
+def test_subscription_detection_filters_parking_and_domains(
+    load_analysis_dataset,
+    analysis_context,
+    window_factory,
+) -> None:
+    load_analysis_dataset("subscriptions_noise")
+    window = window_factory("period_2025_08-10", "2025-08-01", "2025-10-01")
+    context = analysis_context(window, None, {}, compare=False, threshold=0.05)
+
+    result = subscription_detect.analyze(context)
+    payload = result.json_payload
+
+    merchants = {entry["merchant"].upper() for entry in payload["subscriptions"]}
+    assert "NETFLIX" in merchants
+    assert all("PARKING" not in merchant for merchant in merchants)
+    assert all("NAMECHEAP" not in merchant for merchant in merchants)
+
+    new_merchants = {entry["merchant"].upper() for entry in payload["new_merchants"]}
+    assert "NETFLIX" in new_merchants
+    assert all("NAMECHEAP" not in merchant for merchant in new_merchants)
+
 @pytest.mark.parametrize(
     "options",
     [

@@ -202,7 +202,7 @@ and analyzer-specific options.
   - `--include-merchants` (append contributing merchant lists)
 - `merchant-frequency` – `--min-visits INT`; now accepts `--category` / `--subcategory` filters.
 - `spending-patterns` – `--by day|week|date`.
-- `subscription-detect` – `--all` (include inactive), `--min-confidence`.
+- `subscription-detect` – `--all` (include inactive), `--min-confidence`; skips incidental parking/toll charges and domain-registration renewals via category + metadata-aware filters.
 - `unusual-spending` – `--sensitivity 1-5`.
 - `category-suggestions` – `--min-overlap FLOAT`.
 

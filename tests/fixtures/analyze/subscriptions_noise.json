@@ -1,0 +1,93 @@
+{
+  "accounts": [
+    {
+      "key": "checking",
+      "name": "Primary Checking",
+      "institution": "TestBank",
+      "account_type": "checking"
+    }
+  ],
+  "categories": [
+    {
+      "key": "transportation_parking",
+      "category": "Transportation",
+      "subcategory": "Parking"
+    },
+    {
+      "key": "subscriptions_streaming",
+      "category": "Subscriptions",
+      "subcategory": "Streaming"
+    },
+    {
+      "key": "software_services",
+      "category": "Software & Services",
+      "subcategory": "Online Services"
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2025-08-01",
+      "merchant": "REDWOOD CITY PARKING     REDWOOD CITY CA",
+      "amount": -1.50,
+      "account": "checking",
+      "category": "transportation_parking",
+      "original_description": "REDWOOD CITY PARKING REDWOOD CITY CA"
+    },
+    {
+      "date": "2025-09-03",
+      "merchant": "REDWOOD CITY PARKING     REDWOOD CITY CA",
+      "amount": -2.00,
+      "account": "checking",
+      "category": "transportation_parking",
+      "original_description": "REDWOOD CITY PARKING REDWOOD CITY CA"
+    },
+    {
+      "date": "2025-08-01",
+      "merchant": "NAME-CHEAP.COM* B2P4LB   WWW.NAMECHEAPAZ",
+      "amount": -15.18,
+      "account": "checking",
+      "category": "software_services",
+      "original_description": "NAMECHEAP DOMAIN RENEWAL",
+      "metadata": {
+        "merchant_metadata": {
+          "platform": "NameCheap",
+          "service": "Domain Registration"
+        },
+        "merchant_pattern_display": "NameCheap",
+        "merchant_pattern_key": "NAME-CHEAP.COM WWW.NAMECHEAPAZ"
+      }
+    },
+    {
+      "date": "2025-09-03",
+      "merchant": "NAME-CHEAP.COM* 6M5UJ5   WWW.NAMECHEAPAZ",
+      "amount": -18.68,
+      "account": "checking",
+      "category": "software_services",
+      "original_description": "NAMECHEAP DOMAIN RENEWAL",
+      "metadata": {
+        "merchant_metadata": {
+          "platform": "NameCheap",
+          "service": "Domain Registration"
+        },
+        "merchant_pattern_display": "NameCheap",
+        "merchant_pattern_key": "NAME-CHEAP.COM WWW.NAMECHEAPAZ"
+      }
+    },
+    {
+      "date": "2025-08-05",
+      "merchant": "NETFLIX",
+      "amount": -15.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "NETFLIX 12345"
+    },
+    {
+      "date": "2025-09-05",
+      "merchant": "NETFLIX",
+      "amount": -15.99,
+      "account": "checking",
+      "category": "subscriptions_streaming",
+      "original_description": "NETFLIX 67890"
+    }
+  ]
+}

@@ -179,6 +179,12 @@ def load_recurring_candidates(
         ])
 
     frame["date"] = pandas.to_datetime(frame["date"], errors="coerce")
+    if "transaction_metadata" not in frame.columns:
+        frame["transaction_metadata"] = pandas.Series(dtype=object)
+    else:
+        metadata_mask = frame["transaction_metadata"].notna()
+        if metadata_mask.any():
+            frame.loc[metadata_mask, "transaction_metadata"] = frame.loc[metadata_mask, "transaction_metadata"].apply(_safe_json_load)
     _attach_merchant_fields(frame)
     frame["window_label"] = target_window.label
     return frame
