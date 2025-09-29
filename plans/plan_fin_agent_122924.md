@@ -41,32 +41,34 @@ fin-agent/
 
 ## Implementation Phases
 
-### Phase 1: Project Setup & Dependencies
+### Phase 1: Project Setup & Dependencies ✅
 **Goal:** Set up the fin-agent project structure with proper dependencies
 
-- [ ] 1.1: Create branch and initial structure
+- [x] 1.1: Create branch and initial structure
   - Create branch `feature/fin-agent`
   - Create directories: `agent/`, `agent/.claude/agents/`, `agent/data/`, `ccsdk/`, `server/`, `server/endpoints/`
   - YOU will create these directories manually or via bash
 
-- [ ] 1.2: Initialize Node/Bun project
+- [x] 1.2: Initialize Node/Bun project
   - Create `package.json` with necessary dependencies
   - Look at email-agent's package.json for reference
   - Key dependencies: `@anthropic-ai/claude-code`, `zod`, `dotenv`
   - Dev dependencies: `@types/node`, `@types/bun`, `typescript`
   - YOU will write the package.json
 
-- [ ] 1.3: Create TypeScript configuration
+- [x] 1.3: Create TypeScript configuration
   - Create `tsconfig.json`
   - Reference email-agent's tsconfig for settings
   - YOU will write the tsconfig
 
-- [ ] 1.4: Create environment configuration
+- [x] 1.4: Create environment configuration
   - Create `.env.example` with required variables (ANTHROPIC_API_KEY, etc.)
   - Document what each variable is for
   - YOU will write this file
 
-**Completion criteria:** `bun install` runs successfully, directories exist
+**Completion criteria:** `bun install` runs successfully, directories exist ✅
+
+**Commit:** bf91f41
 
 ---
 
@@ -99,7 +101,7 @@ fin-agent/
     - Describe agent's purpose (financial analysis assistant)
     - List available fin-cli commands (fin-extract, fin-enhance, fin-analyze, etc.)
     - Explain when to use MCP tools vs Bash
-    - Database location: ~/.findata/transactions.db
+    - Database location: ~/.finagent/data.db
     - Always use --format json for parseable output
   - YOU will write this prompt
 
@@ -201,7 +203,7 @@ fin-agent/
     - `POST /api/transactions/search` - Search transactions
     - `GET /api/transactions/:id` - Get single transaction
   - **Pattern:** Look at email-agent's endpoints/emails.ts
-  - **Data source:** Direct SQLite queries to ~/.findata/transactions.db
+  - **Data source:** Direct SQLite queries to ~/.finagent/data.db
   - YOU will write this file
 
 - [ ] 3.3: Create analysis endpoints
@@ -392,7 +394,7 @@ Will be populated as implementation progresses.
 ### Technical Decisions
 
 - **Runtime:** Bun (fast, TypeScript native, used by email-agent)
-- **Database:** Existing SQLite at ~/.findata/transactions.db
+- **Database:** Existing SQLite at ~/.finagent/data.db
 - **UI Framework:** React (matches email-agent pattern)
 - **Styling:** Tailwind CSS (simple, matches email-agent)
 - **Model:** Claude Opus via SDK (can change in ai-client config)
