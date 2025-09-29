@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 import re
-from itertools import zip_longest
 from typing import Iterable, Sequence
 
 from ..parsers.pdf_loader import PdfDocument
 from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
+from ..utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
 from .base import StatementExtractor
 
 
@@ -28,15 +28,11 @@ class _StatementPeriod:
     end_date: date | None
 
     def infer_year(self, month: int) -> int:
-        """Infer the transaction year using the statement period when possible."""
-
         if self.start_date and self.end_date:
             if self.start_date.month <= self.end_date.month:
-                # Simple case: period contained within a single calendar year.
                 if self.start_date.month <= month <= self.end_date.month:
                     return self.start_date.year
                 return self.end_date.year
-            # Statement crosses the year boundary (e.g., Dec -> Jan).
             if month >= self.start_date.month:
                 return self.start_date.year
             return self.end_date.year
@@ -76,21 +72,13 @@ _SUMMARY_ROW_KEYWORDS = {
     "purchases and adjustments",
 }
 
-_HEADER_KEYWORDS = {
-    "transaction",
-    "posting",
-    "date",
-    "description",
-    "amount",
-    "withdrawal",
-    "withdrawals",
-    "deposit",
-    "deposits",
-    "credit",
-    "debit",
-    "charges",
-    "purchases",
-}
+_BOFA_SIGN_CLASSIFIER = SignClassifier(
+    charge_keywords={"debit", "withdrawal", "purchase", "sale", "charge"},
+    credit_keywords={"payment", "credit", "refund", "deposit"},
+    transfer_keywords={"transfer", "atm withdrawal"},
+    interest_keywords={"interest"},
+    card_payment_keywords={"credit card", "credit crd", "card services", "applecard"},
+)
 
 
 class BankOfAmericaExtractor(StatementExtractor):
@@ -101,8 +89,8 @@ class BankOfAmericaExtractor(StatementExtractor):
         if "bank of america" not in text and "bofa" not in text:
             return False
         for table in document.tables:
-            mapping, data_rows = self._prepare_table(table)
-            if mapping and data_rows:
+            normalized = normalize_pdf_table(table, header_predicate=_bofa_header_predicate)
+            if self._find_column_mapping(normalized.headers):
                 return True
         return False
 
@@ -112,10 +100,15 @@ class BankOfAmericaExtractor(StatementExtractor):
         transactions: list[ExtractedTransaction] = []
 
         for table in document.tables:
-            mapping, data_rows = self._prepare_table(table)
+            normalized = normalize_pdf_table(
+                table,
+                header_predicate=_bofa_header_predicate,
+                header_scan=6,
+            )
+            mapping = self._find_column_mapping(normalized.headers)
             if not mapping:
                 continue
-            transactions.extend(self._parse_rows(data_rows, mapping, period))
+            transactions.extend(self._parse_rows(normalized.rows, mapping, period))
 
         metadata = StatementMetadata(
             institution="Bank of America",
@@ -160,39 +153,6 @@ class BankOfAmericaExtractor(StatementExtractor):
             withdrawals_index=withdrawals_idx,
         )
 
-    def _prepare_table(
-        self,
-        table: PdfTable,
-    ) -> tuple[_ColumnMapping | None, list[tuple[str, ...]]]:
-        """Return column mapping and data rows starting after the header block."""
-
-        candidate_rows: list[tuple[str, ...]] = [table.headers, *table.rows]
-        max_scan = min(len(candidate_rows), 8)
-
-        for idx in range(max_scan):
-            base = candidate_rows[idx]
-            header_variants = [(_normalize_cells(base), 1)]
-            if idx + 1 < len(candidate_rows):
-                header_variants.append((
-                    _merge_rows(base, candidate_rows[idx + 1]),
-                    2,
-                ))
-            if idx + 2 < len(candidate_rows):
-                header_variants.append((
-                    _merge_rows(base, candidate_rows[idx + 1], candidate_rows[idx + 2]),
-                    3,
-                ))
-
-            for header, span in header_variants:
-                if not _looks_like_header(header):
-                    continue
-                mapping = self._find_column_mapping(header)
-                if mapping:
-                    data_rows = candidate_rows[idx + span :]
-                    return mapping, [tuple(_normalize_cells(row)) for row in data_rows]
-
-        return None, [tuple(_normalize_cells(row)) for row in table.rows]
-
     def _parse_rows(
         self,
         rows: Sequence[tuple[str, ...]],
@@ -200,108 +160,80 @@ class BankOfAmericaExtractor(StatementExtractor):
         period: _StatementPeriod,
     ) -> list[ExtractedTransaction]:
         transactions: list[ExtractedTransaction] = []
-        current: dict[str, object] | None = None
+        last_transaction: ExtractedTransaction | None = None
+        current_date: date | None = None
 
         for row in rows:
             cells = list(row)
             if len(cells) <= max(mapping.date_index, mapping.description_index):
                 continue
 
-            date_value = cells[mapping.date_index]
-            description = cells[mapping.description_index]
-
-            if not any(cells):
-                continue
+            date_value = _get_cell(cells, mapping.date_index)
+            description = _get_cell(cells, mapping.description_index)
 
             if date_value:
-                if current and current.get("amount") is not None:
-                    finalized = _finalize_transaction(current)
-                    if finalized is not None:
-                        transactions.append(finalized)
-                    current = None
-
                 try:
-                    txn_date = _parse_bofa_date(date_value, period)
+                    current_date = _parse_bofa_date(date_value, period)
                 except ValueError:
-                    current = None
-                    continue
-
-                normalized_desc = description.strip()
-                if _is_summary_row(normalized_desc):
-                    current = None
-                    continue
-
-                amount = _resolve_amount(cells, mapping)
-
-                current = {
-                    "date": txn_date,
-                    "description_parts": [normalized_desc] if normalized_desc else [],
-                    "amount": amount,
-                }
+                    current_date = None
+            if current_date is None:
                 continue
 
-            if current is None:
+            if not description:
                 continue
-
-            normalized_desc = description.strip()
-            if normalized_desc and not _is_summary_row(normalized_desc):
-                current["description_parts"].append(normalized_desc)  # type: ignore[index]
+            if _is_summary_row(description):
+                continue
 
             amount = _resolve_amount(cells, mapping)
-            if amount is not None:
-                current["amount"] = amount
+            money_in_value = _get_cell(cells, mapping.deposits_index)
+            money_out_value = _get_cell(cells, mapping.withdrawals_index)
 
-        if current and current.get("amount") is not None:
-            finalized = _finalize_transaction(current)
-            if finalized is not None:
-                transactions.append(finalized)
+            if amount is None:
+                if last_transaction is not None:
+                    appended = f"{last_transaction.merchant} {description.strip()}".strip()
+                    last_transaction.merchant = appended
+                    last_transaction.original_description = (
+                        f"{last_transaction.original_description} {description.strip()}".strip()
+                    )
+                continue
+
+            signed_amount = _BOFA_SIGN_CLASSIFIER.classify(
+                abs(amount),
+                description=description,
+                money_in_value=money_in_value,
+                money_out_value=money_out_value,
+            )
+
+            if signed_amount is None or signed_amount <= 0:
+                continue
+
+            txn = ExtractedTransaction(
+                date=current_date,
+                merchant=description.strip(),
+                amount=signed_amount,
+                original_description=description.strip(),
+            )
+            transactions.append(txn)
+            last_transaction = txn
 
         return transactions
 
 
-def _normalize_cells(row: Iterable[str]) -> tuple[str, ...]:
-    return tuple((cell or "").strip() for cell in row)
-
-
-def _merge_rows(*rows: Iterable[str]) -> tuple[str, ...]:
-    merged: list[str] = []
-    for column_cells in zip_longest(*rows, fillvalue=""):
-        merged_value = " ".join(part for part in column_cells if part).strip()
-        merged.append(merged_value)
-    return tuple(merged)
-
-
-def _looks_like_header(row: Iterable[str]) -> bool:
-    values = [value for value in row if value]
-    if len(values) < 2:
-        return False
-    normalized = " ".join(values).lower()
-    return any(keyword in normalized for keyword in _HEADER_KEYWORDS)
+def _bofa_header_predicate(header: tuple[str, ...]) -> bool:
+    normalized = [cell.lower() for cell in header if cell]
+    return (
+        any("date" in cell for cell in normalized)
+        and any("description" in cell for cell in normalized)
+    )
 
 
 def _is_summary_row(value: str) -> bool:
-    if not value:
-        return False
-    normalized = " ".join(value.lower().split())
+    normalized = normalize_token(value)
     if normalized in _SUMMARY_ROW_KEYWORDS:
         return True
-    if normalized.startswith("total ") and "payments" in normalized and "credits" in normalized:
+    if normalized.startswith("total") and "payments" in normalized and "credits" in normalized:
         return True
     return False
-
-
-def _finalize_transaction(state: dict[str, object]) -> ExtractedTransaction | None:
-    parts = [part for part in state.get("description_parts", []) if part]
-    description = " ".join(parts).strip()
-    amount = float(state["amount"])  # type: ignore[arg-type]
-    if amount <= 0:
-        return None
-    return ExtractedTransaction(
-        date=state["date"],  # type: ignore[arg-type]
-        merchant=description,
-        amount=amount,
-        original_description=description,
-    )
 
 
 def _parse_statement_period(text: str) -> _StatementPeriod:
@@ -351,37 +283,23 @@ def _parse_bofa_date(value: str, period: _StatementPeriod) -> date:
     raise ValueError(f"Unrecognized date format: {value}")
 
 
-def _resolve_amount(cells: list[str], mapping: _ColumnMapping) -> float | None:
-    if mapping.amount_index is not None and mapping.amount_index < len(cells):
-        raw = cells[mapping.amount_index]
-        if raw:
-            return _parse_amount(raw)
-    if mapping.withdrawals_index is not None and mapping.withdrawals_index < len(cells):
-        raw = cells[mapping.withdrawals_index]
-        if raw:
-            return abs(_parse_amount(raw))
-    if mapping.deposits_index is not None and mapping.deposits_index < len(cells):
-        raw = cells[mapping.deposits_index]
-        if raw:
-            return -abs(_parse_amount(raw))
+def _get_cell(cells: Sequence[str], index: int | None) -> str:
+    if index is None or index < 0 or index >= len(cells):
+        return ""
+    return cells[index].strip()
+
+
+def _resolve_amount(cells: Sequence[str], mapping: _ColumnMapping) -> float | None:
+    candidate = _get_cell(cells, mapping.amount_index)
+    if candidate:
+        return abs(parse_amount(candidate))
+    withdraw = _get_cell(cells, mapping.withdrawals_index)
+    if withdraw:
+        return abs(parse_amount(withdraw))
+    deposit = _get_cell(cells, mapping.deposits_index)
+    if deposit:
+        return abs(parse_amount(deposit))
     return None
-
-
-def _parse_amount(value: str) -> float:
-    cleaned = value.strip().replace(",", "")
-    negative = False
-    if cleaned.startswith("(") and cleaned.endswith(")"):
-        negative = True
-        cleaned = cleaned[1:-1]
-    if cleaned.startswith("-"):
-        negative = True
-        cleaned = cleaned[1:]
-    if cleaned.startswith("$"):
-        cleaned = cleaned[1:]
-    if not cleaned:
-        raise ValueError("Empty amount")
-    amount = float(cleaned)
-    return -amount if negative else amount
 
 
 def _find_index(headers: list[str], targets: set[str]) -> int | None:

@@ -5,31 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 import re
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from ..parsers.pdf_loader import PdfDocument
 from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
+from ..utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
 from .base import StatementExtractor
 
 
-# PDF table extraction can surface section header labels as standalone rows; skip known headers here.
 _SECTION_HEADER_DESCRIPTIONS = {
     "PAYMENTS AND OTHER CREDITS",
 }
-
-_CREDIT_TYPE_KEYWORDS = {
-    "payment",
-    "credit",
-    "adjustment",
-    "refund",
-}
-
-_CREDIT_DESCRIPTION_PREFIXES = (
-    "automatic payment",
-    "payment",
-    "other credit",
-    "credit balance",
-)
 
 
 @dataclass(slots=True)
@@ -47,37 +33,13 @@ _ACCOUNT_NAME_PATTERNS: list[tuple[tuple[str, ...], str]] = [
     (("ultimate rewards", "travel credit", "first $300"), "Chase Sapphire Reserve"),
 ]
 
-
-def _contains_keyword(text: str, keyword: str) -> bool:
-    """Return True when `keyword` is present even if letters are duplicated.
-
-    Some Chase PDFs render bold uppercase text as duplicated glyphs (e.g.,
-    ``CChhaassee``). We treat repeated alphabetic characters as the same
-    letter so that format detection still works without rewriting the entire
-    document. The helper keeps numeric sequences intact so transaction values
-    are not affected downstream.
-    """
-
-    pattern = _KEYWORD_PATTERN_CACHE.get(keyword)
-    if pattern is None:
-        parts: list[str] = []
-        for char in keyword:
-            if char.isalpha():
-                parts.append(f"{re.escape(char)}+")
-            elif char.isspace():
-                parts.append(r"\s+")
-            else:
-                parts.append(re.escape(char))
-        pattern = re.compile("".join(parts), re.IGNORECASE)
-        _KEYWORD_PATTERN_CACHE[keyword] = pattern
-    return bool(pattern.search(text))
-
-
-def _infer_account_name(text: str) -> str:
-    for keywords, name in _ACCOUNT_NAME_PATTERNS:
-        if all(_contains_keyword(text, keyword) for keyword in keywords):
-            return name
-    return "Chase Account"
+_CHASE_SIGN_CLASSIFIER = SignClassifier(
+    charge_keywords={"sale", "purchase", "debit"},
+    credit_keywords={"payment", "credit", "adjustment", "refund"},
+    transfer_keywords={"transfer"},
+    interest_keywords={"interest"},
+    card_payment_keywords={"payment"},
+)
 
 
 class ChaseExtractor(StatementExtractor):
@@ -87,27 +49,24 @@ class ChaseExtractor(StatementExtractor):
         text = document.text
         if not _contains_keyword(text, "chase"):
             return False
-        # Look for tables with header containing description + amount
-        if any(self._find_column_mapping(table.headers) for table in document.tables):
-            return True
-        # Fallback: check for textual markers if tables were not detected
-        return _contains_keyword(text, "account activity") or _contains_keyword(
-            text, "account activity (continued)"
-        )
+        for table in document.tables:
+            normalized = normalize_pdf_table(table, header_predicate=_chase_header_predicate)
+            if self._find_column_mapping(normalized.headers):
+                return True
+        return _contains_keyword(text, "account activity")
 
     def extract(self, document: PdfDocument) -> ExtractionResult:
         transactions: list[ExtractedTransaction] = []
         for table in document.tables:
-            mapping = self._find_column_mapping(table.headers)
+            normalized = normalize_pdf_table(table, header_predicate=_chase_header_predicate)
+            mapping = self._find_column_mapping(normalized.headers)
             if not mapping:
                 continue
-            for row in table.rows:
-                txn = self._parse_row(row, mapping)
-                if txn:
-                    transactions.append(txn)
+            transactions.extend(self._parse_rows(normalized.rows, mapping))
 
         if not transactions:
             transactions = self._extract_from_text(document.text)
+
         account_name = _infer_account_name(document.text)
         metadata = StatementMetadata(
             institution="Chase",
@@ -120,10 +79,10 @@ class ChaseExtractor(StatementExtractor):
 
     def _find_column_mapping(self, headers: Iterable[str]) -> _ColumnMapping | None:
         normalized = [header.strip().lower() for header in headers]
-        date_idx = self._find_index(normalized, {"transaction date", "date", "post date"})
-        desc_idx = self._find_index(normalized, {"merchant name", "description", "transaction description"})
-        amount_idx = self._find_index(normalized, {"amount", "transaction amount", "total"})
-        type_idx = self._find_index(normalized, {"type", "transaction type"})
+        date_idx = _find_index(normalized, {"transaction date", "date", "post date"})
+        desc_idx = _find_index(normalized, {"merchant name", "description", "transaction description"})
+        amount_idx = _find_index(normalized, {"amount", "transaction amount", "total"})
+        type_idx = _find_index(normalized, {"type", "transaction type"})
         if date_idx is None or desc_idx is None or amount_idx is None:
             return None
         return _ColumnMapping(
@@ -133,51 +92,71 @@ class ChaseExtractor(StatementExtractor):
             type_index=type_idx,
         )
 
-    def _find_index(self, headers: list[str], targets: set[str]) -> int | None:
-        for idx, header in enumerate(headers):
-            if not header:
-                continue
-            if header in targets:
-                return idx
-            for target in targets:
-                if target in header:
-                    return idx
-        return None
+    def _parse_rows(
+        self,
+        rows: Sequence[tuple[str, ...]],
+        mapping: _ColumnMapping,
+    ) -> list[ExtractedTransaction]:
+        transactions: list[ExtractedTransaction] = []
+        current_date: date | None = None
+        last_transaction: ExtractedTransaction | None = None
 
-    def _parse_row(self, row: Iterable[str], mapping: _ColumnMapping) -> ExtractedTransaction | None:
-        cells = list(row)
-        try:
-            date_str = cells[mapping.date_index]
-            description = cells[mapping.description_index]
-            amount_str = cells[mapping.amount_index]
-        except IndexError:
-            return None
-        if not date_str or not description or not amount_str:
-            return None
-        try:
-            txn_date = _parse_chase_date(date_str)
-            amount = _parse_amount(amount_str)
-        except ValueError:
-            return None
-        description = description.strip()
-        if not description:
-            return None
-        if description.upper() in _SECTION_HEADER_DESCRIPTIONS:
-            return None
-        type_value = (
-            cells[mapping.type_index].strip().lower()
-            if mapping.type_index is not None and mapping.type_index < len(cells)
-            else ""
-        )
-        if _is_credit_entry(description, type_value):
-            return None
-        amount = _apply_charge_sign(amount, description, type_value)
-        return ExtractedTransaction(
-            date=txn_date,
-            merchant=description,
-            amount=amount,
-            original_description=description,
-        )
+        for row in rows:
+            cells = list(row)
+            if len(cells) <= max(mapping.date_index, mapping.description_index):
+                continue
+
+            date_value = _get_cell(cells, mapping.date_index)
+            description = _get_cell(cells, mapping.description_index)
+            type_value = _get_cell(cells, mapping.type_index)
+
+            if date_value:
+                try:
+                    current_date = _parse_chase_date(date_value)
+                except ValueError:
+                    current_date = None
+            if current_date is None:
+                continue
+
+            if not description:
+                continue
+
+            if description.upper() in _SECTION_HEADER_DESCRIPTIONS:
+                continue
+
+            amount_value = _get_cell(cells, mapping.amount_index)
+            if not amount_value:
+                if last_transaction is not None:
+                    appended = f"{last_transaction.merchant} {description.strip()}".strip()
+                    last_transaction.merchant = appended
+                    last_transaction.original_description = (
+                        f"{last_transaction.original_description} {description.strip()}".strip()
+                    )
+                continue
+
+            try:
+                amount = abs(parse_amount(amount_value))
+            except ValueError:
+                continue
+
+            signed = _CHASE_SIGN_CLASSIFIER.classify(
+                amount,
+                description=description,
+                type_value=type_value,
+            )
+            if signed is None or signed <= 0:
+                continue
+
+            txn = ExtractedTransaction(
+                date=current_date,
+                merchant=description.strip(),
+                amount=signed,
+                original_description=description.strip(),
+            )
+            transactions.append(txn)
+            last_transaction = txn
+
+        return transactions
 
     def _extract_from_text(self, text: str) -> list[ExtractedTransaction]:
         year = _infer_statement_year(text)
@@ -201,78 +180,76 @@ class ChaseExtractor(StatementExtractor):
             description = description.strip()
             if description.upper() in _SECTION_HEADER_DESCRIPTIONS:
                 continue
-            if current_section == "credit":
-                continue
-            if _is_credit_entry(description, current_section or ""):
-                continue
             try:
                 txn_date = _resolve_date(month, day, year)
-                amount = _parse_amount(amount_str)
+                amount = abs(parse_amount(amount_str))
             except ValueError:
                 continue
-            if current_section == "purchase" and amount > 0:
-                amount = abs(amount)  # Spending is positive
-            elif current_section == "credit" and amount > 0:
-                amount = -abs(amount)  # Credits are negative
-            else:
-                amount = _apply_charge_sign(amount, description, current_section or "")
+            signed = _CHASE_SIGN_CLASSIFIER.classify(
+                amount,
+                description=description,
+                type_value=current_section or "",
+            )
+            if signed is None or signed <= 0:
+                continue
             transactions.append(
                 ExtractedTransaction(
                     date=txn_date,
                     merchant=description,
-                    amount=amount,
+                    amount=signed,
                     original_description=description,
                 )
             )
         return transactions
 
 
-def _parse_chase_date(value: str) -> datetime.date:
-    value = value.strip()
-    for fmt in ("%m/%d/%Y", "%m/%d/%y"):
-        try:
-            return datetime.strptime(value, fmt).date()
-        except ValueError:
-            continue
-    raise ValueError(f"Unrecognized date format: {value}")
+def _contains_keyword(text: str, keyword: str) -> bool:
+    pattern = _KEYWORD_PATTERN_CACHE.get(keyword)
+    if pattern is None:
+        parts: list[str] = []
+        for char in keyword:
+            if char.isalpha():
+                parts.append(f"{re.escape(char)}+")
+            elif char.isspace():
+                parts.append(r"\s+")
+            else:
+                parts.append(re.escape(char))
+        pattern = re.compile("".join(parts), re.IGNORECASE)
+        _KEYWORD_PATTERN_CACHE[keyword] = pattern
+    return bool(pattern.search(text))
 
 
-def _parse_amount(value: str) -> float:
-    cleaned = value.strip().replace(",", "")
-    negative = False
-    if cleaned.startswith("(") and cleaned.endswith(")"):
-        negative = True
-        cleaned = cleaned[1:-1]
-    if cleaned.startswith("-"):
-        negative = True
-        cleaned = cleaned[1:]
-    if cleaned.startswith("$"):
-        cleaned = cleaned[1:]
-    if not cleaned:
-        raise ValueError("Empty amount")
-    amount = float(cleaned)
-    return -amount if negative else amount
+def _infer_account_name(text: str) -> str:
+    for keywords, name in _ACCOUNT_NAME_PATTERNS:
+        if all(_contains_keyword(text, keyword) for keyword in keywords):
+            return name
+    return "Chase Account"
 
 
-def _apply_charge_sign(amount: float, description: str, type_value: str) -> float:
-    """Convert amounts to positive for spending (charges) and negative for credits."""
-    normalized_desc = description.lower()
-    if type_value:
-        if any(keyword in type_value for keyword in {"payment", "credit"}):
-            return -abs(amount)  # Credits are negative
-        if any(keyword in type_value for keyword in {"sale", "purchase", "debit"}):
-            return abs(amount)  # Spending is positive
-    if "payment" in normalized_desc or "credit" in normalized_desc:
-        return -abs(amount)  # Credits are negative
-    return abs(amount)  # Default: spending is positive
+def _chase_header_predicate(header: tuple[str, ...]) -> bool:
+    normalized = [cell.lower() for cell in header if cell]
+    return (
+        any("date" in cell for cell in normalized)
+        and any("description" in cell for cell in normalized)
+        and any("amount" in cell for cell in normalized)
+    )
 
 
-def _is_credit_entry(description: str, type_value: str) -> bool:
-    normalized_type = (type_value or "").lower()
-    if normalized_type and any(keyword in normalized_type for keyword in _CREDIT_TYPE_KEYWORDS):
-        return True
-    normalized_desc = description.lower()
-    return any(normalized_desc.startswith(prefix) for prefix in _CREDIT_DESCRIPTION_PREFIXES)
+def _get_cell(cells: Sequence[str], index: int | None) -> str:
+    if index is None or index < 0 or index >= len(cells):
+        return ""
+    return cells[index].strip()
+
+
+def _find_index(headers: list[str], targets: set[str]) -> int | None:
+    for idx, header in enumerate(headers):
+        normalized = header.lower()
+        if normalized in targets:
+            return idx
+        for target in targets:
+            if target in normalized:
+                return idx
+    return None
 
 
 _STATEMENT_LINE_RE = re.compile(
@@ -298,7 +275,16 @@ def _infer_statement_year(text: str) -> int:
 def _resolve_date(month: str, day: str, year: int) -> date:
     month_i = int(month)
     day_i = int(day)
-    # Handle statements that cross year boundary (e.g., Jan statement with Dec transactions)
     if month_i == 12 and datetime.today().month == 1:
         year -= 1
     return date(year, month_i, day_i)
+
+
+def _parse_chase_date(value: str) -> datetime.date:
+    value = value.strip()
+    for fmt in ("%m/%d/%Y", "%m/%d/%y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Unrecognized date format: {value}")

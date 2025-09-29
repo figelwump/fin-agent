@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 import re
-from itertools import zip_longest
 from typing import Iterable, Sequence
 
-from ..parsers.pdf_loader import PdfDocument, PdfTable
+from ..parsers.pdf_loader import PdfDocument
 from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
+from ..utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
 from .base import StatementExtractor
 
 
@@ -56,48 +56,13 @@ _PERIOD_NUMERIC_RE = re.compile(
 
 _SUMMARY_KEYWORDS = {"total", "balance", "summary"}
 
-_HEADER_KEYWORDS = {"date", "description", "amount", "balance", "type"}
-
-_DEPOSIT_KEYWORDS = {
-    "ach in",
-    "transfer in",
-    "interest",
-    "interest payment",
-    "deposit",
-    "credit",
-    "incoming",
-}
-
-_WITHDRAW_KEYWORDS = {
-    "ach pull",
-    "transfer out",
-    "debit",
-    "withdrawal",
-    "payment",
-    "purchase",
-    "fee",
-    "transfer to",
-}
-
-_TRANSFER_KEYWORDS = {
-    "transfer to",
-    "transfer from",
-    "transfer",
-    "internal",
-    "mercury checking",
-    "cash sending apps",
-}
-
-_CREDIT_CARD_PAYMENT_KEYWORDS = {
-    "card",
-    "credit crd",
-    "credit card",
-    "applecard",
-    "chase credit",
-    "bank of america",
-    "amex",
-    "american express",
-}
+_MERCURY_SIGN_CLASSIFIER = SignClassifier(
+    charge_keywords={"ach pull", "debit", "withdrawal", "purchase"},
+    credit_keywords={"ach in", "transfer in", "interest", "deposit"},
+    transfer_keywords={"transfer to", "transfer from", "transfer", "cash sending apps", "mercury checking"},
+    interest_keywords={"interest"},
+    card_payment_keywords={"credit card", "credit crd", "applecard", "bank of america", "card"},
+)
 
 
 class MercuryExtractor(StatementExtractor):
@@ -108,21 +73,26 @@ class MercuryExtractor(StatementExtractor):
         if "mercury" not in text:
             return False
         for table in document.tables:
-            mapping, data_rows = self._prepare_table(table)
-            if mapping and data_rows:
+            normalized = normalize_pdf_table(table, header_predicate=_mercury_header_predicate)
+            if self._find_column_mapping(normalized.headers):
                 return True
         return False
 
     def extract(self, document: PdfDocument) -> ExtractionResult:
         period = _parse_statement_period(document.text)
-        transactions: list[ExtractedTransaction] = []
         account_name = _infer_account_name(document.text)
+        transactions: list[ExtractedTransaction] = []
 
         for table in document.tables:
-            mapping, data_rows = self._prepare_table(table)
+            normalized = normalize_pdf_table(
+                table,
+                header_predicate=_mercury_header_predicate,
+                header_scan=6,
+            )
+            mapping = self._find_column_mapping(normalized.headers)
             if not mapping:
                 continue
-            transactions.extend(self._parse_rows(data_rows, mapping, period))
+            transactions.extend(self._parse_rows(normalized.rows, mapping, period))
 
         metadata = StatementMetadata(
             institution="Mercury",
@@ -152,37 +122,6 @@ class MercuryExtractor(StatementExtractor):
             type_index=type_idx,
         )
 
-    def _prepare_table(
-        self,
-        table: PdfTable,
-    ) -> tuple[_ColumnMapping | None, list[tuple[str, ...]]]:
-        candidate_rows: list[tuple[str, ...]] = [table.headers, *table.rows]
-        max_scan = min(len(candidate_rows), 6)
-
-        for idx in range(max_scan):
-            base = candidate_rows[idx]
-            header_variants = [(_normalize_cells(base), 1)]
-            if idx + 1 < len(candidate_rows):
-                header_variants.append((
-                    _merge_rows(base, candidate_rows[idx + 1]),
-                    2,
-                ))
-            if idx + 2 < len(candidate_rows):
-                header_variants.append((
-                    _merge_rows(base, candidate_rows[idx + 1], candidate_rows[idx + 2]),
-                    3,
-                ))
-
-            for header, span in header_variants:
-                if not _looks_like_header(header):
-                    continue
-                mapping = self._find_column_mapping(header)
-                if mapping:
-                    data_rows = candidate_rows[idx + span :]
-                    return mapping, [tuple(_normalize_cells(row)) for row in data_rows]
-
-        return None, [tuple(_normalize_cells(row)) for row in table.rows]
-
     def _parse_rows(
         self,
         rows: Sequence[tuple[str, ...]],
@@ -190,79 +129,80 @@ class MercuryExtractor(StatementExtractor):
         period: _StatementPeriod,
     ) -> list[ExtractedTransaction]:
         transactions: list[ExtractedTransaction] = []
+        last_transaction: ExtractedTransaction | None = None
         current_date: date | None = None
 
         for row in rows:
-            cells = [cell.strip() for cell in row]
+            cells = list(row)
             if len(cells) <= max(mapping.date_index, mapping.description_index):
                 continue
 
-            raw_date = cells[mapping.date_index]
-            description = cells[mapping.description_index]
-            type_value = (
-                cells[mapping.type_index]
-                if mapping.type_index is not None and mapping.type_index < len(cells)
-                else ""
-            )
+            date_value = _get_cell(cells, mapping.date_index)
+            description = _get_cell(cells, mapping.description_index)
+            type_value = _get_cell(cells, mapping.type_index)
 
-            if raw_date:
+            if date_value:
                 try:
-                    current_date = _parse_mercury_date(raw_date, period)
+                    current_date = _parse_mercury_date(date_value, period)
                 except ValueError:
-                    continue
-
-            if current_date is None or not description:
+                    current_date = None
+            if current_date is None:
                 continue
 
-            normalized_desc = description.lower()
-            if any(keyword in normalized_desc for keyword in _SUMMARY_KEYWORDS):
+            if not description:
+                continue
+
+            if _is_summary_row(description):
                 continue
 
             amount = _resolve_amount(cells, mapping)
+            money_in_value = _get_cell(cells, mapping.money_in_index)
+            money_out_value = _get_cell(cells, mapping.money_out_index)
+
             if amount is None:
-                if description and transactions:
-                    last_txn = transactions[-1]
-                    appended = f"{last_txn.merchant} {description.strip()}".strip()
-                    last_txn.merchant = appended
-                    last_txn.original_description = (
-                        f"{last_txn.original_description} {description.strip()}".strip()
+                if last_transaction is not None:
+                    appended = f"{last_transaction.merchant} {description.strip()}".strip()
+                    last_transaction.merchant = appended
+                    last_transaction.original_description = (
+                        f"{last_transaction.original_description} {description.strip()}".strip()
                     )
                 continue
 
-            money_out_value = (
-                cells[mapping.money_out_index]
-                if mapping.money_out_index is not None and mapping.money_out_index < len(cells)
-                else ""
-            )
-            money_in_value = (
-                cells[mapping.money_in_index]
-                if mapping.money_in_index is not None and mapping.money_in_index < len(cells)
-                else ""
+            signed_amount = _MERCURY_SIGN_CLASSIFIER.classify(
+                abs(amount),
+                description=description,
+                type_value=type_value,
+                money_in_value=money_in_value,
+                money_out_value=money_out_value,
             )
 
-            final_amount = _apply_sign(amount, type_value, description, money_in_value, money_out_value)
-            if final_amount <= 0:
+            if signed_amount is None or signed_amount <= 0:
                 continue
 
-            if _is_transfer(description, type_value):
-                continue
-
-            if _is_interest(description, type_value):
-                continue
-
-            if _is_credit_card_payment(description, type_value):
-                continue
-
-            transactions.append(
-                ExtractedTransaction(
-                    date=current_date,
-                    merchant=description.strip(),
-                    amount=final_amount,
-                    original_description=description.strip(),
-                )
+            txn = ExtractedTransaction(
+                date=current_date,
+                merchant=description.strip(),
+                amount=signed_amount,
+                original_description=description.strip(),
             )
+            transactions.append(txn)
+            last_transaction = txn
 
         return transactions
+
+
+def _mercury_header_predicate(header: tuple[str, ...]) -> bool:
+    normalized = [cell.lower() for cell in header if cell]
+    return (
+        any("date" in cell for cell in normalized)
+        and any("description" in cell for cell in normalized)
+        and any("amount" in cell for cell in normalized)
+    )
+
+
+def _is_summary_row(value: str) -> bool:
+    normalized = normalize_token(value)
+    return normalized in _SUMMARY_KEYWORDS
 
 
 def _parse_statement_period(text: str) -> _StatementPeriod:
@@ -311,16 +251,13 @@ def _parse_mercury_date(value: str, period: _StatementPeriod) -> date:
     month_match = re.match(r"([A-Za-z]+)\s+(\d{1,2})", cleaned)
     if month_match:
         month_name, day_str = month_match.groups()
-        month = None
         for fmt in ("%b", "%B"):
             try:
                 month = datetime.strptime(month_name, fmt).month
-                break
+                year = period.infer_year(month)
+                return date(year, month, int(day_str))
             except ValueError:
                 continue
-        if month is not None:
-            year = period.infer_year(month)
-            return date(year, month, int(day_str))
     if "/" in cleaned:
         month_str, day_str = cleaned.split("/", 1)
         month = int(month_str)
@@ -330,38 +267,23 @@ def _parse_mercury_date(value: str, period: _StatementPeriod) -> date:
     raise ValueError(f"Unrecognized date format: {value}")
 
 
-def _resolve_amount(cells: list[str], mapping: _ColumnMapping) -> float | None:
-    if mapping.amount_index is not None and mapping.amount_index < len(cells):
-        raw = cells[mapping.amount_index]
-        if raw:
-            return _parse_amount(raw)
-    if mapping.money_out_index is not None and mapping.money_out_index < len(cells):
-        raw = cells[mapping.money_out_index]
-        if raw:
-            return abs(_parse_amount(raw))
-    if mapping.money_in_index is not None and mapping.money_in_index < len(cells):
-        raw = cells[mapping.money_in_index]
-        if raw:
-            return -abs(_parse_amount(raw))
+def _get_cell(cells: Sequence[str], index: int | None) -> str:
+    if index is None or index < 0 or index >= len(cells):
+        return ""
+    return cells[index].strip()
+
+
+def _resolve_amount(cells: Sequence[str], mapping: _ColumnMapping) -> float | None:
+    candidate = _get_cell(cells, mapping.amount_index)
+    if candidate:
+        return abs(parse_amount(candidate))
+    money_out = _get_cell(cells, mapping.money_out_index)
+    if money_out:
+        return abs(parse_amount(money_out))
+    money_in = _get_cell(cells, mapping.money_in_index)
+    if money_in:
+        return abs(parse_amount(money_in))
     return None
-
-
-def _parse_amount(value: str) -> float:
-    cleaned = value.strip().replace(",", "")
-    cleaned = cleaned.replace("–", "-").replace("−", "-")
-    clean_no_dollar = cleaned.replace("$", "")
-    negative = False
-    if clean_no_dollar.startswith("(") and clean_no_dollar.endswith(")"):
-        negative = True
-        clean_no_dollar = clean_no_dollar[1:-1]
-    if clean_no_dollar.startswith("-"):
-        negative = True
-        clean_no_dollar = clean_no_dollar[1:]
-    match = re.search(r"\d+(?:\.\d+)?", clean_no_dollar)
-    if not match:
-        raise ValueError(f"Empty amount in '{value}'")
-    amount = float(match.group())
-    return -amount if negative else amount
 
 
 def _find_index(headers: list[str], targets: set[str]) -> int | None:
@@ -373,92 +295,3 @@ def _find_index(headers: list[str], targets: set[str]) -> int | None:
             if target in normalized:
                 return idx
     return None
-
-
-def _normalize_cells(row: Iterable[str]) -> tuple[str, ...]:
-    return tuple((cell or "").strip() for cell in row)
-
-
-def _merge_rows(*rows: Iterable[str]) -> tuple[str, ...]:
-    merged: list[str] = []
-    for column_cells in zip_longest(*rows, fillvalue=""):
-        merged_value = " ".join(part for part in column_cells if part).strip()
-        merged.append(merged_value)
-    return tuple(merged)
-
-
-def _looks_like_header(row: Iterable[str]) -> bool:
-    values = [value.strip().lower() for value in row if value and value.strip()]
-    if len(values) < 2:
-        return False
-    matches = sum(1 for value in values for keyword in _HEADER_KEYWORDS if keyword in value)
-    return matches >= 2
-
-
-def _normalize_token(value: str) -> str:
-    if not value:
-        return ""
-    lowered = value.lower()
-    return re.sub(r"[^a-z0-9\s]", "", lowered)
-
-
-def _matches_keywords(normalized: str, keywords: set[str]) -> bool:
-    if not normalized:
-        return False
-    return any(keyword in normalized for keyword in keywords)
-
-
-def _apply_sign(
-    amount: float,
-    type_value: str,
-    description: str,
-    money_in_value: str,
-    money_out_value: str,
-) -> float:
-    if amount == 0:
-        return 0.0
-
-    if money_in_value and not money_out_value:
-        return -abs(amount)
-    if money_out_value and not money_in_value:
-        return abs(amount)
-
-    normalized_type = _normalize_token(type_value)
-    normalized_desc = _normalize_token(description)
-    normalized_in = _normalize_token(money_in_value)
-    normalized_out = _normalize_token(money_out_value)
-
-    if _matches_keywords(normalized_type, _DEPOSIT_KEYWORDS) or _matches_keywords(
-        normalized_desc, _DEPOSIT_KEYWORDS
-    ) or _matches_keywords(normalized_in, _DEPOSIT_KEYWORDS):
-        return -abs(amount)
-
-    if _matches_keywords(normalized_type, _WITHDRAW_KEYWORDS) or _matches_keywords(
-        normalized_desc, _WITHDRAW_KEYWORDS
-    ) or _matches_keywords(normalized_out, _WITHDRAW_KEYWORDS):
-        return abs(amount)
-
-    if amount < 0:
-        return abs(amount)
-    return amount
-
-
-def _is_transfer(description: str, type_value: str) -> bool:
-    normalized_desc = _normalize_token(description)
-    normalized_type = _normalize_token(type_value)
-    return _matches_keywords(normalized_desc, _TRANSFER_KEYWORDS) or "transfer" in normalized_type
-
-
-def _is_interest(description: str, type_value: str) -> bool:
-    normalized_desc = _normalize_token(description)
-    normalized_type = _normalize_token(type_value)
-    return "interest" in normalized_desc or "interest" in normalized_type
-
-
-def _is_credit_card_payment(description: str, type_value: str) -> bool:
-    normalized_desc = _normalize_token(description)
-    normalized_type = _normalize_token(type_value)
-    return (
-        "ach pull" in normalized_type
-        and _matches_keywords(normalized_desc, _CREDIT_CARD_PAYMENT_KEYWORDS)
-    )
