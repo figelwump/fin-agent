@@ -24,3 +24,10 @@ dist/
 *.log
 statements/
 output/
+
+# Node/Bun
+node_modules/
+.env
+
+# Agent logs
+logs/

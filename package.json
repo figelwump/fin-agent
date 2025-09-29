@@ -1,0 +1,24 @@
+{
+  "name": "fin-agent",
+  "version": "1.0.0",
+  "description": "AI agent for natural language interaction with fin-cli financial tools",
+  "main": "server/server.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run server/server.ts",
+    "start": "bun run server/server.ts",
+    "test": "bun test"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.120",
+    "dotenv": "^17.2.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.21",
+    "@types/node": "^24.5.1",
+    "typescript": "^5.9.2"
+  }
+}
