@@ -77,33 +77,34 @@ fin-agent/
 
 **IMPORTANT:** You are writing all code in this phase. I will point you to patterns and explain concepts, but you implement.
 
-- [ ] 2.1: Create TypeScript types
-  - **File:** `ccsdk/types.ts`
-  - **What to implement:** Export types for SDK messages, user messages, system messages
-  - **Pattern:** Look at email-agent's `ccsdk/types.ts` - it re-exports SDK types and defines custom message types
-  - **Key types needed:**
-    - `SDKMessage`, `SDKUserMessage` (from SDK)
-    - Custom WebSocket message types if needed
-  - YOU will write this file
+- [x] 2.1: Create TypeScript types
+  - **File:** `ccsdk/types.ts` ✅
+  - Created with SDK type re-exports and WebSocket message types
+  - Includes: WSClient, ChatMessage, SubscribeMessage, UnsubscribeMessage, IncomingMessage
+  - Re-exports: SDKUserMessage, SDKMessage
 
-- [ ] 2.2: Create message queue for async communication
-  - **File:** `ccsdk/message-queue.ts`
-  - **What to implement:** A queue for handling async messages between components
-  - **Pattern:** Copy the MessageQueue class from email-agent's message-queue.ts - it's a generic utility
-  - **Why:** Allows components to communicate without tight coupling
-  - YOU will write this file
+- [x] 2.2: Create message queue for async communication
+  - **File:** `ccsdk/message-queue.ts` ✅
+  - Implemented producer-consumer pattern with Promise-based queue
+  - Methods: push(), next(), close(), isClosed()
+  - Handles async communication between components
 
-- [ ] 2.3: Create system prompt
-  - **File:** `ccsdk/fin-agent-prompt.ts`
-  - **What to implement:** Export a constant string with the agent's system prompt
-  - **Pattern:** Look at email-agent's `email-agent-prompt.ts`
-  - **Content guidance:**
-    - Describe agent's purpose (financial analysis assistant)
-    - List available fin-cli commands (fin-extract, fin-enhance, fin-analyze, etc.)
-    - Explain when to use MCP tools vs Bash
-    - Database location: ~/.finagent/data.db
-    - Always use --format json for parseable output
-  - YOU will write this prompt
+- [x] 2.3: Create system prompt
+  - **File:** `ccsdk/fin-agent-prompt.ts` ✅
+  - Comprehensive prompt with:
+    - 4 MCP tools: extract_statement, import_transactions, analyze_spending, search_transactions
+    - Two-step import workflow with review/approval process
+    - Privacy notes (local extraction vs cloud categorization)
+    - CLI tools documentation with --period flag support
+    - Decisions JSON schema for review workflow
+    - Recovery from failures guidance
+    - Examples of common queries
+  - Key decisions:
+    - Separate extract/import tools for recoverability
+    - Review workflow as default, auto-approve optional
+    - Agent parses review JSON and presents user-friendly format
+    - Output dir: ~/.finagent/output/
+    - Database: ~/.finagent/data.db
 
 - [ ] 2.4: Create custom MCP tools for fin-cli
   - **File:** `ccsdk/custom-tools.ts`
