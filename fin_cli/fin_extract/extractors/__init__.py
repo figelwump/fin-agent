@@ -68,10 +68,10 @@ def register_extractor(extractor: type[StatementExtractor]) -> None:
 
 def _infer_institution(text: str) -> str | None:
     lowered = text.lower()
-    if "mercury" in lowered:
-        return "mercury"
     if "bank of america" in lowered or "bofa" in lowered:
         return "bofa"
+    if "mercury" in lowered:
+        return "mercury"
     if "chase" in lowered:
         return "chase"
     return None

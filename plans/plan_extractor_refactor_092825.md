@@ -35,3 +35,4 @@
     - Notes (2025-09-28): `pytest tests/fin_extract tests/fin_export/test_cli.py` passes; `fin-extract` on real BofA credit and Mercury savings PDFs succeed with clean output.
   - [x] Capture follow-up notes (future extractor targets, remaining bespoke logic) in this plan.
     - Notes: Chase still relies on bespoke text fallback; future work may adopt shared normalization for table paths and expose configurable keyword sets via config.
+    - Notes update (2025-09-28, PM): Added text fallback for BofA checking statements to capture debit lines when tables are deposit-only; ensured transfer ACHs (e.g., MercuryACH) are filtered while legitimate card charges remain.

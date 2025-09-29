@@ -20,7 +20,14 @@ from .types import (
 )
 
 
-@click.command(help="Run financial analyses against the local dataset.", context_settings={'ignore_unknown_options': True})
+HELP_TEXT = (
+    "Run financial analyses against the local dataset.\n\n"
+    "\b\n"  # Preserve the catalog formatting in Click's help output.
+    + registry.format_catalog()
+)
+
+
+@click.command(help=HELP_TEXT, context_settings={'ignore_unknown_options': True})
 @click.argument("analysis_type", type=str, required=False)
 @click.argument("analysis_args", nargs=-1, type=str)
 @click.option("--month", type=str, help="Analyse a specific month (YYYY-MM).")
@@ -143,4 +150,3 @@ def main(
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-
