@@ -56,6 +56,7 @@ _PERIOD_LONG_RE = re.compile(
 _ACCOUNT_NAME_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"advantage\s+banking", re.IGNORECASE), "BofA Advantage Checking", "checking"),
     (re.compile(r"advantage\s+relationship", re.IGNORECASE), "BofA Advantage Relationship", "checking"),
+    (re.compile(r"adv\s+relationship", re.IGNORECASE), "BofA Advantage Relationship", "checking"),
     (re.compile(r"travel\s+rewards", re.IGNORECASE), "BofA Travel Rewards", "credit"),
     (re.compile(r"customized\s+cash\s+rewards", re.IGNORECASE), "BofA Customized Cash Rewards", "credit"),
 ]
@@ -70,12 +71,19 @@ _SUMMARY_ROW_KEYWORDS = {
     "payments and other credits",
     "charges and purchases",
     "purchases and adjustments",
+    "total purchases and adjustments for this period",
+    "total fees for this period",
+    "interest charged",
+    "interest charged on purchases",
+    "late fee for payment due",
+    "continued on next page",
+    "continued from previous page",
 }
 
 _BOFA_SIGN_CLASSIFIER = SignClassifier(
     charge_keywords={"debit", "withdrawal", "purchase", "sale", "charge"},
     credit_keywords={"payment", "credit", "refund", "deposit"},
-    transfer_keywords={"transfer", "atm withdrawal"},
+    transfer_keywords={"transfer", "atm withdrawal", "mercuryach"},
     interest_keywords={"interest"},
     card_payment_keywords={"credit card", "credit crd", "card services", "applecard"},
 )
@@ -105,10 +113,20 @@ class BankOfAmericaExtractor(StatementExtractor):
                 header_predicate=_bofa_header_predicate,
                 header_scan=6,
             )
+            header_text = " ".join(normalized.headers).lower()
+            if (
+                ("deposit" in header_text or "other additions" in header_text)
+                and "withdraw" not in header_text
+                and "debit" not in header_text
+            ):
+                continue
             mapping = self._find_column_mapping(normalized.headers)
             if not mapping:
                 continue
             transactions.extend(self._parse_rows(normalized.rows, mapping, period))
+
+        if not transactions:
+            transactions = self._extract_from_text(document.text, period)
 
         metadata = StatementMetadata(
             institution="Bank of America",
@@ -189,7 +207,8 @@ class BankOfAmericaExtractor(StatementExtractor):
             money_out_value = _get_cell(cells, mapping.withdrawals_index)
 
             if amount is None:
-                if last_transaction is not None:
+                # Only append if it's not a summary row (prevents Interest Charged text from being appended)
+                if last_transaction is not None and not _is_summary_row(description):
                     appended = f"{last_transaction.merchant} {description.strip()}".strip()
                     last_transaction.merchant = appended
                     last_transaction.original_description = (
@@ -207,15 +226,70 @@ class BankOfAmericaExtractor(StatementExtractor):
             if signed_amount is None or signed_amount <= 0:
                 continue
 
+            # Clean up merchant name by removing PDF layout text
+            merchant = description.strip()
+            merchant_lower = merchant.lower()
+            if "continued on next page" in merchant_lower:
+                # Find and remove the text while preserving original case
+                idx = merchant_lower.find("continued on next page")
+                merchant = merchant[:idx].strip()
+            elif "continued from previous page" in merchant_lower:
+                idx = merchant_lower.find("continued from previous page")
+                merchant = merchant[:idx].strip()
+
             txn = ExtractedTransaction(
                 date=current_date,
-                merchant=description.strip(),
+                merchant=merchant.strip(),
                 amount=signed_amount,
                 original_description=description.strip(),
             )
             transactions.append(txn)
             last_transaction = txn
 
+        return transactions
+
+    def _extract_from_text(
+        self,
+        text: str,
+        period: _StatementPeriod,
+    ) -> list[ExtractedTransaction]:
+        transactions: list[ExtractedTransaction] = []
+        pattern = re.compile(r"(\d{2}/\d{2}/\d{2})\s+(.+?)\s+(-[$\d,\.]+)")
+        for line in text.splitlines():
+            match = pattern.search(line)
+            if not match:
+                continue
+            date_str, description, amount_str = match.groups()
+            try:
+                txn_date = _parse_bofa_date(date_str, period)
+                amount = abs(parse_amount(amount_str))
+            except ValueError:
+                continue
+
+            signed_amount = _BOFA_SIGN_CLASSIFIER.classify(
+                amount,
+                description=description,
+            )
+            if signed_amount is None or signed_amount <= 0:
+                desc_norm = normalize_token(description)
+                if not amount_str.strip().startswith("-"):
+                    continue
+                if any(keyword in desc_norm for keyword in _BOFA_SIGN_CLASSIFIER.transfer_keywords):
+                    continue
+                if any(keyword in desc_norm for keyword in _BOFA_SIGN_CLASSIFIER.interest_keywords):
+                    continue
+                if any(keyword in desc_norm for keyword in _BOFA_SIGN_CLASSIFIER.card_payment_keywords):
+                    continue
+                signed_amount = amount
+
+            transactions.append(
+                ExtractedTransaction(
+                    date=txn_date,
+                    merchant=description.strip(),
+                    amount=signed_amount,
+                    original_description=description.strip(),
+                )
+            )
         return transactions
 
 
@@ -231,7 +305,17 @@ def _is_summary_row(value: str) -> bool:
     normalized = normalize_token(value)
     if normalized in _SUMMARY_ROW_KEYWORDS:
         return True
-    if normalized.startswith("total") and "payments" in normalized and "credits" in normalized:
+    if normalized.startswith("total") and ("payments" in normalized or "purchases" in normalized or "fees" in normalized):
+        return True
+    if "interest charged" in normalized:
+        return True
+    if "total" in normalized and "for this period" in normalized:
+        return True
+    if normalized.endswith("for this period"):
+        return True
+    if "continued on next page" in normalized:
+        return True
+    if "continued from previous page" in normalized:
         return True
     return False
 
@@ -262,7 +346,9 @@ def _infer_account_details(text: str) -> tuple[str, str]:
         if pattern.search(text):
             return name, acc_type
     lowered = text.lower()
-    if any(keyword in lowered for keyword in {"credit card", "visa", "mastercard", "payment due"}):
+    if "checking" in lowered or "checking" in text:
+        return "Bank of America Checking", "checking"
+    if any(keyword in lowered for keyword in {"credit card", "visa", "mastercard", "payment due", "card services"}):
         return "Bank of America Credit Card", "credit"
     return "Bank of America Checking", "checking"
 
