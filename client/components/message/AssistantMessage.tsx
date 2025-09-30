@@ -329,11 +329,11 @@ function TextComponent({ text }: { text: TextBlock }) {
   // Parse the text to replace [email:ID] with EmailDisplay components
   const processContent = (content: string) => {
     const result: React.ReactNode[] = [];
-    
+
     // Regular text part - render with markdown
     result.push(
-    <div key={i} className="prose prose-sm max-w-none">
-        <ReactMarkdown 
+    <div key={0} className="prose prose-sm max-w-none">
+        <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
             // Customize link rendering
@@ -342,7 +342,7 @@ function TextComponent({ text }: { text: TextBlock }) {
             ),
             // Customize code rendering
             code: ({ node, inline, ...props }) => (
-            inline ? 
+            inline ?
                 <code className="bg-gray-100 px-1 py-0.5 text-xs font-mono" {...props} /> :
                 <code className="block bg-gray-100 p-2 text-xs font-mono overflow-x-auto border border-gray-200" {...props} />
             ),
@@ -363,7 +363,7 @@ function TextComponent({ text }: { text: TextBlock }) {
         </ReactMarkdown>
     </div>
     );
-    
+
     return <>{result}</>;
   };
 
