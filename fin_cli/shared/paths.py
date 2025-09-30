@@ -8,13 +8,13 @@ from typing import Mapping
 
 DEFAULT_CONFIG_DIR = "~/.finconfig"
 DEFAULT_DATA_DIR = "~/.findata"
-DEFAULT_DATABASE_FILE = "transactions.db"
+DEFAULT_DATABASE_PATH = "~/.finagent/data.db"
 DEFAULT_CONFIG_FILE = "config.yaml"
 
 CONFIG_DIR_ENV = "FINCLI_CONFIG_DIR"
 DATA_DIR_ENV = "FINCLI_DATA_DIR"
 CONFIG_FILE_ENV = "FINCLI_CONFIG_PATH"
-DATABASE_PATH_ENV = "FINCLI_DATABASE_PATH"
+DATABASE_PATH_ENV = "FINAGENT_DATABASE_PATH"
 
 
 def _expand(path_str: str) -> Path:
@@ -64,8 +64,10 @@ def default_database_path(create_parents: bool = False, env: Mapping[str, str] |
         if create_parents:
             path.parent.mkdir(parents=True, exist_ok=True)
         return path
-    data_dir = get_data_dir(create=create_parents, env=env)
-    return data_dir / DEFAULT_DATABASE_FILE
+    path = _expand(DEFAULT_DATABASE_PATH)
+    if create_parents:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def resolve_path(path_str: str | Path) -> Path:

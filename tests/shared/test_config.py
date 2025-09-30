@@ -52,7 +52,7 @@ def test_load_config_from_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 def test_load_config_env_overrides(tmp_path: Path) -> None:
     custom_db = tmp_path / "custom.db"
     env = {
-        "FINCLI_DATABASE_PATH": str(custom_db),
+        "FINAGENT_DATABASE_PATH": str(custom_db),
         "FINCLI_LLM_ENABLED": "false",
         "FINCLI_EXTRACTION_SUPPORTED_BANKS": "chase,amex",
         "FINCLI_DYNAMIC_CATEGORIES_MIN_TRANSACTIONS": "5",

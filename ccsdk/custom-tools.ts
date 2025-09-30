@@ -74,7 +74,7 @@ function generateCsvFilename(pdfPath: string): string {
 // MCP SERVER DEFINITION
 // =============================================================================
 
-export const customServer = createSdkMcpServer({
+export const customMCPServer = createSdkMcpServer({
   name: "finance",
   version: "1.0.0",
   tools: [
