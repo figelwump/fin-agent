@@ -39,14 +39,14 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
     frame = load_transactions_frame(context)
     if frame.empty:
-        raise AnalysisError("No transactions available for the selected window.")
+        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, or all) or ask the user if they have imported any transactions yet.")
 
     min_overlap = float(context.options.get("min_overlap", 0.8) or 0.8)
     min_transactions = 3
 
     profiles = _build_profiles(frame)
     if len(profiles) < 2:
-        raise AnalysisError("Not enough categories to evaluate suggestions.")
+        raise AnalysisError("Not enough categories to evaluate suggestions. Suggestion: Try using a longer time period (e.g., 6m, 12m, or all) or inform the user of the error.")
 
     suggestions: list[Suggestion] = []
     keys = list(profiles.keys())

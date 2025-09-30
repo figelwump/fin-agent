@@ -39,7 +39,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     current = load_category_totals(context)
     if current.empty:
         raise AnalysisError(
-            "No categorized spend found for the selected window; try expanding the timeframe."
+            "No categorized spend found for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, or all) or ask the user if they have imported any transactions yet."
         )
 
     current = current.fillna({"category": "Uncategorized", "subcategory": "Uncategorized"})
