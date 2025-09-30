@@ -5,12 +5,12 @@ import { DATABASE_PATH } from "../database/config";
 
 // Main WebSocket handler class
 export class WebSocketHandler {
-    private db: Database;
+//    private db: Database; // TODO: not using this yet
     private sessions: Map<string, Session> = new Map();
     private clients: Map<string, WSClient> = new Map();
 
     constructor(dbPath: string = DATABASE_PATH) {
-        this.db = new Database(dbPath);
+        //this.db = new Database(dbPath);
     }
 
     private generateSessionId(): string {
@@ -28,7 +28,7 @@ export class WebSocketHandler {
         }
 
         const newSessionId = sessionId || this.generateSessionId();
-        const session = new Session(newSessionId, this.db);
+        const session = new Session(newSessionId);
         this.sessions.set(newSessionId, session);
         return session;
     }

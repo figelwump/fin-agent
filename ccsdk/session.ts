@@ -10,14 +10,15 @@ export class Session {
   private messageQueue: MessageQueue<SDKUserMessage>;
   private queryPromise: Promise<void> | null = null;
   private subscribers: Set<WSClient> = new Set();
-  private db: Database;
+//  private db: Database; // TODO: not using this yet
   private messageCount = 0;
   private ccClient: CCClient;
   private sdkSessionId: string | null = null;
 
-  constructor(id: string, db: Database) {
+//  constructor(id: string, db: Database) { 
+  constructor(id: string) { 
     this.id = id;
-    this.db = db;
+    //this.db = db;
     this.messageQueue = new MessageQueue();
     this.ccClient = new CCClient();
   }
