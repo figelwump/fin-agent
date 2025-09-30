@@ -53,17 +53,20 @@ function getLogsDir(): string {
 }
 
 /**
+ * Get the venv path (relative to the current working directory)
+ */
+function getVenvPath(): string {
+  const cwd = process.cwd();
+  return path.join(cwd, ".venv", "bin", "activate");
+}
+
+/**
  * Generate a CSV filename from a PDF path
  */
 function generateCsvFilename(pdfPath: string): string {
   const outputDir = getOutputDir();
   const basename = path.basename(pdfPath, ".pdf");
 
-  // Check if basename already contains common bank names
-  const commonBanks = ["chase", "bofa", "wellsfargo", "citi", "amex", "discover", "capital", "mercury", "ally"];
-  const hasBank = commonBanks.some(bank => basename.toLowerCase().includes(bank));
-
-  // If no bank name detected and we want to add a prefix, we'd need bank detection logic
   // For now, just use the PDF basename as-is
   const csvFilename = `${basename}.csv`;
 
@@ -108,7 +111,8 @@ export const customMCPServer = createSdkMcpServer({
 
           // 4. Run: fin-extract <pdfPath> --output <csvPath>
           const command = `fin-extract "${pdfPath}" --output "${csvPath}"`;
-          const result = await execCommand(command);
+          const fullCommand = `source ${getVenvPath()} && ${command}`; // Wrap command with venv activation
+          const result = await execCommand(fullCommand);
 
           console.log(`Statement extracted to: ${csvPath} with result: ${result}`);
 
@@ -186,7 +190,8 @@ export const customMCPServer = createSdkMcpServer({
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const reviewPath = path.join(logsDir, `review-${timestamp}.json`);
             const command = `fin-enhance "${csvPath}" --review-output "${reviewPath}"`;
-            const result = await execCommand(command);
+            const fullCommand = `source ${getVenvPath()} && ${command}`; // Wrap command with venv activation
+            const result = await execCommand(fullCommand);
             console.log(`Imported transactions with review file: ${reviewPath} with result: ${result}`);
 
             return {
@@ -256,7 +261,8 @@ export const customMCPServer = createSdkMcpServer({
           }
 
           // 4. Execute command
-          const result = await execCommand(command);
+          const fullCommand = `source ${getVenvPath()} && ${command}`; // Wrap command with venv activation
+          const result = await execCommand(fullCommand);
 
           // 5. Write result to file
           const logsDir = getLogsDir();
@@ -334,7 +340,8 @@ export const customMCPServer = createSdkMcpServer({
           const command = `fin-query sql "${sql}" --format json`;
 
           // 2. Execute the command
-          const result = await execCommand(command);
+          const fullCommand = `source ${getVenvPath()} && ${command}`; // Wrap command with venv activation
+          const result = await execCommand(fullCommand);
 
           // 3. Write the result to a file
           const logsDir = getLogsDir();

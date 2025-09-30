@@ -38,7 +38,7 @@ ws.on("message", (data) => {
       break;
 
     case "user_message":
-      console.log(`\n[You]: ${message.content}\n`);
+      console.log(`\n[You]:\n`, message.content);
       break;
 
     case "assistant_message":
@@ -79,7 +79,7 @@ ws.on("message", (data) => {
 
     case "system":
       // Log system messages if needed for debugging
-      // console.log(`[System: ${message.subtype}]`);
+      console.log(`[System: ${message.subtype}]`);
       break;
 
     default:
