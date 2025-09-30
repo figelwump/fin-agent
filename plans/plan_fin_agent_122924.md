@@ -283,66 +283,63 @@ fin-agent/
 
 ---
 
-### Phase 5: Basic UI (React Frontend)
+### Phase 5: Basic UI (React Frontend) ✅
 **Goal:** Create minimal chat interface for agent interaction
 
-**Note:** This phase can be started once Phase 4 is working. I'll guide you through React patterns.
+**Status:** COMPLETED
 
-- [ ] 5.1: Set up React project structure
-  - Create `client/` directory structure
-  - Create `client/index.html`, `client/index.tsx`, `client/App.tsx`
-  - Configure Bun to serve and transpile React
-  - **Pattern:** Study email-agent's client setup
-  - YOU will create these files
+- [x] 5.1: Set up React project structure ✅
+  - Created `client/` directory structure
+  - Created `client/index.html`, `client/index.tsx`, `client/App.tsx`
+  - Configured Bun to serve and transpile React
+  - Added TypeScript configuration with JSX support
+  - **Files:** `client/index.html`, `client/index.tsx`, `client/App.tsx`
 
-- [ ] 5.2: Create WebSocket hook
+- [x] 5.2: Create WebSocket hook ✅
   - **File:** `client/hooks/useWebSocket.ts`
-  - **What to implement:** React hook for WebSocket connection
-  - **Pattern:** Copy email-agent's useWebSocket.ts hook
-  - **Features:** Auto-reconnect, message queuing, connection status
-  - YOU will write this hook
+  - Implemented generic WebSocket connection hook
+  - Features: Auto-reconnect, message queuing, connection status
+  - Proper cleanup and error handling
+  - Message queueing when disconnected
 
-- [ ] 5.3: Create chat interface component
+- [x] 5.3: Create chat interface component ✅
   - **File:** `client/components/ChatInterface.tsx`
-  - **What to implement:** Main chat UI
-  - **Features:**
-    - Message input
-    - Message history display
-    - Connection status indicator
-    - Loading states
-  - **Pattern:** Study email-agent's ChatInterface.tsx
-  - YOU will write this component
+  - Main chat UI with message input and history
+  - Connection status indicator
+  - Loading states and auto-scroll
+  - Empty state with example queries
+  - Proper TypeScript typing
 
-- [ ] 5.4: Create message renderer
-  - **File:** `client/components/MessageRenderer.tsx`
-  - **What to implement:** Display different message types
-  - **Message types:**
-    - User messages
-    - Assistant messages
-    - Tool use display
-    - System messages
-  - **Pattern:** Email-agent has great message rendering
-  - YOU will write this component
+- [x] 5.4: Create message renderer ✅
+  - **Files:** `client/components/message/MessageRenderer.tsx`, `types.ts`, `UserMessage.tsx`, `AssistantMessage.tsx`, `SystemMessage.tsx`
+  - Display different message types (user, assistant, system)
+  - Tool use display with expandable details
+  - Proper markdown rendering with react-markdown
+  - Timestamp formatting
 
-- [ ] 5.5: Add basic styling
-  - Create `client/globals.css`
-  - Add Tailwind configuration
-  - Keep it simple - can beautify later
-  - **Pattern:** Email-agent uses Tailwind
-  - YOU will add styling
+- [x] 5.5: Add basic styling ✅
+  - Created `client/globals.css` with Tailwind
+  - Added `tailwind.config.js`
+  - Minimal, clean styling
+  - Responsive layout
 
-- [ ] 5.6: Test UI interaction
-  - Start server
-  - Open browser to `http://localhost:3000`
-  - Send queries through UI
-  - Verify responses appear correctly
-  - **Manual testing:** You will test in browser
+- [x] 5.6: Additional features ✅
+  - **Screenshot Mode:** Added privacy feature with ScreenshotModeProvider
+    - `client/context/ScreenshotModeContext.tsx` - React context for screenshot mode
+    - `client/store/screenshotMode.ts` - Jotai atom for state
+    - `client/utils/placeholders.ts` - Placeholder generators for sensitive data
+  - **Dependencies:** Installed React 19, Jotai, react-markdown, remark-gfm, lucide-react
+  - **App.tsx:** Cleaned up to remove email-agent specific components
+  - **WebSocket Integration:** Full message handling for assistant/tool/error messages
 
-**Completion criteria:**
-- UI loads without errors
-- Can send messages through UI
-- Receives and displays agent responses
-- Basic styling is functional
+**Completion criteria:** ✅
+- UI loads without errors ✅
+- Can send messages through UI ✅
+- Receives and displays agent responses ✅
+- Basic styling is functional ✅
+- Server running at http://localhost:3000 ✅
+
+**Commit:** 84c1594
 
 ---
 
@@ -405,9 +402,20 @@ Will be populated as implementation progresses.
 
 - **Runtime:** Bun (fast, TypeScript native, used by email-agent)
 - **Database:** Existing SQLite at ~/.finagent/data.db
-- **UI Framework:** React (matches email-agent pattern)
-- **Styling:** Tailwind CSS (simple, matches email-agent)
+- **UI Framework:** React 19 with TypeScript
+- **Styling:** Tailwind CSS v4 with PostCSS
+- **State Management:** Jotai for global state (screenshot mode)
+- **Markdown Rendering:** react-markdown with remark-gfm for message content
+- **Icons:** lucide-react for UI icons
 - **Model:** Claude Opus via SDK (can change in ai-client config)
+
+### Tool Design Patterns
+
+- **Union Types for Mutually Exclusive Parameters:**
+  - `analyze_spending` tool uses Zod union type for `timeFrame`
+  - Supports `{ period: "7d" }` OR `{ month: "2024-01" }` but not both
+  - Enforces mutual exclusivity at the type level
+  - Claude naturally chooses the appropriate format based on user query
 
 ### Questions to Consider
 
