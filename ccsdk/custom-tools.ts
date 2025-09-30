@@ -23,7 +23,21 @@ async function execCommand(command: string): Promise<string> {
     }
     return stdout.trim();
   } catch (error: any) {
-    throw new Error(`Command failed: ${error.message}`);
+    // Include both stdout and stderr in the error message so Claude can see what went wrong
+    const stderr = error.stderr?.trim() || '';
+    const stdout = error.stdout?.trim() || '';
+    let errorMsg = error.message || 'Unknown error';
+
+    // If we have stderr, it often contains the most useful error info
+    if (stderr) {
+      errorMsg += `\nError output: ${stderr}`;
+    }
+    // Sometimes stdout also has useful context
+    if (stdout) {
+      errorMsg += `\nCommand output: ${stdout}`;
+    }
+
+    throw new Error(errorMsg);
   }
 }
 
@@ -296,11 +310,13 @@ export const customMCPServer = createSdkMcpServer({
           };
         } catch (error: any) {
           console.error("Error analyzing spending: ", error);
+
           return {
             content: [{
               type: "text",
-              text: `Error analyzing spending: ${error.message}`
-            }]
+              text: error.message
+            }],
+            isError: true
           };
         }
       }
