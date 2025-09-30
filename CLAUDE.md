@@ -21,7 +21,7 @@ You may be given an implementation plan to work through. If so, here are guideli
 
 # Tooling conventions
 
-- When you need to inspect the local SQLite database, use the `sqlite3` CLI rather than ad-hoc Python scripts. Example: `sqlite3 ~/.findata/transactions.db`. From there you can run commands like `.tables` or `SELECT COUNT(*) FROM transactions;`.
+- When you need to inspect the local SQLite database, use the `sqlite3` CLI rather than ad-hoc Python scripts. Example: `sqlite3 ~/.finagent/data.db`. From there you can run commands like `.tables` or `SELECT COUNT(*) FROM transactions;`.
 
 ## Code Search with ast-grep
 

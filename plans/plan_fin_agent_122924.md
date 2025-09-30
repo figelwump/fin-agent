@@ -106,9 +106,18 @@ fin-agent/
     - Output dir: ~/.finagent/output/
     - Database: ~/.finagent/data.db
 
-- [ ] 2.4: Create custom MCP tools for fin-cli
-  - **File:** `ccsdk/custom-tools.ts`
-  - **What to implement:** MCP server with tools wrapping fin-cli commands
+- [x] 2.4: Create custom MCP tools for fin-cli
+  - **File:** `ccsdk/custom-tools.ts` ✅
+  - Implemented 4 MCP tools:
+    1. `extract_statement` - PDF to CSV extraction (local/private)
+    2. `import_transactions` - CSV import with review/auto-approve modes
+    3. `analyze_spending` - Wraps fin-analyze analyzers
+    4. `search_transactions` - SQL-based transaction search
+  - All tools write results to log files (~/.finagent/logs/)
+  - Small return payloads with file paths
+  - Proper error handling and path quoting
+  - SQL injection protection
+  - Helper functions for command execution and directory management
   - **Pattern:** Study email-agent's custom-tools.ts
   - **Key concepts to understand:**
     - `createSdkMcpServer()` creates the MCP server

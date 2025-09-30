@@ -3,7 +3,7 @@
 ## Architecture Notes & Decisions
 - Target Python 3.11+ with a single distributable package `fin_cli` providing entrypoints `fin-extract`, `fin-enhance`, `fin-query`, `fin-analyze`, and `fin-export`.
 - Follow the directory layout from the implementation spec (`fin-extract/`, `fin-enhance/`, etc.) with a shared package containing config, database, models, and utilities.
-- Persist data in `~/.findata/transactions.db`; manage connections via a shared database module that also drives simple versioned migrations stored in `shared/migrations/`.
+- Persist data in `~/.finagent/data.db`; manage connections via a shared database module that also drives simple versioned migrations stored in `shared/migrations/`.
 - Place global configuration at `~/.finconfig/config.yaml` with environment variable overrides, and expose helper functions for resolving paths and defaults.
 - Enforce privacy guarantees and stateless extraction: `fin-extract` performs local PDF parsing only and never touches SQLite; `fin-enhance` is the sole tool that mutates the database or invokes LLM APIs (with opt-out and caching).
 - Reuse common CLI patterns (Click + Rich) across tools; centralize styling, logging, and error handling helpers in `shared/cli.py`.

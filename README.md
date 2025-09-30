@@ -154,7 +154,7 @@ Use the `sqlite3` CLI to inspect imported data. This keeps tooling lightweight
 and makes it easy to share copy/pasteable commands.
 
 ```bash
-sqlite3 ~/.findata/transactions.db   # open the shell
+sqlite3 ~/.finagent/data.db   # open the shell
 ```
 
 Once inside the prompt, helpful commands include:
@@ -186,7 +186,7 @@ and analyzer-specific options.
 
 - `--format text|json` (default `text`).
 - `--threshold FLOAT` – significance threshold for change markers.
-- `--db PATH` – alternate SQLite location (defaults to `~/.findata/transactions.db`).
+- `--db PATH` – alternate SQLite location (defaults to `~/.finagent/data.db`).
 - `--help-list` – list available analyzers and exit.
 - Standard `--verbose`, `--dry-run`, etc., come from shared CLI helpers.
 

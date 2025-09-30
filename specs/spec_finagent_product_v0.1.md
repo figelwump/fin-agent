@@ -25,7 +25,7 @@ fin-enhance <csv-files...> [options]
   --skip-llm              Use only rules-based categorization
   --dry-run               Preview import without committing
   --force                 Skip duplicate detection safeguards
-  --db <path>             Database path (default: ~/.findata/transactions.db)
+  --db <path>             Database path (default: ~/.finagent/data.db)
   --help                  Show detailed help
 ```
 
@@ -121,7 +121,7 @@ OPTIONS:
   --format <fmt>        Output format: table|tsv|csv|json (default: table)
   --month <YYYY-MM>     Filter by month (for saved queries)
   --limit <n>           Limit results (for saved queries)
-  --db <path>           Database path (default: ~/.findata/transactions.db)
+  --db <path>           Database path (default: ~/.finagent/data.db)
   --help                Show this help
 
 SAVED QUERIES:

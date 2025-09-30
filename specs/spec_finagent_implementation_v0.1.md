@@ -50,7 +50,7 @@ fin-cli/
 #### 2. Database Design
 
 **Technology**: SQLite for simplicity
-- Single file database at `~/.findata/transactions.db`
+- Single file database at `~/.finagent/data.db`
 - Foreign key constraints enabled
 - Indexes on frequently queried columns
 
@@ -143,7 +143,7 @@ CREATE TABLE schema_versions (
 **Structure**:
 ```yaml
 database:
-  path: ~/.findata/transactions.db
+  path: ~/.finagent/data.db
 
 extraction:
   auto_detect_accounts: true
