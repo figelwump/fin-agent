@@ -222,9 +222,14 @@ export const customMCPServer = createSdkMcpServer({
       "analyze_spending",
       "Analyze spending patterns for a specific time period using various analyzers",
       {
-        period: z.string().describe(
-          "Time period: YYYY-MM for month, '3m' for 3 months, 'YYYY' for year, 'last-12-months', etc."
-        ),
+        timeFrame: z.union([
+          z.object({
+            period: z.string().describe("Relative period: '7d' for 7 days, '3m' for 3 months, '1w' for 1 week, '12m' for 12 months, etc.")
+          }),
+          z.object({
+            month: z.string().describe("Specific month in YYYY-MM format (e.g., '2024-01')")
+          })
+        ]).describe("Time frame for analysis - use either period (relative) or month (specific)"),
         type: z.enum([
           "trends",
           "categories",
@@ -235,12 +240,12 @@ export const customMCPServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const period = args.period;
+          const timeFrame = args.timeFrame;
           const type = args.type;
           const category = args.category;
 
           console.log("== ANALYZE TOOL CALLED ==");
-          console.log("period:", period);
+          console.log("timeFrame:", timeFrame);
           console.log("type:", type);
           console.log("category:", category);
           console.log("================================================");
@@ -253,9 +258,17 @@ export const customMCPServer = createSdkMcpServer({
             "subscriptions": "subscription-detect"
           }[type];
 
-          // 2. Build command: fin-analyze <analyzer> --period <period> --format json
-          // 3. Add --category flag if provided
-          let command = `fin-analyze ${finAnalyzeType} --period ${period} --format json`;
+          // 2. Build time flag based on timeFrame
+          let timeFlag = '';
+          if ('period' in timeFrame) {
+            timeFlag = `--period ${timeFrame.period}`;
+          } else {
+            timeFlag = `--month ${timeFrame.month}`;
+          }
+
+          // 3. Build command: fin-analyze <analyzer> --period <period> OR --month <month> --format json
+          // 4. Add --category flag if provided
+          let command = `fin-analyze ${finAnalyzeType} ${timeFlag} --format json`;
           if (category) {
             command += ` --category ${category}`;
           }
