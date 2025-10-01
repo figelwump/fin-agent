@@ -5,6 +5,7 @@ import * as fs from "fs";
 import * as os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { config as loadEnv } from "dotenv";
 
 const execAsync = promisify(exec);
 
@@ -16,8 +17,19 @@ const execAsync = promisify(exec);
  * Execute a shell command and return the output
  */
 async function execCommand(command: string): Promise<string> {
+  // Ensure child processes inherit the .env configuration so fin-cli sees keys like OPENAI_API_KEY.
+  if (!process.env.OPENAI_API_KEY) {
+    const envFile = path.join(process.cwd(), ".env");
+    if (fs.existsSync(envFile)) {
+      loadEnv({ path: envFile, override: false });
+    }
+  }
+
   try {
-    const { stdout, stderr } = await execAsync(command);
+    const { stdout, stderr } = await execAsync(command, {
+      env: { ...process.env },
+      shell: "/bin/bash",
+    });
     if (stderr && stderr.trim()) {
       console.warn("Command stderr:", stderr);
     }
@@ -187,7 +199,8 @@ export const customMCPServer = createSdkMcpServer({
           //    - Return formatted review data for user
           if (autoApprove) {
             const command = `fin-enhance "${csvPath}" --auto`;
-            const result = await execCommand(command);
+            const fullCommand = `source ${getVenvPath()} && ${command}`;
+            const result = await execCommand(fullCommand);
             console.log(`Imported transactions auto mode into DB , received result: ${result}`);
 
             return {
