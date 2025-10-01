@@ -57,15 +57,18 @@ WHERE t.date >= ? AND t.date < ?
 ORDER BY t.date ASC, t.id ASC
 """
 
-# Negative ledger amounts represent spend; convert to absolute values so analyzers
-# receive comparable positive numbers while preserving positive income values.
+# Aggregate spend/income magnitudes while staying agnostic to ledger sign
+# conventions (charges may be stored as positive or negative amounts depending on
+# the upstream statement source).
 CATEGORY_TOTALS_QUERY = """
 SELECT
     COALESCE(c.category, 'Uncategorized') AS category,
     COALESCE(c.subcategory, 'Uncategorized') AS subcategory,
     SUM(t.amount) AS total_amount,
-    SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) AS spend_amount,
-    SUM(CASE WHEN t.amount >= 0 THEN t.amount ELSE 0 END) AS income_amount,
+    SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) AS spend_amount_negative,
+    SUM(CASE WHEN t.amount > 0 THEN t.amount ELSE 0 END) AS spend_amount_positive,
+    SUM(CASE WHEN t.amount < 0 THEN 1 ELSE 0 END) AS negative_transaction_count,
+    SUM(CASE WHEN t.amount > 0 THEN 1 ELSE 0 END) AS positive_transaction_count,
     COUNT(*) AS transaction_count
 FROM transactions t
 LEFT JOIN categories c ON t.category_id = c.id
@@ -73,6 +76,29 @@ WHERE t.date >= ? AND t.date < ?
 GROUP BY category, subcategory
 ORDER BY total_amount DESC
 """
+
+
+def _expenses_use_positive_sign(
+    positive_count: int,
+    negative_count: int,
+    positive_total: float,
+    negative_total: float,
+) -> bool:
+    """Return True when positive ledger entries represent spend.
+
+    We infer orientation heuristically using counts first (more stable when
+    refunds or a handful of large transactions exist) and fall back to totals
+    when counts tie. This keeps analyzers agnostic to the upstream CSV sign
+    conventions (some banks export charges as positives, others as negatives).
+    """
+
+    if positive_count and not negative_count:
+        return True
+    if negative_count and not positive_count:
+        return False
+    if positive_count != negative_count:
+        return positive_count > negative_count
+    return positive_total >= negative_total
 
 RECURRING_CANDIDATES_QUERY = """
 SELECT
@@ -146,6 +172,52 @@ def load_category_totals(
         frame = pandas.DataFrame(
             columns=["category", "subcategory", "total_amount", "spend_amount", "income_amount", "transaction_count"],
         )
+        frame["window_label"] = target_window.label
+        return frame
+
+    # Ensure numeric orientation helpers are usable even when SQLite returns None.
+    frame.fillna(
+        {
+            "spend_amount_negative": 0.0,
+            "spend_amount_positive": 0.0,
+            "negative_transaction_count": 0,
+            "positive_transaction_count": 0,
+        },
+        inplace=True,
+    )
+    frame["spend_amount_negative"] = frame["spend_amount_negative"].astype(float)
+    frame["spend_amount_positive"] = frame["spend_amount_positive"].astype(float)
+    frame["negative_transaction_count"] = frame["negative_transaction_count"].astype(int)
+    frame["positive_transaction_count"] = frame["positive_transaction_count"].astype(int)
+
+    positive_total = float(frame["spend_amount_positive"].sum())
+    negative_total = float(frame["spend_amount_negative"].sum())
+    positive_count = int(frame["positive_transaction_count"].sum())
+    negative_count = int(frame["negative_transaction_count"].sum())
+
+    expenses_positive = _expenses_use_positive_sign(
+        positive_count=positive_count,
+        negative_count=negative_count,
+        positive_total=positive_total,
+        negative_total=negative_total,
+    )
+
+    if expenses_positive:
+        frame["spend_amount"] = frame["spend_amount_positive"]
+        frame["income_amount"] = frame["spend_amount_negative"]
+    else:
+        frame["spend_amount"] = frame["spend_amount_negative"]
+        frame["income_amount"] = frame["spend_amount_positive"]
+
+    frame.drop(
+        columns=[
+            "spend_amount_negative",
+            "spend_amount_positive",
+            "negative_transaction_count",
+            "positive_transaction_count",
+        ],
+        inplace=True,
+    )
 
     frame["window_label"] = target_window.label
     return frame
@@ -446,9 +518,37 @@ def _normalise_transactions(frame: "pd.DataFrame", *, pandas: "pd") -> None:
 
     frame["date"] = pandas.to_datetime(frame["date"], errors="coerce")
     frame["amount"] = frame["amount"].astype(float)
-    frame["is_credit"] = frame["amount"] > 0
-    frame["spend_amount"] = (-frame["amount"]).where(frame["amount"] < 0, 0.0)
-    frame["income_amount"] = frame["amount"].where(frame["amount"] > 0, 0.0)
+    positive_mask = frame["amount"] > 0
+    negative_mask = frame["amount"] < 0
+    positive_count = int(positive_mask.sum())
+    negative_count = int(negative_mask.sum())
+    positive_total = float(frame.loc[positive_mask, "amount"].sum()) if positive_count else 0.0
+    negative_total = float((-frame.loc[negative_mask, "amount"]).sum()) if negative_count else 0.0
+
+    expenses_positive = _expenses_use_positive_sign(
+        positive_count=positive_count,
+        negative_count=negative_count,
+        positive_total=positive_total,
+        negative_total=negative_total,
+    )
+
+    frame["spend_amount"] = 0.0
+    frame["income_amount"] = 0.0
+
+    if expenses_positive:
+        frame.loc[positive_mask, "spend_amount"] = frame.loc[positive_mask, "amount"].abs()
+        frame.loc[negative_mask, "income_amount"] = frame.loc[negative_mask, "amount"].abs()
+        frame["is_credit"] = negative_mask
+    else:
+        frame.loc[negative_mask, "spend_amount"] = frame.loc[negative_mask, "amount"].abs()
+        frame.loc[positive_mask, "income_amount"] = frame.loc[positive_mask, "amount"].abs()
+        frame["is_credit"] = positive_mask
+
+    # Zero-value transactions remain neutral for downstream filters.
+    zero_mask = frame["amount"] == 0
+    if zero_mask.any():
+        frame.loc[zero_mask, ["spend_amount", "income_amount"]] = 0.0
+        frame.loc[zero_mask, "is_credit"] = False
     if "transaction_metadata" not in frame:
         frame["transaction_metadata"] = pandas.Series(dtype=object)
     mask = frame["transaction_metadata"].notna()
