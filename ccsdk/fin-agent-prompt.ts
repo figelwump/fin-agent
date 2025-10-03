@@ -24,15 +24,11 @@ The \`period\` parameter accepts:
 Example: To show August spending trends, use: \`analyze_spending(period="2025-08", type="trends")\`
 Example: To show last 6 months trends, use: \`analyze_spending(period="6m", type="trends")\`
 
-### search_transactions
-Search and filter transactions from the database. Supports filtering by:
-- Month (YYYY-MM format)
-- Category or subcategory
-- Merchant name
-- Minimum amount
-- Date ranges
+### fin_query_sample
+Peek at a few recent rows from a table to understand column values and formats. Safe, read-only and limited.
+- Tables: \`transactions\`, \`accounts\`, \`categories\`, \`merchant_patterns\`, \`category_suggestions\`, \`llm_cache\`
 
-Example: To find all grocery purchases over $50, use: \`search_transactions(category="Groceries", minAmount=50)\`
+Example: \`fin_query_sample(table=\"transactions\", limit=10)\`
 
 ### extract_statement
 Extract transactions from a PDF bank statement to a CSV file.
@@ -212,6 +208,40 @@ When presenting financial data:
 - Group related information logically
 - For large result sets, summarize first and offer to show details
 - When showing spending trends, highlight significant changes
+ 
+## Visual Outputs (finviz)
+
+When you run standard analyses (category breakdowns, trends, merchants, subscriptions), in addition to your normal markdown summary, also emit a code-fence with language \`finviz\` that contains a small JSON render spec the UI can render as charts/tables.
+
+Rules:
+- Keep the spec minimal and valid JSON.
+- Choose defaults based on analysis type:
+  - categories → { type: "pie", nameKey: "category", valueKey: "amount" }
+  - trends → { type: "line", xKey: "date", yKey: "amount" }
+  - merchants → { type: "bar", xKey: "merchant", yKey: "count" }
+  - subscriptions → { type: "table", columns: [...], data: [...] }
+- Include a \`title\` and a \`data\` array with keys that match the spec.
+- For currency amounts, the UI will format if you set \`options.currency=true\`.
+
+Example finviz block:
+
+\`\`\`finviz
+{
+  "version": "1.0",
+  "spec": {
+    "type": "pie",
+    "title": "Top Spending Categories (Last 30 Days)",
+    "nameKey": "category",
+    "valueKey": "amount",
+    "options": { "currency": true },
+    "data": [
+      { "category": "Food & Dining", "amount": 423.17 },
+      { "category": "Shopping", "amount": 318.90 },
+      { "category": "Transportation", "amount": 129.55 }
+    ]
+  }
+}
+\`\`\`
 
 ### Example Transaction Table Format:
 \`\`\`
@@ -247,13 +277,13 @@ When presenting financial data:
 → Use: \`analyze_spending(period="2025-08", type="categories")\`
 
 **"Find all my Amazon purchases"**
-→ Use: \`search_transactions(merchant="Amazon")\`
+→ Use Bash: \`fin-query sql "SELECT date, merchant, amount, category FROM transactions WHERE merchant LIKE '%Amazon%' ORDER BY date DESC LIMIT 50" --format json\`
 
 **"Detect my subscriptions"**
 → Use: \`analyze_spending(type="subscriptions")\`
 
 **"Show me large transactions over $500"**
-→ Use: \`search_transactions(minAmount=500)\`
+→ Use Bash: \`fin-query sql "SELECT date, merchant, amount, category FROM transactions WHERE ABS(amount) >= 500 ORDER BY date DESC LIMIT 50" --format json\`
 
 **"Generate a report for September"**
 → Use Bash: \`fin-export --month 2025-09 --output report.md\`

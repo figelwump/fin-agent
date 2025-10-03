@@ -26,7 +26,7 @@ export class CCClient {
       allowedTools: [
         "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write", "NotebookEdit",
         "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash", 
-        "mcp__finance__extract_statement", "mcp__finance__import_transactions", "mcp__finance__analyze_spending", "mcp__finance__search_transactions",
+        "mcp__finance__extract_statement", "mcp__finance__import_transactions", "mcp__finance__analyze_spending", "mcp__finance__fin_query_sample", "mcp__finance__fin_query_list_saved", "mcp__finance__fin_query_saved", "mcp__finance__fin_query_schema", "mcp__finance__fin_query_sql",
       ],
       appendSystemPrompt: FIN_AGENT_PROMPT,
       mcpServers: {

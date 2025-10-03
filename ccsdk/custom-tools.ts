@@ -6,6 +6,7 @@ import * as os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { config as loadEnv } from "dotenv";
+import { stripSqlComments, isSingleStatement, validateSelectOnly, ensureLimit } from "./sql-guard";
 
 const execAsync = promisify(exec);
 
@@ -158,6 +159,228 @@ export const customMCPServer = createSdkMcpServer({
               type: "text",
               text: `Error extracting statement: ${error.message}`
             }]
+          };
+        }
+      }
+    ),
+
+    // -------------------------------------------------------------------------
+    // TOOL: fin_query_list_saved
+    // -------------------------------------------------------------------------
+    tool(
+      "fin_query_list_saved",
+      "List saved fin-query definitions with parameter metadata (reads index.yaml).",
+      {},
+      async () => {
+        try {
+          // Use Python (PyYAML available in venv) to parse manifest and emit JSON
+          const pyCmd = [
+            "python",
+            "- <<'PY'\n"
+              + "import json, yaml\n"
+              + "from pathlib import Path\n"
+              + "p = Path('fin_cli/fin_query/queries/index.yaml')\n"
+              + "data = yaml.safe_load(p.read_text(encoding='utf-8'))\n"
+              + "print(json.dumps(data))\n"
+              + "PY",
+          ].join(" ");
+          const full = `source ${getVenvPath()} && ${pyCmd}`;
+          const stdout = await execCommand(full);
+
+          const logsDir = getLogsDir();
+          await ensureDir(logsDir);
+          const ts = new Date().toISOString().replace(/[:.]/g, "-");
+          const logPath = path.join(logsDir, `saved-queries-${ts}.json`);
+          fs.writeFileSync(logPath, stdout);
+
+          return { content: [{ type: "text", text: stdout }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error listing saved queries: ${error.message}` }], isError: true };
+        }
+      }
+    ),
+
+    // -------------------------------------------------------------------------
+    // TOOL: fin_query_saved
+    // -------------------------------------------------------------------------
+    tool(
+      "fin_query_saved",
+      "Run a saved fin-query by name with optional parameters and JSON output.",
+      {
+        name: z.string().describe("Saved query name from index.yaml"),
+        params: z.record(z.string(), z.string()).optional().describe("KEY:VALUE bindings for saved query parameters"),
+        limit: z.number().optional().describe("Optional row limit override; also passed to CLI --limit"),
+      },
+      async (args) => {
+        try {
+          const name = args.name;
+          const params = args.params || {};
+          const limit = args.limit;
+
+          const paramFlags = Object.entries(params).map(([k, v]) => `-p ${k}=${String(v).replaceAll('"', '\\"')}`).join(" ");
+          const limitFlag = typeof limit === "number" && isFinite(limit) && limit > 0 ? ` --limit ${Math.min(limit, 1000)}` : "";
+          const cmd = `fin-query saved ${name} ${paramFlags} --format json${limitFlag}`.trim();
+          const full = `source ${getVenvPath()} && ${cmd}`;
+          const out = await execCommand(full);
+
+          const logsDir = getLogsDir();
+          await ensureDir(logsDir);
+          const ts = new Date().toISOString().replace(/[:.]/g, "-");
+          const logPath = path.join(logsDir, `saved-${name}-${ts}.json`);
+          fs.writeFileSync(logPath, out);
+
+          return { content: [{ type: "text", text: out }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error running saved query: ${error.message}` }], isError: true };
+        }
+      }
+    ),
+
+    // -------------------------------------------------------------------------
+    // TOOL: fin_query_schema
+    // -------------------------------------------------------------------------
+    tool(
+      "fin_query_schema",
+      "Return database schema metadata (tables, columns, indexes, foreign keys).",
+      {
+        table: z.string().optional().describe("Optional table name to filter.")
+      },
+      async (args) => {
+        try {
+          const table = args.table?.trim();
+          const tableFlag = table ? ` --table ${table}` : "";
+          const cmd = `fin-query schema${tableFlag} --format json`;
+          const full = `source ${getVenvPath()} && ${cmd}`;
+          const out = await execCommand(full);
+
+          const logsDir = getLogsDir();
+          await ensureDir(logsDir);
+          const ts = new Date().toISOString().replace(/[:.]/g, "-");
+          const logPath = path.join(logsDir, `schema-${table || 'all'}-${ts}.json`);
+          fs.writeFileSync(logPath, out);
+
+          return { content: [{ type: "text", text: out }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error fetching schema: ${error.message}` }], isError: true };
+        }
+      }
+    ),
+
+    // -------------------------------------------------------------------------
+    // TOOL: fin_query_sql (guarded)
+    // -------------------------------------------------------------------------
+    tool(
+      "fin_query_sql",
+      "Execute a single read-only SELECT/WITH SQL with strict guardrails. Adds a LIMIT if missing.",
+      {
+        query: z.string().describe("SQL SELECT/WITH statement."),
+        params: z.record(z.string(), z.string()).optional().describe("Named parameter bindings as KEY:VALUE"),
+        limit: z.number().optional().describe("Desired row limit (default 200, hard cap 1000)."),
+      },
+      async (args) => {
+        try {
+          const raw = args.query;
+          const params = args.params || {};
+          const limit = args.limit;
+
+          if (!isSingleStatement(raw)) {
+            throw new Error("Provide exactly one SQL statement; multi-statement batches are not allowed.");
+          }
+          validateSelectOnly(raw);
+          const { sql, effectiveLimit } = ensureLimit(raw, limit);
+
+          const paramFlags = Object.entries(params).map(([k, v]) => `-p ${k}=${String(v).replaceAll('"', '\\"')}`).join(" ");
+          const cmd = `fin-query sql \"${sql.replaceAll('"', '\\"')}\" ${paramFlags} --format json --limit ${effectiveLimit}`.trim();
+          const full = `source ${getVenvPath()} && ${cmd}`;
+          const out = await execCommand(full);
+
+          const logsDir = getLogsDir();
+          await ensureDir(logsDir);
+          const ts = new Date().toISOString().replace(/[:.]/g, "-");
+          const logPath = path.join(logsDir, `sql-${ts}.json`);
+          fs.writeFileSync(logPath, out);
+
+          return { content: [{ type: "text", text: out }] };
+        } catch (error: any) {
+          return { content: [{ type: "text", text: `Error executing SQL: ${error.message}` }], isError: true };
+        }
+      }
+    ),
+
+    // -------------------------------------------------------------------------
+    // TOOL: fin_query_sample
+    // -------------------------------------------------------------------------
+    tool(
+      "fin_query_sample",
+      "Return a small, recent sample of rows from an allowlisted table (read-only). Always orders by a recency column per table and applies a strict LIMIT.",
+      {
+        table: z.enum([
+          "transactions",
+          "accounts",
+          "categories",
+          "merchant_patterns",
+          "category_suggestions",
+          "llm_cache",
+        ]).describe("Table name to sample (allowlisted)."),
+        limit: z.number().default(20).describe("Maximum rows to return (default 20, max 100)."),
+      },
+      async (args) => {
+        try {
+          const table = args.table as string;
+          let limit = Number(args.limit ?? 20);
+          if (!Number.isFinite(limit) || limit <= 0) limit = 20;
+          if (limit > 100) limit = 100; // hard cap for MCP payload size
+
+          // Choose an ORDER BY clause that shows most recent rows for each table.
+          // We do not attempt dynamic schema inspection here; we use known columns per schema.
+          const orderByByTable: Record<string, string> = {
+            transactions: "date DESC, id DESC",
+            accounts: "COALESCE(last_import, created_date) DESC, id DESC",
+            categories: "COALESCE(last_used, created_date) DESC, id DESC",
+            merchant_patterns: "COALESCE(learned_date, usage_count) DESC",
+            category_suggestions: "COALESCE(last_seen, created_at) DESC, id DESC",
+            llm_cache: "COALESCE(updated_at, created_at) DESC",
+          };
+          const orderBy = orderByByTable[table] || "rowid DESC";
+
+          // Build SQL safely. Identifier is allowlisted; limit is bound.
+          const sql = `SELECT * FROM ${table} ORDER BY ${orderBy} LIMIT :limit`;
+          const command = `fin-query sql "${sql}" -p limit=${limit} --format json`;
+          const fullCommand = `source ${getVenvPath()} && ${command}`;
+          const result = await execCommand(fullCommand);
+
+          const logsDir = getLogsDir();
+          await ensureDir(logsDir);
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const logPath = path.join(logsDir, `sample-${table}-${timestamp}.json`);
+          fs.writeFileSync(logPath, result);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    table,
+                    limit,
+                    message: `Sampled recent rows from ${table}. Results written to ${logPath}`,
+                    logPath,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error sampling table: ${error.message}`,
+              },
+            ],
+            isError: true,
           };
         }
       }
@@ -335,82 +558,6 @@ export const customMCPServer = createSdkMcpServer({
       }
     ),
 
-    // -------------------------------------------------------------------------
-    // TOOL 4: search_transactions
-    // -------------------------------------------------------------------------
-    tool(
-      "search_transactions",
-      "Search and filter transactions from the database",
-      {
-        month: z.string().optional().describe("Filter by month (YYYY-MM format)"),
-        category: z.string().optional().describe("Filter by category name"),
-        merchant: z.string().optional().describe("Filter by merchant name"),
-        minAmount: z.number().optional().describe("Minimum transaction amount"),
-        limit: z.number().default(20).describe("Maximum number of results to return"),
-      },
-      async (args) => {
-        try {
-          // TODO: Implement search logic
-          // 1. Build SQL WHERE conditions based on provided filters
-          // 2. Construct fin-query sql command with filters
-          // 3. Execute query with --format json
-          // 4. Parse results
-          // 5. Format as markdown table
-
-          const month = args.month;
-          const category = args.category;
-          const merchant = args.merchant;
-          const minAmount = args.minAmount;
-          const limit = args.limit;
-          console.log("== SEARCH TRANSACTIONS TOOL CALLED ==");
-          console.log("month:", month);
-          console.log("category:", category);
-          console.log("merchant:", merchant);
-          console.log("minAmount:", minAmount);
-          console.log("limit:", limit);
-          console.log("================================================");
-
-          // 1. Construct the command
-          const conditions = [];
-          if (month) conditions.push(`strftime('%Y-%m', date) = '${month.replace(/'/g, "''")}'`);
-          if (category) conditions.push(`category LIKE '%${category}%'`);
-          if (merchant) conditions.push(`merchant LIKE '%${merchant}%'`);
-          if (minAmount) conditions.push(`amount >= ${minAmount}`);
-        
-          const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-          const sql = `SELECT date, merchant, amount, category FROM transactions ${where} ORDER BY date DESC LIMIT ${limit}`;
-          const command = `fin-query sql "${sql}" --format json`;
-
-          // 2. Execute the command
-          const fullCommand = `source ${getVenvPath()} && ${command}`; // Wrap command with venv activation
-          const result = await execCommand(fullCommand);
-
-          // 3. Write the result to a file
-          const logsDir = getLogsDir();
-          await ensureDir(logsDir);
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const logPath = path.join(logsDir, `query-${timestamp}.json`);
-          fs.writeFileSync(logPath, result);
-
-          console.log(`Search transactions result: ${result}`);
-
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                message: `Search query complete. Results written to ${logPath}`
-              }, null, 2)
-            }]
-          };
-        } catch (error: any) {
-          return {
-            content: [{
-              type: "text",
-              text: `Error searching transactions: ${error.message}`
-            }]
-          };
-        }
-      }
-    ),
+    
   ]
 });

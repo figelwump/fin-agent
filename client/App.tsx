@@ -3,6 +3,7 @@ import { ChatInterface } from "./components/ChatInterface";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { ScreenshotModeProvider } from "./context/ScreenshotModeContext";
 import { Message } from "./components/message/types";
+import { DashboardPane } from "./components/dashboard/DashboardPane";
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -68,17 +69,38 @@ const App: React.FC = () => {
     },
   });
 
+  const sendChat = (content: string) => {
+    if (!content.trim()) return;
+    // mirror ChatInterface submit behavior: add user message and set loading
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    setIsLoading(true);
+    sendMessage({ type: 'chat', content, sessionId });
+  };
+
   return (
     <ScreenshotModeProvider>
-      <ChatInterface
-        isConnected={isConnected}
-        sendMessage={sendMessage}
-        messages={messages}
-        setMessages={setMessages}
-        sessionId={sessionId}
-        isLoading={isLoading}
-        setIsLoading={setIsLoading}
-      />
+      <div className="h-screen flex flex-col">
+        <div className="flex-none" style={{ height: '45%' }}>
+          <DashboardPane isConnected={isConnected} isLoading={isLoading} onSend={sendChat} />
+        </div>
+        <div className="flex-1 min-h-0">
+          <ChatInterface
+            isConnected={isConnected}
+            sendMessage={sendMessage}
+            messages={messages}
+            setMessages={setMessages}
+            sessionId={sessionId}
+            isLoading={isLoading}
+            setIsLoading={setIsLoading}
+          />
+        </div>
+      </div>
     </ScreenshotModeProvider>
   );
 };

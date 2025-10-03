@@ -146,7 +146,7 @@ date,merchant,amount,original_description,account_name,institution,account_type,
 - Follow the phased checklist in `plans/fin_cli_implementation_plan.md`.
 - Use the `dev` extras for linting (`ruff`, `black`), typing (`mypy`), and tests
   (`pytest`, `pytest-mock`). Tool configuration lives in `pyproject.toml`.
-- Future phases will populate `tests/` with fixtures and integration coverage.
+- Python tests live under `tests/` (pytest). For the MCP utilities (Node), run `bun test` to execute TypeScript unit tests (see `ccsdk/__tests__/`).
 
 ## Inspecting the SQLite database
 
@@ -230,6 +230,16 @@ fin-analyze category-breakdown --year 2024 --compare --format json
 # Detect subscriptions above a confidence threshold
 fin-analyze subscription-detect --month 2025-08 --min-confidence 0.6
 ```
+
+### MCP Tools for fin-query (agents)
+
+When using the included MCP server (see `ccsdk/custom-tools.ts`), these tools provide structured, read‑only access to the SQLite DB:
+
+- `fin_query_list_saved` – list saved queries and parameter metadata from `fin_cli/fin_query/queries/index.yaml`.
+- `fin_query_saved` – run a saved query with `-p KEY=VALUE` params, JSON output.
+- `fin_query_schema` – inspect tables/columns/indexes/foreign keys as JSON.
+- `fin_query_sample` – show a small, recent sample from allowlisted tables.
+- `fin_query_sql` – guarded single-statement SELECT/WITH with an implicit LIMIT.
 
 ### JSON Output Schema
 

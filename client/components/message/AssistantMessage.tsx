@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock } from './types';
+import { VizRenderer, isValidFinviz, parseFinviz } from '../viz/VizRenderer';
 
 interface AssistantMessageProps {
   message: AssistantMessageType;
@@ -340,12 +341,36 @@ function TextComponent({ text }: { text: TextBlock }) {
             a: ({ node, ...props }) => (
             <a {...props} className="text-gray-900 hover:text-gray-600 underline" />
             ),
-            // Customize code rendering
-            code: ({ node, inline, ...props }) => (
-            inline ?
-                <code className="bg-gray-100 px-1 py-0.5 text-xs font-mono" {...props} /> :
-                <code className="block bg-gray-100 p-2 text-xs font-mono overflow-x-auto border border-gray-200" {...props} />
-            ),
+            // Customize code rendering. Special-case `finviz` fences to render charts/tables.
+            code: (mdProps: any) => {
+              const { inline, className, children, ...props } = mdProps || {};
+              if (inline) {
+                return <code className="bg-gray-100 px-1 py-0.5 text-xs font-mono" {...props}>{children}</code>;
+              }
+              const lang = (className || '').toString();
+              if (lang.includes('language-finviz')) {
+                const raw = String(children || '').trim();
+                const parsed = parseFinviz(raw);
+                if (parsed && isValidFinviz(parsed)) {
+                  return (
+                    <div className="my-2">
+                      <VizRenderer viz={parsed} />
+                    </div>
+                  );
+                }
+                // Fall back to raw if invalid
+                return (
+                  <pre className="text-xs bg-red-50 p-2 font-mono border border-red-200">
+                    Invalid finviz spec. Showing raw:\n{raw}
+                  </pre>
+                );
+              }
+              return (
+                <code className="block bg-gray-100 p-2 text-xs font-mono overflow-x-auto border border-gray-200" {...props}>
+                  {children}
+                </code>
+              );
+            },
             // Customize list rendering
             ul: ({ node, ...props }) => (
             <ul className="list-disc pl-5 space-y-1" {...props} />

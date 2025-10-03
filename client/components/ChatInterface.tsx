@@ -49,7 +49,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
   };
   
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-full bg-white">
       <div className="flex-1 overflow-y-auto p-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
