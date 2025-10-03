@@ -22,6 +22,7 @@
     "recharts": "^2.11.0",
     "remark-gfm": "^4.0.1",
     "ws": "^8.18.3",
+    "yaml": "^2.5.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

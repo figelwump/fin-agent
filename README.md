@@ -178,7 +178,7 @@ and analyzer-specific options.
 - `--month YYYY-MM` – specific calendar month.
 - `--period Nd|Nw|Nm` – rolling window ending today (e.g., `--period 6m`).
 - `--year YYYY` – calendar year.
-- `--last-12-months` – trailing 12 full months.
+- Use `--period 12m` for trailing 12 full months.
 - Default: current month when nothing is supplied.
 - Add `--compare` to include the immediately preceding window.
 

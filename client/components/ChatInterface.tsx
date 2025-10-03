@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
 import { Message } from './message/types';
 import { Send, Wifi, WifiOff, RefreshCw, Mail, Clock } from 'lucide-react';
+import { SuggestedQueries } from './dashboard/SuggestedQueries';
 
 interface ChatInterfaceProps {
   isConnected: boolean;
@@ -19,6 +20,19 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
+  const sendSuggestedPrompt = (prompt: string) => {
+    if (!prompt.trim() || isLoading || !isConnected) return;
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: prompt,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+    sendMessage({ type: 'chat', content: prompt, sessionId });
   };
 
   useEffect(() => {
@@ -49,11 +63,14 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
   };
   
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-screen bg-white">
       <div className="flex-1 overflow-y-auto p-3">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
             <h1 className="text-lg font-semibold uppercase tracking-wider">Fin Agent</h1>
+          </div>
+          <div className="mb-3">
+            <SuggestedQueries onSend={sendSuggestedPrompt} disabled={!isConnected || isLoading} />
           </div>
           
           {messages.length === 0 ? (

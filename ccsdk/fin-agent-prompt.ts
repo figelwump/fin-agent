@@ -17,9 +17,8 @@ Analyze spending patterns for a specific time period. Supports multiple analyzer
 
 The \`period\` parameter accepts:
 - Month: \`"2025-08"\` (YYYY-MM)
-- Rolling window: \`"3m"\` (last 3 months), \`"6m"\`, \`"1w"\`, \`"30d"\`
+- Rolling window: \`"3m"\` (last 3 months), \`"6m"\`, \`"1w"\`, \`"30d"\`, \`"12m"\` (last 12 months)
 - Year: \`"2025"\`
-- Special: \`"last-12-months"\`
 
 Example: To show August spending trends, use: \`analyze_spending(period="2025-08", type="trends")\`
 Example: To show last 6 months trends, use: \`analyze_spending(period="6m", type="trends")\`
@@ -168,7 +167,7 @@ For advanced operations, you can directly call these fin-cli commands:
 - \`fin-enhance <csv> --stdin\` - Import and categorize transactions
 - \`fin-analyze <analyzer> --month YYYY-MM --format json\` - Run specific analyzer
   - Supports \`--period\` instead of \`--month\`: e.g., \`3m\` (3 months), \`6m\`, \`1w\` (1 week), \`30d\` (30 days)
-  - Also supports \`--year YYYY\`, \`--last-12-months\`
+  - Also supports \`--year YYYY\`; use \`--period 12m\` for last 12 months
 - \`fin-query sql "<query>" --format json\` - Execute SQL query on database
 - \`fin-query saved <query_name>\` - Run a saved query template
 - \`fin-export --month YYYY-MM --output report.md\` - Generate markdown report
@@ -213,6 +212,8 @@ When presenting financial data:
 
 When you run standard analyses (category breakdowns, trends, merchants, subscriptions), in addition to your normal markdown summary, also emit a code-fence with language \`finviz\` that contains a small JSON render spec the UI can render as charts/tables.
 
+Additionally, when you output a transaction list (e.g., "largest transactions", "recent transactions", filtered transaction tables), include a \`finviz\` table spec with columns for at least: date, merchant, amount, and category. Prefer a reasonable limit (e.g., top 25–50 rows) and set \`options.currency=true\` for amount columns.
+
 Rules:
 - Keep the spec minimal and valid JSON.
 - Choose defaults based on analysis type:
@@ -238,6 +239,28 @@ Example finviz block:
       { "category": "Food & Dining", "amount": 423.17 },
       { "category": "Shopping", "amount": 318.90 },
       { "category": "Transportation", "amount": 129.55 }
+    ]
+  }
+}
+\`\`\`
+
+Example finviz block for "Largest Transactions (Last 30 Days)":
+
+\`\`\`finviz
+{
+  "version": "1.0",
+  "spec": {
+    "type": "table",
+    "title": "Largest Transactions (Last 30 Days)",
+    "columns": [
+      { "key": "date", "label": "Date" },
+      { "key": "merchant", "label": "Merchant" },
+      { "key": "amount", "label": "Amount" },
+      { "key": "category", "label": "Category" }
+    ],
+    "options": { "currency": true },
+    "data": [
+      { "date": "2025-09-14", "merchant": "Category Airways", "amount": 842.10, "category": "Travel" }
     ]
   }
 }

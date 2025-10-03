@@ -80,6 +80,7 @@ Each button sends a clear prompt that nudges the agent to use `analyze_spending`
 Notes:
 - Added a "Visual Outputs (finviz)" section with examples and rules (escaped backticks for template string correctness).
 - Default mappings documented as requested.
+- Extended guidance to emit a finviz table for any transaction list outputs (e.g., largest/recent transactions), including an explicit example.
 
 ### Phase 2 — Viz Renderer Components
 - [x] Add `client/components/viz/VizRenderer.tsx` to parse `finviz` blocks and route to chart/table components.
@@ -90,19 +91,16 @@ Notes:
 - Dependency added: `recharts@^2.11` (installed with Bun). The component uses responsive containers and minimal styling.
 - AssistantMessage now special-cases `language-finviz` code fences and falls back to raw JSON with an error banner if invalid.
 
-### Phase 3 — Dashboard Pane + Suggestions
-- [x] Create `client/components/dashboard/DashboardPane.tsx` (top half) and split layout in `client/App.tsx`.
+### Phase 3 — Suggested Queries Bar (Chat)
 - [x] Create `client/components/dashboard/SuggestedQueries.tsx` with buttons wired to existing `sendMessage`.
-- [x] Basic responsive layout and overflow handling.
+- [x] Integrate suggested queries bar at top of chat (no separate dashboard pane).
 
 Notes:
-- Split layout implemented in `client/App.tsx` (top ~45% dashboard, bottom chat). Adjusted `ChatInterface` root container to `h-full`.
-- Suggested queries are configurable: persisted to `localStorage` under `dashboard.suggestions`. Includes defaults: Top Categories, Subscriptions, Travel YTD, Restaurants Last Week, Spending Trends (6m). Reset and JSON edit UI included.
+- Removed dashboard split. Kept chat as the main UI; added a fixed Suggested Queries bar above messages.
+- Suggested queries now configured in code at `client/config/suggestions.yaml`, loaded at runtime (no in-UI editing). Includes: Top Categories, Subscriptions, Travel YTD, Restaurants Last Week, Spending Trends (6m), Largest Transactions (30d).
 
 ### Phase 4 — Pinning & Persistence (v1)
-- [ ] Add a small “Pin to Dashboard” action near a rendered viz block.
-- [ ] Persist pinned items to `localStorage` as `{id, title, prompt, finvizSpec, lastRenderedAt}`.
-- [ ] Dashboard shows pinned items grid; add per-widget refresh (sends the saved prompt again; for v1 this will also appear in chat—documented).
+- [ ] REMOVED — Product direction change: dashboard and pinning removed.
 
 ### Phase 5 — Background Refresh Channel (v2, optional)
 - [ ] Extend WS protocol: new message type `dash_query` with `correlationId` and `prompt`.
@@ -142,6 +140,5 @@ Notes:
 ---
 
 ## Rollout Plan
-- Ship Phases 1–4 as v1.
-- Optionally follow with Phase 5 for silent refresh + correlation IDs.
-- Iterate on visual polish and additional suggested queries.
+- Ship Phases 1–3 only: finviz contract, renderer, suggested queries bar in chat.
+- Dashboard and pinning removed per new direction.

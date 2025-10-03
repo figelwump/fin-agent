@@ -501,25 +501,45 @@ export const customMCPServer = createSdkMcpServer({
           console.log("================================================");
 
           // 1. Map type to fin-analyze analyzer name:
-          const finAnalyzeType = {
+          // Map high-level type to analyzer slug. Adjust when category filter is present.
+          let analyzerSlug = {
             "trends": "spending-trends",
             "categories": "category-breakdown",
             "merchants": "merchant-frequency",
             "subscriptions": "subscription-detect"
           }[type];
 
-          // 2. Build time flag based on timeFrame
+          // If a category filter is requested, prefer analyzers that support it.
+          // - merchant-frequency supports --category
+          // - category-timeline supports --category
+          // - category-breakdown does NOT support --category
+          // For a category-scoped "categories" request, switch to category-timeline.
+          if (category && type === 'categories') {
+            analyzerSlug = 'category-timeline';
+          }
+
+          // 2. Build time flag based on timeFrame with smarter mapping
           let timeFlag = '';
           if ('period' in timeFrame) {
-            timeFlag = `--period ${timeFrame.period}`;
+            const p = String((timeFrame as any).period || '').trim();
+            if (/^\d{4}$/.test(p)) {
+              // Calendar year like 2025
+              timeFlag = `--year ${p}`;
+            } else if (p.toLowerCase() === 'last-12-months' || p.toLowerCase() === 'last_12_months') {
+              // Prefer period syntax for trailing 12 months to match expected usage
+              timeFlag = `--period 12m`;
+            } else {
+              timeFlag = `--period ${p}`; // expects formats like 3m, 6w, 30d, 12m
+            }
           } else {
-            timeFlag = `--month ${timeFrame.month}`;
+            timeFlag = `--month ${(timeFrame as any).month}`;
           }
 
           // 3. Build command: fin-analyze <analyzer> --period <period> OR --month <month> --format json
           // 4. Add --category flag if provided
-          let command = `fin-analyze ${finAnalyzeType} ${timeFlag} --format json`;
-          if (category) {
+          let command = `fin-analyze ${analyzerSlug} ${timeFlag} --format json`;
+          const categorySupported = new Set(["merchant-frequency", "category-timeline"]);
+          if (category && categorySupported.has(analyzerSlug)) {
             command += ` --category ${category}`;
           }
 

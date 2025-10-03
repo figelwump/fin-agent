@@ -1,0 +1,23 @@
+- id: top-categories-30d
+  title: Top Spending Categories
+  prompt: Show my top spending categories for the last 30 days.
+
+- id: subscriptions
+  title: Subscriptions
+  prompt: Find my active subscriptions with merchant, amount, cadence, and next charge date.
+
+- id: travel-ytd
+  title: Travel Year-to-Date
+  prompt: How much did I spend on travel this year? If helpful, show totals and top travel merchants.
+
+- id: restaurants-last-week
+  title: Where Did I Eat Last Week
+  prompt: Show my Food & Dining → Restaurants for the last 7 days, including date, merchant, and amount, and summarize by merchant.
+
+- id: spending-trends-6m
+  title: Spending Trends (6m)
+  prompt: Show my monthly spending trends for the last 6 months.
+
+- id: largest-30d
+  title: Largest Transactions (30d)
+  prompt: Show my largest transactions over the last 30 days. Limit to the top 25.

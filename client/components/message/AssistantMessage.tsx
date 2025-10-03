@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock } from './types';
 import { VizRenderer, isValidFinviz, parseFinviz } from '../viz/VizRenderer';
+// Dashboard pinning removed per product decision; keep visuals only.
 
 interface AssistantMessageProps {
   message: AssistantMessageType;
@@ -327,9 +328,23 @@ function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
 }
 
 function TextComponent({ text }: { text: TextBlock }) {
-  // Parse the text to replace [email:ID] with EmailDisplay components
+  // Parse the text and add a visualization fallback if we detect a markdown transaction table and no finviz block.
   const processContent = (content: string) => {
     const result: React.ReactNode[] = [];
+
+    // Fallback: detect first markdown table that looks like transactions and render a finviz table above the markdown.
+    let skipFirstTable = false;
+    if (!content.includes('```finviz')) {
+      const fallback = buildFinvizFromMarkdownTable(content);
+      if (fallback) {
+        skipFirstTable = true;
+        result.push(
+          <div key="fallback-viz" className="my-2">
+            <VizRenderer viz={fallback} />
+          </div>
+        );
+      }
+    }
 
     // Regular text part - render with markdown
     result.push(
@@ -341,6 +356,14 @@ function TextComponent({ text }: { text: TextBlock }) {
             a: ({ node, ...props }) => (
             <a {...props} className="text-gray-900 hover:text-gray-600 underline" />
             ),
+            // Hide the original markdown table when we rendered a fallback viz for it
+            table: ({ node, ...props }) => {
+              if (skipFirstTable) {
+                skipFirstTable = false;
+                return null;
+              }
+              return <table className="min-w-full" {...props} />;
+            },
             // Customize code rendering. Special-case `finviz` fences to render charts/tables.
             code: (mdProps: any) => {
               const { inline, className, children, ...props } = mdProps || {};
@@ -397,6 +420,88 @@ function TextComponent({ text }: { text: TextBlock }) {
       {processContent(text.text)}
     </div>
   );
+}
+
+// Heuristic parser to build a finviz table from a markdown table with columns like Date, Merchant/Description/Payee, Amount, Category
+function buildFinvizFromMarkdownTable(content: string) {
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length - 2; i++) {
+    const header = lines[i];
+    const sep = lines[i + 1];
+    if (!header.trim().startsWith('|')) continue;
+    if (!(sep.trim().startsWith('|') && /[-:]/.test(sep))) continue;
+
+    // Collect rows until a non-table line
+    const dataRows: string[] = [];
+    let j = i + 2;
+    while (j < lines.length && lines[j].trim().startsWith('|')) {
+      dataRows.push(lines[j]);
+      j++;
+    }
+    if (dataRows.length === 0) continue;
+
+    const hdrCells = splitMdRow(header);
+    const idx = indexTransactionColumns(hdrCells);
+    if (!idx) continue;
+
+    const rows = [] as any[];
+    for (const r of dataRows.slice(0, 50)) { // cap rows for performance
+      const cells = splitMdRow(r);
+      if (cells.length < hdrCells.length) continue;
+      const row: any = {};
+      if (idx.date !== -1) row.date = cells[idx.date] || '';
+      if (idx.merchant !== -1) row.merchant = cells[idx.merchant] || '';
+      if (idx.category !== -1) row.category = cells[idx.category] || '';
+      if (idx.amount !== -1) row.amount = parseAmount(cells[idx.amount]);
+      rows.push(row);
+    }
+    if (rows.length === 0) continue;
+
+    const columns = [] as { key: string; label: string }[];
+    if (idx.date !== -1) columns.push({ key: 'date', label: 'Date' });
+    if (idx.merchant !== -1) columns.push({ key: 'merchant', label: 'Merchant' });
+    if (idx.amount !== -1) columns.push({ key: 'amount', label: 'Amount' });
+    if (idx.category !== -1) columns.push({ key: 'category', label: 'Category' });
+
+    return {
+      version: '1.0',
+      spec: {
+        type: 'table',
+        title: 'Transactions',
+        columns,
+        options: { currency: idx.amount !== -1 },
+        data: rows,
+      }
+    } as any;
+  }
+  return null;
+}
+
+function splitMdRow(line: string): string[] {
+  // Remove leading/trailing pipes and split
+  const inner = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  return inner.split('|').map((s) => s.trim());
+}
+
+function indexTransactionColumns(headers: string[]) {
+  const norm = headers.map((h) => h.toLowerCase());
+  const findIdx = (...names: string[]) => norm.findIndex((n) => names.includes(n));
+  const date = findIdx('date');
+  const merchant = (() => {
+    const i = findIdx('merchant', 'description', 'payee');
+    return i;
+  })();
+  const amount = findIdx('amount');
+  const category = findIdx('category');
+  // Require at minimum date and amount to qualify as transactions
+  if (date === -1 || amount === -1) return null;
+  return { date, merchant, amount, category };
+}
+
+function parseAmount(val: string) {
+  const s = val.replace(/[^0-9\-.]/g, '');
+  const n = Number(s);
+  return isFinite(n) ? n : val;
 }
 
 export function AssistantMessage({ message }: AssistantMessageProps) {

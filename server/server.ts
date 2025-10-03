@@ -112,6 +112,20 @@ const server = Bun.serve({
       }
     }
 
+    // Serve other static assets under /client/ (e.g., .yaml, .json)
+    if (url.pathname.startsWith('/client/')) {
+      const filePath = `.${url.pathname}`;
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        let contentType = 'text/plain';
+        if (url.pathname.endsWith('.json')) contentType = 'application/json';
+        else if (url.pathname.endsWith('.yaml') || url.pathname.endsWith('.yml')) contentType = 'text/yaml';
+        else if (url.pathname.endsWith('.svg')) contentType = 'image/svg+xml';
+        else if (url.pathname.endsWith('.png')) contentType = 'image/png';
+        return new Response(file, { headers: { 'Content-Type': contentType } });
+      }
+    }
+
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       return new Response(JSON.stringify({
         error: 'Please use WebSocket connection at /ws for chat'
@@ -130,4 +144,4 @@ const server = Bun.serve({
 
 console.log(`Server running at http://localhost:${server.port}`);
 console.log('WebSocket endpoint available at ws://localhost:3000/ws');
-console.log('Visit http://localhost:3000 to view the email chat interface');
+console.log('Visit http://localhost:3000 to view the fin-agent interface');
