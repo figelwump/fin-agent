@@ -27,9 +27,51 @@ export interface BaseMessage {
     content: string;
   }
   
+  export interface ImportSummaryBlock {
+    type: 'import_summary';
+    data: {
+      csvCount: number;
+      stagingDir: string;
+      reviewPath: string | null;
+      unsupported: string[];
+      missing: string[];
+      skippedUploads: string[];
+      extractionErrors: string[];
+      transactions: Array<{
+        date: string;
+        merchant: string;
+        amount: number;
+        category: string;
+        subcategory: string;
+        accountName?: string;
+      }>;
+      reviewItems: Array<{
+        id: string;
+        date: string;
+        merchant: string;
+        amount: number;
+        originalDescription: string;
+        accountId: number | null;
+        suggestedCategory?: string;
+        suggestedSubcategory?: string;
+        confidence?: number;
+      }>;
+      steps: Array<{ name: string; durationMs: number }>;
+    };
+  }
+
+  export interface ImportProgressBlock {
+    type: 'import_progress';
+    data: {
+      stage: 'uploading' | 'processing' | 'completed' | 'error';
+      message: string;
+      files: string[];
+    };
+  }
+
   export interface AssistantMessage extends BaseMessage {
     type: 'assistant';
-    content: (TextBlock | ToolUseBlock)[];
+    content: (TextBlock | ToolUseBlock | ImportSummaryBlock | ImportProgressBlock)[];
     metadata?: {
       id: string;
       model: string;

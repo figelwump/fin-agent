@@ -99,11 +99,22 @@ When running `fin-enhance transactions.csv --review-output review.json`, the unr
       "merchant": "merchant name",
       "amount": decimal,
       "original_description": "original transaction description",
-      "account_id": integer
+      "account_id": integer,
+      "suggestions": [
+        {
+          "category": "suggested category name",
+          "subcategory": "suggested subcategory name",
+          "confidence": 0.75,
+          "is_new_category": false
+        }
+      ],
+      "similar_transactions": []
     }
   ]
 }
 ```
+
+Note: The `suggestions` array contains low-confidence categorization suggestions that should be reviewed. Each suggestion includes the category, subcategory, confidence score (0-1), and whether it's a new category.
 
 ## Decisions JSON Format
 To apply review decisions, create a decisions JSON file with this format:

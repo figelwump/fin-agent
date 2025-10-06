@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock } from './types';
+import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, ImportSummaryBlock, ImportProgressBlock } from './types';
 import { VizRenderer, isValidFinviz, parseFinviz } from '../viz/VizRenderer';
+import { ImportSummaryBlockRenderer } from './ImportSummaryBlock';
+import { ImportProgressBlockRenderer } from './ImportProgressBlock';
 // Dashboard pinning removed per product decision; keep visuals only.
 
 interface AssistantMessageProps {
   message: AssistantMessageType;
+  onSendMessage?: (message: string) => void;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -504,9 +507,9 @@ function parseAmount(val: string) {
   return isFinite(n) ? n : val;
 }
 
-export function AssistantMessage({ message }: AssistantMessageProps) {
+export function AssistantMessage({ message, onSendMessage }: AssistantMessageProps) {
   const [showMetadata, setShowMetadata] = useState(false);
-  
+
   return (
     <div className="mb-3 p-3 bg-gray-50 border border-gray-200">
       <div className="flex justify-between items-start mb-2">
@@ -529,6 +532,10 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
             return <TextComponent key={index} text={block} />;
           } else if (block.type === 'tool_use') {
             return <ToolUseComponent key={index} toolUse={block} />;
+          } else if (block.type === 'import_summary') {
+            return <ImportSummaryBlockRenderer key={index} block={block as ImportSummaryBlock} onSendMessage={onSendMessage} />;
+          } else if (block.type === 'import_progress') {
+            return <ImportProgressBlockRenderer key={index} block={block as ImportProgressBlock} />;
           }
           return null;
         })}

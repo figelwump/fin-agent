@@ -7,6 +7,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { config as loadEnv } from "dotenv";
 import { stripSqlComments, isSingleStatement, validateSelectOnly, ensureLimit } from "./sql-guard";
+import { bulkImportStatements } from "./bulk-import";
 
 const execAsync = promisify(exec);
 
@@ -159,6 +160,71 @@ export const customMCPServer = createSdkMcpServer({
               type: "text",
               text: `Error extracting statement: ${error.message}`
             }]
+          };
+        }
+      }
+    ),
+
+    // -------------------------------------------------------------------------
+    // TOOL: bulk_import_statements
+    // -------------------------------------------------------------------------
+    tool(
+      "bulk_import_statements",
+      "Import multiple PDF statement files (and/or CSVs) in one batch using a single fin-enhance run.",
+      {
+        pdfPaths: z.union([
+          z.array(z.string()),
+          z.string(),
+        ]).describe("Array of paths, directory/glob string, or single path pointing to PDFs/CSVs."),
+        autoApprove: z.boolean().default(false).describe("If true, pass --auto to fin-enhance and skip review file generation."),
+      },
+      async (args) => {
+        try {
+          const rawInputs = Array.isArray(args.pdfPaths) ? args.pdfPaths : [args.pdfPaths];
+
+          const result = await bulkImportStatements({
+            inputPaths: rawInputs,
+            autoApprove: args.autoApprove,
+          });
+
+          const payload = {
+            autoApprove: result.autoApprove,
+            csvPaths: result.csvPaths,
+            reviewPath: result.reviewPath ?? null,
+            unsupported: result.unsupported,
+            missing: result.missing,
+            extraction: result.extraction,
+            finEnhanceOutput: result.finEnhanceOutput ?? null,
+            transactionsPreview: result.transactionsPreview ?? [],
+            reviewItems: result.reviewItems ?? [],
+          };
+
+          console.log('[bulk_import_statements] Result from bulkImportStatements:');
+          console.log('  - reviewPath:', result.reviewPath);
+          console.log('  - reviewItems count:', result.reviewItems?.length ?? 0);
+          console.log('  - reviewItems with suggestedCategory:', result.reviewItems?.filter(i => i.suggestedCategory).length ?? 0);
+
+          if (result.reviewItems && result.reviewItems.length > 0) {
+            console.log('[bulk_import_statements] First review item being sent to frontend:', JSON.stringify(result.reviewItems[0], null, 2));
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(payload, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error during bulk import: ${error.message}`,
+              },
+            ],
+            isError: true,
           };
         }
       }

@@ -54,7 +54,87 @@ Parameters:
 
 Example: \`import_transactions(csvPath="~/.finagent/output/chase_statement.csv", autoApprove=false)\`
 
+### bulk_import_statements
+Import multiple PDF statements and/or CSVs in a single batch operation.
+- **Combines extraction and import** in one efficient operation
+- Automatically extracts transactions from PDFs (local and private)
+- Imports and categorizes all transactions in a single fin-enhance run
+- Returns both successfully categorized transactions and items needing review
+
+Parameters:
+- \`pdfPaths\`: Array of file paths, directory path, or glob pattern (e.g., "~/statements/*.pdf")
+- \`autoApprove\`: If true, auto-approves all categorizations. If false (default), returns review items.
+
+Example: \`bulk_import_statements(pdfPaths=["~/statement1.pdf", "~/statement2.pdf"], autoApprove=false)\`
+Example: \`bulk_import_statements(pdfPaths="~/statements/*.pdf", autoApprove=false)\`
+
+**IMPORTANT: How to present bulk_import_statements results:**
+
+The tool returns JSON with \`transactionsPreview\` (successfully categorized transactions) and \`reviewItems\` (transactions needing review). **You must parse this and present it in a user-friendly way. Never show raw JSON, file paths, staging directories, or step timings to the user.**
+
+Instead, create a response that includes:
+
+1. **Summary**: Number of files processed and transactions imported
+2. **Successfully Categorized Transactions**: Create a finviz table visualization showing the categorized transactions with columns: date, merchant, amount, category, subcategory
+3. **Transactions Needing Review** (if any): Group by suggested category/subcategory, show sample transactions for each group, and ask if user wants to approve, modify, or see more details
+
+Example presentation:
+\`\`\`
+Successfully imported **2 statement files** with **145 transactions**.
+
+**Categorized Transactions:**
+
+\`\`\`finviz
+{
+  "version": "1.0",
+  "spec": {
+    "type": "table",
+    "title": "Imported Transactions",
+    "columns": [
+      { "key": "date", "label": "Date" },
+      { "key": "merchant", "label": "Merchant" },
+      { "key": "amount", "label": "Amount" },
+      { "key": "category", "label": "Category" },
+      { "key": "subcategory", "label": "Subcategory" }
+    ],
+    "options": { "currency": true },
+    "data": [/* transaction data from transactionsPreview */]
+  }
+}
+\`\`\`
+
+**5 transactions need your review:**
+
+1. **THE NUEVA SCHOOL** ($1,655.00)
+   - Date: 2025-05-09
+   - Suggested: Uncategorized
+
+2. **FOREIGNER San Mateo CA** ($32.41)
+   - Date: 2025-05-20
+   - Suggested: Uncategorized
+
+Would you like to approve these or provide category corrections?
+\`\`\`
+
 ## Workflow: Importing New Statements
+
+### Bulk Import (Recommended for Multiple Files)
+
+Use \`bulk_import_statements\` when importing multiple PDFs or CSVs:
+
+1. **Bulk import with review** (recommended):
+   \`\`\`
+   bulk_import_statements(pdfPaths=["~/statement1.pdf", "~/statement2.pdf"])
+   → Returns categorized transactions + review items
+   \`\`\`
+
+2. **Parse and present results** as described above (summary + finviz table + review items)
+
+3. **If review needed**, collect user feedback and apply decisions:
+   - Create decisions JSON based on user's category choices
+   - Apply with: \`fin-enhance --apply-review /path/to/decisions.json\`
+
+4. **Confirm completion**
 
 ### Basic Import (with Review - Recommended)
 
@@ -283,6 +363,10 @@ Example finviz block for "Largest Transactions (Last 30 Days)":
 - Always respect user privacy - this is their personal financial data
 
 ## Examples of Common Queries
+
+**"Import multiple PDF statements"** or **"Import all statements in folder"**
+→ Use: \`bulk_import_statements(pdfPaths="~/statements/*.pdf")\`
+→ Parse response and present summary + finviz table + review items
 
 **"Import this PDF statement"**
 → Step 1: \`extract_statement(pdfPath="/path/to/statement.pdf")\`

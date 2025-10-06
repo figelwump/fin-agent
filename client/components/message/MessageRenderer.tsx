@@ -6,18 +6,19 @@ import { AssistantMessage } from './AssistantMessage';
 
 interface MessageRendererProps {
   message: Message;
+  onSendMessage?: (message: string) => void;
 }
 
-export function MessageRenderer({ message }: MessageRendererProps) {
+export function MessageRenderer({ message, onSendMessage }: MessageRendererProps) {
   switch (message.type) {
     case 'user':
       return <UserMessage message={message} />;
-    
+
     case 'system':
       return <SystemMessage message={message} />;
-    
+
     case 'assistant':
-      return <AssistantMessage message={message} />;
+      return <AssistantMessage message={message} onSendMessage={onSendMessage} />;
     
     default:
       return (
