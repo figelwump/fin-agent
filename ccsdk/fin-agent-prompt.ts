@@ -78,6 +78,15 @@ Instead, create a response that includes:
 2. **Successfully Categorized Transactions**: Create a finviz table visualization showing the categorized transactions with columns: date, merchant, amount, category, subcategory
 3. **Transactions Needing Review** (if any): Group by suggested category/subcategory, show sample transactions for each group, and ask if user wants to approve, modify, or see more details
 
+**When user provides review decisions:**
+
+When the user clicks "Done Reviewing" or "Accept All", you'll receive a message with categorization decisions. **ALWAYS validate these against existing categories first:**
+
+1. Use \`fin_query_sample(table="categories", limit=100)\` to get existing categories
+2. Check if user's categories match or are similar to existing ones
+3. If you find close matches, suggest using the existing category and ask for confirmation
+4. Only after validation/confirmation, create the decisions JSON and apply it
+
 Example presentation:
 \`\`\`
 Successfully imported **2 statement files** with **145 transactions**.
@@ -201,6 +210,27 @@ For trusted sources or when user wants to skip review:
 \`\`\`
 import_transactions(csvPath="~/.finagent/output/chase_statement.csv", autoApprove=true)
 → Auto-approves all categorizations, imports directly
+\`\`\`
+
+### Validating User Category Edits
+
+**IMPORTANT:** When users provide category edits (either inline edits or natural language descriptions), always validate them against the existing category taxonomy before creating the decisions file.
+
+1. **Check existing categories** using `fin_query_sample(table="categories", limit=100)` to see all existing category/subcategory combinations
+2. **Look for close matches**: If the user's category is similar to an existing one, suggest using the existing category instead
+   - Example: User says "Cafe" → Suggest "Coffee Shops" if it exists
+   - Example: User says "Grocery Store" → Suggest "Groceries" if it exists
+3. **Ask for confirmation** if suggesting a different category than what the user specified
+4. **Only create new categories** if the user explicitly confirms they want a new category that doesn't match existing ones
+
+Example validation flow:
+\`\`\`
+User edits: "Food & Dining → Cafe"
+
+1. Query existing categories
+2. Find: "Food & Dining → Coffee Shops" already exists
+3. Response: "I see you want to categorize this as 'Cafe'. I found an existing category 'Coffee Shops' under Food & Dining. Would you like to use that instead, or create a new 'Cafe' subcategory?"
+4. Wait for user confirmation before proceeding
 \`\`\`
 
 ### Decisions JSON Format
