@@ -24,6 +24,7 @@ class DatabaseSettings:
 class ExtractionSettings:
     """PDF extraction configuration."""
 
+    engine: str  # "auto", "docling", or "pdfplumber"
     auto_detect_accounts: bool
     supported_banks: tuple[str, ...]
     camelot_fallback_enabled: bool
@@ -85,6 +86,7 @@ def _default_config(env: Mapping[str, str]) -> dict[str, Any]:
     return {
         "database": {"path": str(paths.default_database_path(env=env))},
         "extraction": {
+            "engine": "auto",
             "auto_detect_accounts": True,
             "supported_banks": ["chase", "bofa", "mercury"],
             "camelot_fallback_enabled": True,
@@ -110,6 +112,7 @@ def _default_config(env: Mapping[str, str]) -> dict[str, Any]:
 
 
 ENV_OVERRIDE_SPEC: dict[str, tuple[str, type]] = {
+    "extraction.engine": ("FINCLI_EXTRACTION_ENGINE", str),
     "database.path": (paths.DATABASE_PATH_ENV, str),
     "extraction.auto_detect_accounts": ("FINCLI_EXTRACTION_AUTO_DETECT_ACCOUNTS", bool),
     "extraction.supported_banks": ("FINCLI_EXTRACTION_SUPPORTED_BANKS", list),
@@ -226,6 +229,7 @@ def _build_config(data: Mapping[str, Any], source_path: Path) -> AppConfig:
     try:
         database = DatabaseSettings(path=paths.resolve_path(data["database"]["path"]))
         extraction = ExtractionSettings(
+            engine=str(data["extraction"]["engine"]),
             auto_detect_accounts=bool(data["extraction"]["auto_detect_accounts"]),
             supported_banks=tuple(data["extraction"]["supported_banks"]),
             camelot_fallback_enabled=bool(data["extraction"]["camelot_fallback_enabled"]),
