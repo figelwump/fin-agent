@@ -14,7 +14,7 @@ from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors
 from fin_cli.shared.models import compute_account_key
 
 from .extractors import detect_extractor
-from .parsers.pdf_loader import load_pdf_document
+from .parsers.pdf_loader import load_pdf_document_with_engine
 from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
 
 
@@ -23,6 +23,11 @@ from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
 @click.option("--output", "output_path", type=click.Path(path_type=str), help="Output CSV to file.")
 @click.option("--stdout", is_flag=True, help="Output CSV to stdout.")
 @click.option("--account-name", type=str, help="Override auto-detected account name.")
+@click.option(
+    "--engine",
+    type=click.Choice(["auto", "docling", "pdfplumber"], case_sensitive=False),
+    help="PDF parsing engine to use (default: from config or 'auto')",
+)
 @common_cli_options(run_migrations_on_start=False)
 @handle_cli_errors
 def main(
@@ -30,10 +35,17 @@ def main(
     output_path: str | None,
     stdout: bool,
     account_name: str | None,
+    engine: str | None,
     cli_ctx: CLIContext,
 ) -> None:
-    document = load_pdf_document(
+    # Use CLI flag if provided, otherwise use config value
+    selected_engine = engine if engine else cli_ctx.config.extraction.engine
+
+    cli_ctx.logger.info(f"Using PDF engine: {selected_engine}")
+
+    document = load_pdf_document_with_engine(
         pdf_file,
+        engine=selected_engine,
         enable_camelot_fallback=cli_ctx.config.extraction.camelot_fallback_enabled,
     )
     extractor = detect_extractor(

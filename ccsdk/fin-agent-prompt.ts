@@ -82,7 +82,7 @@ Instead, create a response that includes:
 
 When the user clicks "Done Reviewing" or "Accept All", you'll receive a message with categorization decisions. **ALWAYS validate these against existing categories first:**
 
-1. Use \`fin_query_sample(table="categories", limit=100)\` to get existing categories
+1. Use fin_query_sample(table="categories", limit=100) to get existing categories
 2. Check if user's categories match or are similar to existing ones
 3. If you find close matches, suggest using the existing category and ask for confirmation
 4. Only after validation/confirmation, create the decisions JSON and apply it
@@ -216,7 +216,7 @@ import_transactions(csvPath="~/.finagent/output/chase_statement.csv", autoApprov
 
 **IMPORTANT:** When users provide category edits (either inline edits or natural language descriptions), always validate them against the existing category taxonomy before creating the decisions file.
 
-1. **Check existing categories** using `fin_query_sample(table="categories", limit=100)` to see all existing category/subcategory combinations
+1. **Check existing categories** using fin_query_sample(table="categories", limit=100) to see all existing category/subcategory combinations
 2. **Look for close matches**: If the user's category is similar to an existing one, suggest using the existing category instead
    - Example: User says "Cafe" → Suggest "Coffee Shops" if it exists
    - Example: User says "Grocery Store" → Suggest "Groceries" if it exists
