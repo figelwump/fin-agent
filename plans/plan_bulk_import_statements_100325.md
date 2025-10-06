@@ -64,22 +64,22 @@ tool(
 - Collect extraction results (success/failure per file)
 
 #### Phase 3: Import (Batched)
-- **Option A: Batch Import (RECOMMENDED)**
+- **Option A: Batch Import (SELECTED 2025-10-03)**
   - Call `fin-enhance` once with all CSV files as arguments
   - Single CLI invocation/connection (not a single monolithic SQLite transaction)
   - More efficient LLM usage (can batch similar merchants)
   - Simpler error handling
 
-- **Option B: Parallel Import**
-  - Call `fin-enhance` for each CSV in parallel
-  - SQLite will serialize writes automatically
-  - More granular progress reporting
-  - More complex error handling
+- ~~**Option B: Parallel Import**~~ *(deferred; revisit only if batch mode fails to meet requirements)*
+  - ~~Call `fin-enhance` for each CSV in parallel~~
+  - ~~SQLite will serialize writes automatically~~
+  - ~~More granular progress reporting~~
+  - ~~More complex error handling~~
 
 #### Phase 4: Review Aggregation
-Only needed if Option B (per-file imports) is used.
+Not required for Option A (single `fin-enhance` invocation produces one review file). Keep design notes here for future exploration if we ever revive per-file imports.
 
-- If `autoApprove = false`, aggregate all per-file review JSON files
+- If `autoApprove = false`, aggregate all per-file review JSON files *(only if Option B is restored)*
 - Deduplicate `transaction_review` entries by `id` (transaction fingerprint)
 - Deduplicate `new_category_approval` proposals by `(category, subcategory)`; sum `support_count` and `total_amount`, and merge `transaction_examples` (bounded length)
 - Write consolidated review file and return its path + summary stats
@@ -167,6 +167,11 @@ const result = await execCommand(fullCommand);
 - Single invocation/connection = fewer edge cases (not one big SQLite transaction)
 - LLM categorizer can potentially batch similar merchants
 - Simpler code, fewer edge cases
+
+### Path Expansion Helper (2025-10-03)
+- Added `expandImportPaths` utility in `ccsdk/bulk-import.ts` to normalise arrays/globs/directories into a deduplicated list of supported `.pdf` / `.csv` files.
+- The helper returns `missing` and `unsupported` lists so both MCP tool and HTTP endpoint can surface helpful feedback.
+- Directory inputs walk recursively using `glob` while filtering unsupported extensions to avoid surprising imports.
 
 ### Glob Pattern Support
 
@@ -325,10 +330,10 @@ Consider adding:
 ## Implementation Phases
 
 ### Phase 1: Basic Sequential Bulk Import
-- [ ] Add `bulk_import_statements` tool to `custom-tools.ts`
-- [ ] Implement path expansion (array + glob support)
-- [ ] Implement sequential extraction (parallelism = 1)
-- [ ] Implement batch import
+- [x] Add `bulk_import_statements` tool to `custom-tools.ts` *(2025-10-03; wraps new shared pipeline and emits JSON summary.)*
+- [x] Implement path expansion (array + glob support) *(Tool expands globs via `glob` package; falls back to existence checks.)*
+- [x] Implement sequential extraction (parallelism = 1) *(`ccsdk/bulk-import.ts` runs fin-extract per PDF sequentially.)*
+- [x] Implement batch import *(Shared helper invokes single fin-enhance pass with aggregated CSVs.)*
 - [ ] Test with 2-3 PDFs
 
 ### Phase 2: Parallel Extraction
@@ -337,10 +342,10 @@ Consider adding:
 - [ ] Add progress logging
 - [ ] Test with 5-10 PDFs
 
-### Phase 3: Error Handling & Review Aggregation
-- [ ] Implement robust error handling (Promise.allSettled)
-- [ ] Add consolidated review file generation (only for per-file imports)
-- [ ] Return detailed per-file status
+### Phase 3: Error Handling (Batch Import Path)
+- [x] Implement robust error handling (Promise.allSettled) *(Sequential loop captures per-file failures without aborting; summary includes errors.)*
+- [x] Ensure single review file path is generated when `autoApprove = false` *(Shared helper writes `bulk-review-*.json` once.)*
+- [x] Return detailed per-file status (extraction success/failure + import summary) *(Extraction array plus unsupported list returned to callers.)*
 - [ ] Test error scenarios
 
 ### Phase 4: Review Flow (Hybrid Auto-Assign for New Categories)
@@ -355,7 +360,7 @@ Consider adding:
 - [ ] Update CLAUDE.md with bulk import tool documentation
 - [ ] Add usage examples
 - [ ] Consider adding progress indicators
-- [ ] Update `ccsdk/cc-client.ts` allowed tools
+- [x] Update `ccsdk/cc-client.ts` allowed tools *(Added `mcp__finance__bulk_import_statements` so agents can call pipeline.)*
 - [ ] Document flags passthrough and defaults
 
 ## Alternative Approaches Considered

@@ -2,6 +2,9 @@ import "dotenv/config";
 import { WebSocketHandler } from "../ccsdk/websocket-handler";
 import type { WSClient } from "../ccsdk/types";
 import { DATABASE_PATH } from "../database/config";
+import { bulkImportStatements, getImportsStagingDir, sanitiseRelativePath, writeUploadedFile } from "../ccsdk/bulk-import";
+import * as path from "path";
+import * as fs from "fs/promises";
 
 const wsHandler = new WebSocketHandler(DATABASE_PATH);
 
@@ -51,6 +54,92 @@ const server = Bun.serve({
           'Content-Type': 'text/html',
         },
       });
+    }
+
+    if (url.pathname === '/api/bulk-import' && req.method === 'POST') {
+      let stagingDir: string | undefined;
+      try {
+        const formData = await req.formData();
+        const autoApproveRaw = formData.get('autoApprove');
+        const autoApprove = typeof autoApproveRaw === 'string' ? autoApproveRaw === 'true' : false;
+        const fileEntries = formData.getAll('files');
+
+        if (fileEntries.length === 0) {
+          return new Response(JSON.stringify({ error: 'No files uploaded.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        stagingDir = getImportsStagingDir(timestamp);
+
+        const storedPaths: string[] = [];
+        const skipped: string[] = [];
+
+        for (let idx = 0; idx < fileEntries.length; idx++) {
+          const entry = fileEntries[idx];
+          if (!(entry instanceof File)) {
+            skipped.push(`non-file-${idx}`);
+            continue;
+          }
+
+          const providedName = entry.name || `upload-${idx}`;
+          const relativePath = sanitiseRelativePath(providedName);
+          const destination = path.join(stagingDir, relativePath);
+
+          await writeUploadedFile(destination, entry);
+          storedPaths.push(destination);
+        }
+
+        if (storedPaths.length === 0) {
+          return new Response(JSON.stringify({ error: 'Uploaded files could not be processed.', skipped }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+
+        console.log('Bulk import starting', {
+          stagingDir,
+          storedCount: storedPaths.length,
+          autoApprove,
+        });
+
+        const summary = await bulkImportStatements({
+          inputPaths: storedPaths,
+          autoApprove,
+        });
+
+        return new Response(
+          JSON.stringify({
+            stagingDir,
+            storedPaths,
+            skipped,
+            summary,
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders,
+            },
+          }
+        );
+      } catch (error: any) {
+        console.error('Bulk import error:', error);
+        if (stagingDir) {
+          await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {
+            // ignore cleanup failure
+          });
+        }
+        return new Response(JSON.stringify({
+          error: 'Bulk import failed.',
+          detail: error?.message ?? String(error),
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
     }
 
     if (url.pathname.startsWith('/client/') && url.pathname.endsWith('.css')) {

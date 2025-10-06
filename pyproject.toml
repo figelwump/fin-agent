@@ -36,6 +36,9 @@ pdf = [
   "pdfplumber>=0.11",
   "camelot-py[base]>=0.11",
 ]
+pdf_docling = [
+    "docling>=2.55.1",
+]
 llm = [
   "openai>=1.40",
 ]
