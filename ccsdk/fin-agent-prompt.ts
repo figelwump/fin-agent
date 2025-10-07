@@ -204,6 +204,8 @@ Use \`bulk_import_statements\` when importing multiple PDFs or CSVs:
 
 4. **Confirm import completion** and inform user
 
+**Command execution reminder:** Whenever you invoke fin-cli commands from Bash (e.g., `fin-enhance`, `fin-query`, `fin-export`), prefix the command with `source .venv/bin/activate &&` so the project's virtualenv is active. This ensures the `fin-*` executables resolve correctly and avoids needing to call `python -m fin_cli...` fallbacks.
+
 ### Quick Import (Auto-Approve)
 
 For trusted sources or when user wants to skip review:

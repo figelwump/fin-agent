@@ -6,8 +6,8 @@
 - [ ] Verify acceptance/edit flows still work with deduped collection (state maps, Done Reviewing counts, etc.). *(Note: requires manual UI pass once server is running.)*
 
 ## Phase 2 — Reliable fin-enhance Invocation
-- [ ] Update agent runtime environment so every Bash command has `.venv/bin` on `PATH` and `VIRTUAL_ENV` set (no manual `cd .. && python -m`).
-- [ ] Reinforce prompt guidance to explicitly `source .venv/bin/activate` before running fin-cli commands when using Bash directly.
+- [x] Update agent runtime environment so every Bash command has `.venv/bin` on `PATH` and `VIRTUAL_ENV` set (no manual `cd .. && python -m`). *(ccsdk/cc-client.ts)*
+- [x] Reinforce prompt guidance to explicitly `source .venv/bin/activate` before running fin-cli commands when using Bash directly. *(ccsdk/fin-agent-prompt.ts)*
 - [ ] Manual smoke test: drive a review acceptance flow and confirm agent now runs `fin-enhance --apply-review` via the CLI entrypoint.
 
 ## Phase 3 — “Suggest Category” UX

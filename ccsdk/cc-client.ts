@@ -5,6 +5,26 @@ import { FIN_AGENT_PROMPT } from "./fin-agent-prompt";
 import { customMCPServer } from "./custom-tools";
 import type { SDKMessage, SDKUserMessage } from "./types";
 
+function buildVenvEnv(baseEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...(baseEnv ?? {}) };
+
+  const projectRoot = process.cwd();
+  const venvPath = path.join(projectRoot, '.venv');
+  const binDir = path.join(venvPath, 'bin');
+
+  const pathValue = env.PATH ?? '';
+  const pathSegments = pathValue ? pathValue.split(':') : [];
+  if (!pathSegments.includes(binDir)) {
+    env.PATH = pathValue ? `${binDir}:${pathValue}` : binDir;
+  }
+
+  if (!env.VIRTUAL_ENV) {
+    env.VIRTUAL_ENV = venvPath;
+  }
+
+  return env;
+}
+
 export interface CCQueryOptions {
   maxTurns?: number;
   cwd?: string;
@@ -13,6 +33,7 @@ export interface CCQueryOptions {
   appendSystemPrompt?: string;
   mcpServers?: any;
   hooks?: any;
+  env?: NodeJS.ProcessEnv;
 }
 
 export class CCClient {
@@ -71,8 +92,11 @@ export class CCClient {
           }
         ]
       },
+      env: buildVenvEnv(options?.env),
       ...options
     };
+
+    this.defaultOptions.env = buildVenvEnv(this.defaultOptions.env);
   }
 
   async *queryStream(
@@ -80,6 +104,7 @@ export class CCClient {
     options?: Partial<CCQueryOptions>
   ): AsyncIterable<SDKMessage> {
     const mergedOptions = { ...this.defaultOptions, ...options };
+    mergedOptions.env = buildVenvEnv(mergedOptions.env);
 
     for await (const message of query({
       prompt,
