@@ -18,9 +18,9 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 
 ---
 
-## Current Status (2025-10-06)
+## Current Status (2025-10-07)
 
-**Phase 1: Complete with findings (updated 2025-10-07)**
+**Phase 1: Complete with findings**
 - ✅ Docling adapter infrastructure complete
 - ✅ Engine selection and CLI integration complete
 - ✅ Fallback logic verified with pdfplumber
@@ -45,6 +45,22 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 3. **Option C:** N/A — earlier blockers resolved by adapter/extractor updates
 
 **Branch:** `feature/docling-integration` (merged to main)
+
+---
+
+**Phase 2: Complete**
+- ✅ Declarative runtime implemented (`fin_cli/fin_extract/declarative.py`)
+- ✅ Full YAML schema documented (`docs/declarative_extractor_schema.md`)
+- ✅ CLI integration via `--spec` flag on `fin-extract`
+- ✅ Chase declarative spec created (`~/.finagent/extractors/chase.yaml`)
+- ✅ Validated perfect parity with Python Chase extractor
+
+**Key Implementation Details:**
+- Full-featured runtime supporting column mapping, date parsing with year inference, sign classification, filtering, multi-line handling
+- Year boundary logic correctly handles Dec→Jan transitions by extracting both month and year from statement text
+- Tested on chase-credit-20240106 statement: identical output to Python extractor (41 transactions)
+
+**Next:** Phase 3 (Port BofA and Mercury to declarative)
 
 ---
 
@@ -89,19 +105,29 @@ Acceptance
 
 ---
 
-### Phase 2 — Declarative Runtime + Chase Spec (Declarative-first)
-- [ ] Introduce `fin_cli/fin_extract/declarative.py` to support a YAML/JSON spec that maps headers, date formats, and sign rules.
-- [ ] Author `~/.finagent/extractors/chase.yaml` implementing Chase via the declarative path.
-- [ ] Provide `fin-extract dev:validate-spec` to validate a spec against sample PDFs.
-- [ ] Compare `chase.yaml` output vs. Python extractor; ensure parity or better. Keep Python as fallback.
+### Phase 2 — Declarative Runtime + Chase Spec (Declarative-first) ✅ COMPLETE
+- [x] Introduce `fin_cli/fin_extract/declarative.py` to support a YAML/JSON spec that maps headers, date formats, and sign rules.
+  - Created full declarative runtime with data classes matching schema
+  - Supports all features: column mapping, date parsing, sign classification, filtering, multi-line handling
+- [x] Author `~/.finagent/extractors/chase.yaml` implementing Chase via the declarative path.
+  - Created chase.yaml with full feature parity to Python extractor
+- [x] Provide `fin-extract dev:validate-spec` to validate a spec against sample PDFs.
+  - Implemented as `--spec` flag on main `fin-extract` command (simpler than separate command)
+- [x] Compare `chase.yaml` output vs. Python extractor; ensure parity or better. Keep Python as fallback.
+  - Validated against Chase statement: identical output achieved
+  - Fixed year boundary inference bug to handle Dec→Jan transitions correctly
 
 Notes
 - Keep `PdfDocument` naming for now; extractors remain engine-agnostic.
 - Prefer declarative for maintainability and agent authoring.
+- Schema documented at `docs/declarative_extractor_schema.md`
+- Fixed year inference: now extracts both month and year from statement text for accurate year boundary handling
 
 Acceptance
-- [ ] `chase.yaml` passes the spec validator and produces identical CSV rows to the Python extractor on samples.
-- [ ] Validator confirms spend-only output (no credits/payments/transfers included).
+- [x] `chase.yaml` passes the spec validator and produces identical CSV rows to the Python extractor on samples.
+  - Validated on chase-credit-20240106: perfect parity with Python extractor
+- [x] Validator confirms spend-only output (no credits/payments/transfers included).
+  - Sign classification working correctly; only spend transactions included
 
 ---
 

@@ -13,6 +13,7 @@ import click
 from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors
 from fin_cli.shared.models import compute_account_key
 
+from .declarative import DeclarativeExtractor, load_spec
 from .extractors import detect_extractor
 from .parsers.pdf_loader import load_pdf_document_with_engine
 from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
@@ -28,6 +29,11 @@ from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
     type=click.Choice(["auto", "docling", "pdfplumber"], case_sensitive=False),
     help="PDF parsing engine to use (default: from config or 'auto')",
 )
+@click.option(
+    "--spec",
+    type=click.Path(exists=True, path_type=str),
+    help="Use a declarative YAML spec instead of built-in extractors.",
+)
 @common_cli_options(run_migrations_on_start=False)
 @handle_cli_errors
 def main(
@@ -36,6 +42,7 @@ def main(
     stdout: bool,
     account_name: str | None,
     engine: str | None,
+    spec: str | None,
     cli_ctx: CLIContext,
 ) -> None:
     # Use CLI flag if provided, otherwise use config value
@@ -48,11 +55,19 @@ def main(
         engine=selected_engine,
         enable_camelot_fallback=cli_ctx.config.extraction.camelot_fallback_enabled,
     )
-    extractor = detect_extractor(
-        document,
-        allowed_institutions=cli_ctx.config.extraction.supported_banks,
-    )
-    cli_ctx.logger.info(f"Detected format: {extractor.name}")
+
+    # Use declarative spec if provided, otherwise detect extractor
+    if spec:
+        cli_ctx.logger.info(f"Loading declarative spec: {spec}")
+        spec_obj = load_spec(spec)
+        extractor = DeclarativeExtractor(spec_obj)
+        cli_ctx.logger.info(f"Using declarative extractor: {extractor.name}")
+    else:
+        extractor = detect_extractor(
+            document,
+            allowed_institutions=cli_ctx.config.extraction.supported_banks,
+        )
+        cli_ctx.logger.info(f"Detected format: {extractor.name}")
 
     result = extractor.extract(document)
     if not result.transactions:
