@@ -16,9 +16,10 @@
   - Notes: Button renders in `client/components/message/ImportSummaryBlock.tsx` and leverages the structured prompt pipeline introduced in `client/components/ChatInterface.tsx`.
 
 ## Phase 4 — User-Friendly Agent Messaging
-- [ ] Redesign the review handoff text so the user sees clean, human-readable prompts (no filesystem paths, transaction hashes, or raw command instructions).
-- [ ] Keep the implementation details available to the agent via hidden context/metadata or structured payloads so functionality remains intact.
+- [x] Redesign the review handoff text so the user sees clean, human-readable prompts (no filesystem paths, transaction hashes, or raw command instructions).
+- [x] Keep the implementation details available to the agent via hidden context/metadata or structured payloads so functionality remains intact.
 - [ ] Verify responses stay concise while preserving the validation guidance (existing-category suggestions before applying changes).
+  - Notes: Structured prompts now originate in `client/components/message/ImportSummaryBlock.tsx`, carrying metadata for the agent while rendering user-friendly text via the `StructuredPrompt` pipeline.
 
 ## Phase 5 — Streaming Assistant Responses
 - [ ] Enable partial message streaming in `CCClient` (`includePartialMessages: true`) and ensure session resumes keep the flag.

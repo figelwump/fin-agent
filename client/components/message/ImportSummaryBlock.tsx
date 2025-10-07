@@ -195,6 +195,57 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
     });
   };
 
+  type ReviewDecisionPayload = {
+    id: string;
+    merchant: string;
+    category: string;
+    subcategory?: string;
+  };
+
+  const buildReviewPrompt = (decisions: ReviewDecisionPayload[], source: 'accept_all' | 'done_reviewing'): StructuredPrompt => {
+    const headline = source === 'accept_all'
+      ? `Please double-check ${decisions.length} suggested categor${decisions.length === 1 ? 'y' : 'ies'} before we apply them.`
+      : `Here are ${decisions.length} categor${decisions.length === 1 ? 'y' : 'ies'} I just reviewed - please validate before applying.`;
+
+    const preview = decisions.slice(0, 3).map(decision => {
+      const subLabel = decision.subcategory ? ` -> ${decision.subcategory}` : '';
+      return `- ${decision.merchant}: ${decision.category}${subLabel}`;
+    });
+
+    const remainingCount = decisions.length - preview.length;
+    const remainderLine = remainingCount > 0
+      ? `- ...and ${remainingCount} more.`
+      : undefined;
+
+    const displayLines = [headline, '', ...preview];
+    if (remainderLine) {
+      displayLines.push(remainderLine);
+    }
+
+    const agentMetadata = {
+      action: 'review_decisions' as const,
+      source,
+      reviewPath,
+      decisions,
+    };
+
+    const agentInstructions = [
+      'Validate the following categorization decisions before applying them.',
+      'Steps:',
+      '- Query the existing category catalog (for example: fin_query_sample(table="categories", limit=200)).',
+      '- Suggest close matches for any new labels and confirm the final choice with the user.',
+      '- Once confirmed, create the decisions JSON file and run fin-enhance --apply-review to apply it.',
+      'Decisions payload:',
+      JSON.stringify(agentMetadata, null, 2),
+    ].join('\n');
+
+    return {
+      displayText: displayLines.join('\n'),
+      agentText: agentInstructions,
+      metadata: agentMetadata,
+    };
+  };
+
   const handleAcceptAll = () => {
     if (!onSendMessage) return;
 
@@ -204,18 +255,14 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
         id: item.id,
         merchant: item.merchant,
         category: item.suggestedCategory!,
-        subcategory: item.suggestedSubcategory!,
+        subcategory: item.suggestedSubcategory ?? undefined,
       }));
 
-    const decisionsText = allDecisions.map(d => `- ID: ${d.id}, Merchant: "${d.merchant}", Category: ${d.category} → ${d.subcategory}`).join('\n');
+    if (allDecisions.length === 0) {
+      return;
+    }
 
-    const reviewContext = reviewPath
-      ? `Validate these ${allDecisions.length} categorization decisions from review file ${reviewPath}`
-      : `Validate these ${allDecisions.length} categorization decisions`;
-
-    const message = `${reviewContext}. Before applying anything, look up the existing category/subcategory catalog (for example via fin_query_sample(table="categories", limit=200)), suggest close matches when they exist, and ask me to confirm which option to use. Only run fin-enhance --apply-review after that confirmation. Decisions to review:\n${decisionsText}`;
-
-    onSendMessage(message);
+    onSendMessage(buildReviewPrompt(allDecisions, 'accept_all'));
   };
 
   const handleDoneReviewing = () => {
@@ -229,7 +276,7 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
           id: d.id,
           merchant: item?.merchant ?? 'unknown',
           category: d.category!,
-          subcategory: d.subcategory ?? '',
+          subcategory: d.subcategory ?? undefined,
         };
       });
 
@@ -237,15 +284,7 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
       return; // Nothing to do
     }
 
-    const decisionsText = acceptedDecisions.map(d => `- ID: ${d.id}, Merchant: "${d.merchant}", Category: ${d.category}${d.subcategory ? ' → ' + d.subcategory : ''}`).join('\n');
-
-    const reviewContext = reviewPath
-      ? `Validate these ${acceptedDecisions.length} categorization decisions from review file ${reviewPath}`
-      : `Validate these ${acceptedDecisions.length} categorization decisions`;
-
-    const message = `${reviewContext}. Before applying anything, look up the existing category/subcategory catalog (for example via fin_query_sample(table="categories", limit=200)), suggest close matches when they exist, and ask me to confirm which option to use. Only run fin-enhance --apply-review after that confirmation. Decisions to review:\n${decisionsText}`;
-
-    onSendMessage(message);
+    onSendMessage(buildReviewPrompt(acceptedDecisions, 'done_reviewing'));
   };
 
   const getDecisionStatus = (itemId: string): ReviewDecision | undefined => {
