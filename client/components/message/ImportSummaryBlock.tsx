@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { ImportSummaryBlock } from './types';
+import type { ImportSummaryBlock, StructuredPrompt } from './types';
 
 const currency = new Intl.NumberFormat(undefined, {
   style: 'currency',
@@ -30,7 +30,7 @@ interface ReviewDecision {
 
 interface ImportSummaryBlockRendererProps {
   block: ImportSummaryBlock;
-  onSendMessage?: (message: string) => void;
+  onSendMessage?: (message: StructuredPrompt | string) => void;
 }
 
 export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSummaryBlockRendererProps) {
@@ -159,6 +159,39 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
         next.set(itemId, { ...existing, status: 'accepted' });
       }
       return next;
+    });
+  };
+
+  const handleSuggestCategory = (item: typeof validReviewItems[0]) => {
+    if (!onSendMessage) return;
+
+    const transactionPayload = {
+      id: item.id,
+      merchant: item.merchant,
+      date: item.date,
+      amount: item.amount,
+      originalDescription: item.originalDescription,
+      accountId: item.accountId,
+    };
+
+    const displayText = `Ask the assistant to suggest a category for ${item.merchant} (${item.date}, ${formatAmount(item.amount)}).`;
+
+    // The agent sees the detailed JSON payload while the user only sees the human-readable summary above.
+    const agentInstructions = [
+      'You are assisting with a manual categorization review. Suggest one or two category/subcategory pairs for the transaction below.',
+      'Prioritize matches from the existing taxonomy whenever possible. If nothing fits, note the closest alternative and call out the gap.',
+      'Do not apply any review decisions or run fin-enhance. Respond with concise suggestions and reasoning only.',
+      'TRANSACTION JSON:',
+      JSON.stringify(transactionPayload, null, 2),
+    ].join('\n');
+
+    onSendMessage({
+      displayText,
+      agentText: agentInstructions,
+      metadata: {
+        action: 'request_category_suggestion',
+        transaction: transactionPayload,
+      },
     });
   };
 
@@ -337,7 +370,7 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                   </div>
 
                   {onSendMessage && !isAccepted && (
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {isEditing ? (
                         <>
                           <button
@@ -355,6 +388,12 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                             className="px-3 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded transition-colors"
                           >
                             Cancel
+                          </button>
+                          <button
+                            onClick={() => handleSuggestCategory(item)}
+                            className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                          >
+                            Suggest Category
                           </button>
                         </>
                       ) : (
@@ -375,6 +414,12 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                               </button>
                             </>
                           )}
+                          <button
+                            onClick={() => handleSuggestCategory(item)}
+                            className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                          >
+                            Suggest Category
+                          </button>
                         </>
                       )}
                     </div>

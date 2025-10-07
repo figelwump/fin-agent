@@ -1,12 +1,12 @@
 import React from 'react';
-import { Message } from './types';
+import { Message, StructuredPrompt } from './types';
 import { UserMessage } from './UserMessage';
 import { SystemMessage } from './SystemMessage';
 import { AssistantMessage } from './AssistantMessage';
 
 interface MessageRendererProps {
   message: Message;
-  onSendMessage?: (message: string) => void;
+  onSendMessage?: (message: StructuredPrompt | string) => void;
 }
 
 export function MessageRenderer({ message, onSendMessage }: MessageRendererProps) {

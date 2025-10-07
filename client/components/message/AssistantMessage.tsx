@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, ImportSummaryBlock, ImportProgressBlock } from './types';
+import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, ImportSummaryBlock, ImportProgressBlock, StructuredPrompt } from './types';
 import { VizRenderer, isValidFinviz, parseFinviz } from '../viz/VizRenderer';
 import { ImportSummaryBlockRenderer } from './ImportSummaryBlock';
 import { ImportProgressBlockRenderer } from './ImportProgressBlock';
@@ -9,7 +9,7 @@ import { ImportProgressBlockRenderer } from './ImportProgressBlock';
 
 interface AssistantMessageProps {
   message: AssistantMessageType;
-  onSendMessage?: (message: string) => void;
+  onSendMessage?: (message: StructuredPrompt | string) => void;
 }
 
 function formatTimestamp(timestamp: string): string {

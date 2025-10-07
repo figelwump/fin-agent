@@ -11,8 +11,9 @@
 - [ ] Manual smoke test: drive a review acceptance flow and confirm agent now runs `fin-enhance --apply-review` via the CLI entrypoint.
 
 ## Phase 3 — “Suggest Category” UX
-- [ ] Add a “Suggest Category” button alongside Accept/Edit in the review list.
-- [ ] On click, send a structured chat message asking the agent for category suggestions for that specific transaction (include merchant, amount, date, description).
+- [x] Add a “Suggest Category” button alongside Accept/Edit in the review list.
+- [x] On click, send a structured chat message asking the agent for category suggestions for that specific transaction (include merchant, amount, date, description).
+  - Notes: Button renders in `client/components/message/ImportSummaryBlock.tsx` and leverages the structured prompt pipeline introduced in `client/components/ChatInterface.tsx`.
 
 ## Phase 4 — User-Friendly Agent Messaging
 - [ ] Redesign the review handoff text so the user sees clean, human-readable prompts (no filesystem paths, transaction hashes, or raw command instructions).

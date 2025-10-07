@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import YAML from 'yaml';
+import type { StructuredPrompt } from '../message/types';
 
 type Suggestion = {
   id: string;
@@ -13,7 +14,7 @@ export function SuggestedQueries({
   onSend,
   disabled,
 }: {
-  onSend: (prompt: string) => void;
+  onSend: (prompt: StructuredPrompt | string) => void;
   disabled?: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>(DEFAULT_SUGGESTIONS);

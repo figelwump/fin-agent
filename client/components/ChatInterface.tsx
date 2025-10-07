@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
-import { Message, ImportSummaryBlock, ImportProgressBlock } from './message/types';
+import { Message, ImportSummaryBlock, ImportProgressBlock, StructuredPrompt } from './message/types';
 import { Send, Wifi, WifiOff, RefreshCw, Mail, Clock } from 'lucide-react';
 import { SuggestedQueries } from './dashboard/SuggestedQueries';
 import { ImportStatementsButton } from './dashboard/ImportStatementsButton';
@@ -42,17 +42,42 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   
-  const sendSuggestedPrompt = (prompt: string) => {
-    if (!prompt.trim() || isLoading || !isConnected) return;
+  const dispatchPrompt = (prompt: StructuredPrompt) => {
+    const { displayText, agentText, metadata } = prompt;
+    const timestamp = new Date().toISOString();
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
-      content: prompt,
-      timestamp: new Date().toISOString(),
+      content: displayText,
+      timestamp,
     };
+
+    const mergedMetadata: Record<string, unknown> = metadata ? { ...metadata } : {};
+    if (!('agentText' in mergedMetadata) || mergedMetadata.agentText !== agentText) {
+      mergedMetadata.agentText = agentText;
+    }
+
+    if (Object.keys(mergedMetadata).length > 0) {
+      userMessage.metadata = mergedMetadata;
+    }
+
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
-    sendMessage({ type: 'chat', content: prompt, sessionId });
+    sendMessage({ type: 'chat', content: agentText, sessionId });
+  };
+
+  const sendSuggestedPrompt = (prompt: StructuredPrompt | string) => {
+    if (isLoading || !isConnected) return;
+
+    const structured: StructuredPrompt = typeof prompt === 'string'
+      ? { displayText: prompt, agentText: prompt }
+      : prompt;
+
+    if (!structured.displayText.trim() || !structured.agentText.trim()) {
+      return;
+    }
+
+    dispatchPrompt({ ...structured });
   };
   const appendAssistantText = (text: string) => {
     const message: Message = {
@@ -276,23 +301,11 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     e.preventDefault();
     if (!inputValue.trim() || isLoading || !isConnected) return;
     
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputValue,
-      timestamp: new Date().toISOString(),
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+
     setInputValue('');
-    setIsLoading(true);
-    
-    // Send message through WebSocket
-    sendMessage({
-      type: 'chat',
-      content: inputValue,
-      sessionId,
-    });
+    dispatchPrompt({ displayText: trimmed, agentText: trimmed });
   };
   
   return (
