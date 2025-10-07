@@ -41,6 +41,8 @@ _CHASE_SIGN_CLASSIFIER = SignClassifier(
     card_payment_keywords={"payment"},
 )
 
+_DATE_NO_YEAR_RE = re.compile(r"^(\d{1,2})/(\d{1,2})$")
+
 
 class ChaseExtractor(StatementExtractor):
     name = "chase"
@@ -57,12 +59,21 @@ class ChaseExtractor(StatementExtractor):
 
     def extract(self, document: PdfDocument) -> ExtractionResult:
         transactions: list[ExtractedTransaction] = []
+        statement_month, statement_year = _infer_statement_month_year(document.text)
+        year_hint = statement_year or datetime.today().year
         for table in document.tables:
             normalized = normalize_pdf_table(table, header_predicate=_chase_header_predicate)
             mapping = self._find_column_mapping(normalized.headers)
             if not mapping:
                 continue
-            transactions.extend(self._parse_rows(normalized.rows, mapping))
+            transactions.extend(
+                self._parse_rows(
+                    normalized.rows,
+                    mapping,
+                    year_hint=year_hint,
+                    statement_month=statement_month,
+                )
+            )
 
         if not transactions:
             transactions = self._extract_from_text(document.text)
@@ -96,10 +107,14 @@ class ChaseExtractor(StatementExtractor):
         self,
         rows: Sequence[tuple[str, ...]],
         mapping: _ColumnMapping,
+        *,
+        year_hint: int | None = None,
+        statement_month: int | None = None,
     ) -> list[ExtractedTransaction]:
         transactions: list[ExtractedTransaction] = []
         current_date: date | None = None
         last_transaction: ExtractedTransaction | None = None
+        last_resolved_date: date | None = None
 
         for row in rows:
             cells = list(row)
@@ -112,7 +127,13 @@ class ChaseExtractor(StatementExtractor):
 
             if date_value:
                 try:
-                    current_date = _parse_chase_date(date_value)
+                    current_date = _parse_chase_date(
+                        date_value,
+                        year_hint=year_hint,
+                        statement_month=statement_month,
+                        last_date=last_resolved_date,
+                    )
+                    last_resolved_date = current_date
                 except ValueError:
                     current_date = None
             if current_date is None:
@@ -257,7 +278,40 @@ _STATEMENT_LINE_RE = re.compile(
 )
 
 
+_MONTH_TO_INT = {
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+}
+
+
+def _infer_statement_month_year(text: str) -> tuple[int | None, int | None]:
+    month_year_match = re.search(
+        r"(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})",
+        text,
+        re.IGNORECASE,
+    )
+    if month_year_match:
+        month_name = month_year_match.group(1).lower()
+        year_value = int(month_year_match.group(2))
+        month_value = _MONTH_TO_INT.get(month_name)
+        return month_value, year_value
+    return None, None
+
+
 def _infer_statement_year(text: str) -> int:
+    month_value, year_value = _infer_statement_month_year(text)
+    if year_value is not None:
+        return year_value
     month_year_match = re.search(
         r"(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})",
         text,
@@ -280,11 +334,34 @@ def _resolve_date(month: str, day: str, year: int) -> date:
     return date(year, month_i, day_i)
 
 
-def _parse_chase_date(value: str) -> datetime.date:
+def _parse_chase_date(
+    value: str,
+    *,
+    year_hint: int | None = None,
+    statement_month: int | None = None,
+    last_date: date | None = None,
+) -> datetime.date:
     value = value.strip()
     for fmt in ("%m/%d/%Y", "%m/%d/%y"):
         try:
             return datetime.strptime(value, fmt).date()
         except ValueError:
             continue
+    match = _DATE_NO_YEAR_RE.match(value)
+    if match:
+        month = int(match.group(1))
+        day = int(match.group(2))
+        base_year = year_hint or datetime.today().year
+
+        # If we know the statement month, adjust for cross-year statements
+        if statement_month is not None and month > statement_month and month - statement_month > 1:
+            base_year -= 1
+        elif last_date is not None:
+            if month > last_date.month and month - last_date.month > 6:
+                base_year = last_date.year - 1
+            elif month < last_date.month and last_date.month - month > 6:
+                base_year = last_date.year + 1
+
+        return date(base_year, month, day)
+
     raise ValueError(f"Unrecognized date format: {value}")

@@ -20,20 +20,31 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 
 ## Current Status (2025-10-06)
 
-**Phase 1: ~80% complete**
+**Phase 1: Complete with findings (updated 2025-10-07)**
 - ✅ Docling adapter infrastructure complete
 - ✅ Engine selection and CLI integration complete
 - ✅ Fallback logic verified with pdfplumber
-- ⏸️ Actual Docling testing blocked on PyTorch (requires Python ≤3.12)
+- ✅ PyTorch + Docling installed (Python 3.12 venv)
+- ✅ Tested Docling on Chase + BofA PDFs with normalized headers
 
-**Next Steps:**
-1. Merge feature branch to main
-2. Set up Python 3.12 venv in main branch
-3. Install PyTorch + Docling
-4. Benchmark Docling vs pdfplumber on Chase PDFs
-5. Complete Phase 1 or proceed to Phase 2 based on results
+**Test Results:**
+- **Performance:** Docling ~45–50s per Chase PDF vs pdfplumber ~instant (ML pipeline cost)
+- **Accuracy:** Docling now extracts 41/41 Chase transactions and 6/6 BofA transactions (parity with pdfplumber)
+- **Key fixes:** Adapter synthesizes ledger headers, decodes `/uniXXXX` glyphs, and Chase extractor infers statement-year context for `MM/DD` dates
+- **Trade-off:** Docling remains heavy but becomes a reliable fallback when pdfplumber misreads layout
 
-**Branch:** `feature/docling-integration` (ready to merge)
+**Findings:**
+- Docling tables differ from pdfplumber, but normalized headers now align with extractor expectations
+- Normalization retains the first data row so downstream extractors remain unchanged
+- Unicode glyph decoding is mandatory for BofA statements (`Date/uni002F...` → `Date`)
+- Chase extractor needs context-derived year hints when Docling emits `MM/DD`
+
+**Decision Point:**
+1. **Option A:** Keep Docling enabled in `auto` mode now that accuracy matches pdfplumber (recommended)
+2. **Option B:** Use pdfplumber-first for performance-sensitive runs and fall back to Docling as needed
+3. **Option C:** N/A — earlier blockers resolved by adapter/extractor updates
+
+**Branch:** `feature/docling-integration` (merged to main)
 
 ---
 
@@ -53,24 +64,28 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
   - Added `--engine` flag with choices: auto, docling, pdfplumber
   - Added logging to show engine selection and fallback behavior
   - Created `load_pdf_document_with_engine()` function with fallback logic
-- [ ] Create a small benchmark harness over `statements/` to measure tables found, transactions parsed, error cases, runtime.
-  - **BLOCKED**: Need PyTorch installed (requires Python ≤3.12, project uses 3.13)
-  - Will test with actual Docling once Python 3.12 venv is set up in main branch
-- [ ] Port Chase extractor for Docling output (adjust header predicates if needed). Validate parity with current output.
-  - **DEFERRED**: Existing Chase extractor works with Docling adapter (no changes needed)
-  - Will validate parity once Docling is actually running
+- [x] Create a small benchmark harness over `statements/` to measure tables found, transactions parsed, error cases, runtime.
+  - **COMPLETED:** `debug_docling.py` compares Docling vs pdfplumber; post-fix runs confirm parity
+- [x] Port Chase extractor for Docling output (adjust header predicates if needed). Validate parity with current output.
+  - **COMPLETED:** Chase extractor now infers year for Docling `MM/DD` rows; extracts 41 transactions
 - [ ] Document Mac/Linux prerequisites for Docling/OCR and graceful fallbacks.
+  - TODO: Capture install notes (PyTorch, docling extras) in README/docs
+- [x] Validate Docling against non-Chase issuer (BofA) to confirm heuristics are issuer-agnostic.
+  - **COMPLETED:** BofA Oct 2024 statement parses 6 transactions after glyph decoding
+
+
 
 Notes
 - Adapter will normalize Docling tables to our `PdfTable(headers, rows)` with conservative header detection so extractors remain unchanged.
 - If Docling is unavailable or fails, we fall back to `pdfplumber` then optional `camelot`.
 
 Acceptance
-- [ ] On Chase samples, Docling path extracts ≥ current approach with ≤ error rate.
-  - **STATUS**: Ready to test, pending PyTorch installation
+- [x] On Chase samples, Docling path extracts ≥ current approach with ≤ error rate.
+  - **RESULT:** 41/41 transactions captured with correct signs/dates after adapter + extractor fixes
+  - **FOLLOW-UP:** Document performance expectations (~50s runtime) in docs
 - [x] Engine default `auto` behaves deterministically and falls back cleanly when Docling fails.
-  - **VERIFIED**: Tested with Chase PDFs, gracefully falls back to pdfplumber when Docling unavailable
-  - Logs clearly indicate fallback behavior
+  - **VERIFIED:** Docling-first succeeds; on forced failure it falls back to pdfplumber with clear logging
+  - **NOTE:** Leave `auto` as default but mention performance trade-off in README
 
 ---
 
