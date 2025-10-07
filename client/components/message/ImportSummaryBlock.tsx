@@ -174,7 +174,7 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
       accountId: item.accountId,
     };
 
-    const displayText = `Ask the assistant to suggest a category for ${item.merchant} (${item.date}, ${formatAmount(item.amount)}).`;
+    const displayText = `Suggest a category for ${item.merchant} (${item.date}, ${formatAmount(item.amount)}).`;
 
     // The agent sees the detailed JSON payload while the user only sees the human-readable summary above.
     const agentInstructions = [

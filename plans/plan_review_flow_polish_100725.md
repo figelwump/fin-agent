@@ -22,9 +22,10 @@
   - Notes: Structured prompts now originate in `client/components/message/ImportSummaryBlock.tsx`, carrying metadata for the agent while rendering user-friendly text via the `StructuredPrompt` pipeline.
 
 ## Phase 5 — Streaming Assistant Responses
-- [ ] Enable partial message streaming in `CCClient` (`includePartialMessages: true`) and ensure session resumes keep the flag.
-- [ ] Tag partial chunks in the WebSocket payload so the frontend can distinguish streaming updates from final messages.
-- [ ] Update the React client to append partial text to the latest assistant bubble instead of spawning new entries, yielding near real-time updates.
+- [x] Enable partial message streaming in `CCClient` (`includePartialMessages: true`) and ensure session resumes keep the flag.
+- [x] Tag partial chunks in the WebSocket payload so the frontend can distinguish streaming updates from final messages.
+- [x] Update the React client to append partial text to the latest assistant bubble instead of spawning new entries, yielding near real-time updates.
+  - Notes: Partial events stream via `assistant_partial` messages emitted in `ccsdk/session.ts`; `App.tsx` and `ChatInterface.tsx` manage the live transcript using the shared `StructuredPrompt` pipeline without duplicate loading placeholders.
 
 ## Notes & Considerations
 - Deduping should happen before stateful operations to avoid double-counting acceptance progress indicators.

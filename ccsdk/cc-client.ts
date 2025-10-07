@@ -29,6 +29,7 @@ export interface CCQueryOptions {
   maxTurns?: number;
   cwd?: string;
   model?: string;
+  includePartialMessages?: boolean;
   allowedTools?: string[];
   appendSystemPrompt?: string;
   mcpServers?: any;
@@ -44,6 +45,7 @@ export class CCClient {
       maxTurns: 100,
       cwd: path.join(process.cwd(), 'agent'),
       model: "sonnet",
+      includePartialMessages: true,
       allowedTools: [
         "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write", "NotebookEdit",
         "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash", 
@@ -105,6 +107,7 @@ export class CCClient {
   ): AsyncIterable<SDKMessage> {
     const mergedOptions = { ...this.defaultOptions, ...options };
     mergedOptions.env = buildVenvEnv(mergedOptions.env);
+    mergedOptions.includePartialMessages = true;
 
     for await (const message of query({
       prompt,

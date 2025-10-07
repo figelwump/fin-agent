@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
 import { Message, ImportSummaryBlock, ImportProgressBlock, StructuredPrompt } from './message/types';
 import { Send, Wifi, WifiOff, RefreshCw, Mail, Clock } from 'lucide-react';
@@ -300,13 +300,16 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading || !isConnected) return;
-    
+
     const trimmed = inputValue.trim();
     if (!trimmed) return;
 
     setInputValue('');
     dispatchPrompt({ displayText: trimmed, agentText: trimmed });
   };
+  const hasStreamingAssistant = useMemo(() => (
+    messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
+  ), [messages]);
   
   return (
     <div className="flex flex-col h-screen bg-white">
@@ -356,7 +359,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
               {messages.map((msg) => (
                 <MessageRenderer key={msg.id} message={msg} onSendMessage={sendSuggestedPrompt} />
               ))}
-              {isLoading && (
+              {isLoading && !hasStreamingAssistant && (
                 <MessageRenderer
                   message={{
                     id: 'loading',

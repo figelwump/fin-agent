@@ -83,8 +83,8 @@ export interface BaseMessage {
     type: 'assistant';
     content: (TextBlock | ToolUseBlock | ImportSummaryBlock | ImportProgressBlock)[];
     metadata?: {
-      id: string;
-      model: string;
+      id?: string;
+      model?: string;
       usage?: {
         input_tokens: number;
         output_tokens: number;
@@ -92,6 +92,9 @@ export interface BaseMessage {
         cache_read_input_tokens?: number;
         service_tier: string;
       };
+      service_tier?: string;
+      streaming?: boolean;
+      [key: string]: unknown;
     };
   }
   

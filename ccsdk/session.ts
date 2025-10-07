@@ -14,6 +14,7 @@ export class Session {
   private messageCount = 0;
   private ccClient: CCClient;
   private sdkSessionId: string | null = null;
+  private partialTextBuffer: string | null = null;
 
 //  constructor(id: string, db: Database) { 
   constructor(id: string) { 
@@ -90,6 +91,7 @@ export class Session {
     let wsMessage: any = null;
 
     if (message.type === "assistant") {
+      this.partialTextBuffer = null;
       // Stream assistant responses
       const content = message.message.content;
       if (typeof content === 'string') {
@@ -130,6 +132,9 @@ export class Session {
         }
         return; // Already broadcasted block by block
       }
+    } else if (message.type === 'stream_event') {
+      this.handleStreamEvent(message.event);
+      return;
     } else if (message.type === "result") {
       if (message.subtype === "success") {
         wsMessage = {
@@ -166,6 +171,42 @@ export class Session {
 
     if (wsMessage) {
       this.broadcast(wsMessage);
+    }
+  }
+
+  private handleStreamEvent(event: any) {
+    const eventType = event?.type;
+
+    switch (eventType) {
+      case 'message_start':
+        this.partialTextBuffer = '';
+        break;
+      case 'content_block_start':
+        if (event?.content_block?.type === 'text') {
+          if (this.partialTextBuffer === null) {
+            this.partialTextBuffer = '';
+          }
+        }
+        break;
+      case 'content_block_delta':
+        if (
+          this.partialTextBuffer !== null &&
+          event?.delta?.type === 'text_delta' &&
+          typeof event?.delta?.text === 'string'
+        ) {
+          this.partialTextBuffer += event.delta.text;
+          this.broadcast({
+            type: 'assistant_partial',
+            content: this.partialTextBuffer,
+            sessionId: this.id,
+          });
+        }
+        break;
+      case 'message_stop':
+        this.partialTextBuffer = null;
+        break;
+      default:
+        break;
     }
   }
 
