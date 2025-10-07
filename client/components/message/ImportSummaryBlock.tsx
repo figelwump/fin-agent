@@ -131,9 +131,11 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
 
     const decisionsText = allDecisions.map(d => `- ID: ${d.id}, Merchant: "${d.merchant}", Category: ${d.category} → ${d.subcategory}`).join('\n');
 
-    const message = reviewPath
-      ? `Accept all ${allDecisions.length} suggested categories from review file ${reviewPath}:\n${decisionsText}`
-      : `Accept all ${allDecisions.length} suggested categories:\n${decisionsText}`;
+    const reviewContext = reviewPath
+      ? `Validate these ${allDecisions.length} categorization decisions from review file ${reviewPath}`
+      : `Validate these ${allDecisions.length} categorization decisions`;
+
+    const message = `${reviewContext}. Before applying anything, look up the existing category/subcategory catalog (for example via fin_query_sample(table="categories", limit=200)), suggest close matches when they exist, and ask me to confirm which option to use. Only run fin-enhance --apply-review after that confirmation. Decisions to review:\n${decisionsText}`;
 
     onSendMessage(message);
   };
@@ -159,9 +161,11 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
 
     const decisionsText = acceptedDecisions.map(d => `- ID: ${d.id}, Merchant: "${d.merchant}", Category: ${d.category}${d.subcategory ? ' → ' + d.subcategory : ''}`).join('\n');
 
-    const message = reviewPath
-      ? `Apply these ${acceptedDecisions.length} categorization decisions from review file ${reviewPath}:\n${decisionsText}`
-      : `Apply these ${acceptedDecisions.length} categorization decisions:\n${decisionsText}`;
+    const reviewContext = reviewPath
+      ? `Validate these ${acceptedDecisions.length} categorization decisions from review file ${reviewPath}`
+      : `Validate these ${acceptedDecisions.length} categorization decisions`;
+
+    const message = `${reviewContext}. Before applying anything, look up the existing category/subcategory catalog (for example via fin_query_sample(table="categories", limit=200)), suggest close matches when they exist, and ask me to confirm which option to use. Only run fin-enhance --apply-review after that confirmation. Decisions to review:\n${decisionsText}`;
 
     onSendMessage(message);
   };
