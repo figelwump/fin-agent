@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { ImportSummaryBlock } from './types';
 
 const currency = new Intl.NumberFormat(undefined, {
@@ -55,16 +55,61 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
   });
 
   // Filter out invalid review items (where date is empty/n/a or ID is undefined/empty)
-  const validReviewItems = reviewItems.filter(item =>
-    item.id && item.id !== 'undefined' && item.date && item.date !== 'n/a'
-  );
+  const validReviewItems = useMemo(() => {
+    const filtered = reviewItems
+      .map((item) => {
+        // Ensure a stable id so deduping/acceptance logic still functions
+        const normalizedId = item.id && item.id !== 'undefined'
+          ? String(item.id)
+          : `${item.merchant ?? 'unknown'}::${item.date ?? 'unknown'}::${Number.isFinite(item.amount) ? item.amount : 'na'}`;
 
-  console.log('[ImportSummaryBlock] Valid review items:', validReviewItems.length);
-  console.log('[ImportSummaryBlock] Valid items with suggestedCategory:', validReviewItems.filter(i => i.suggestedCategory).length);
+        return { ...item, id: normalizedId };
+      })
+      .filter(item => item.date && item.date !== 'n/a');
 
-  if (validReviewItems.length > 0) {
-    console.log('[ImportSummaryBlock] First valid review item:', validReviewItems[0]);
-  }
+    const dedupedMap = new Map<string, { item: typeof filtered[number]; order: number }>();
+
+    filtered.forEach((item, index) => {
+      const key = `${item.id ?? 'unknown'}::${Number.isFinite(item.amount) ? item.amount : 'na'}`;
+      const existing = dedupedMap.get(key);
+
+      if (!existing) {
+        dedupedMap.set(key, { item, order: index });
+        return;
+      }
+
+      const currentHasSuggestion = Boolean(item.suggestedCategory || item.suggestedSubcategory);
+      const existingHasSuggestion = Boolean(existing.item.suggestedCategory || existing.item.suggestedSubcategory);
+
+      if (currentHasSuggestion && !existingHasSuggestion) {
+        dedupedMap.set(key, { item, order: existing.order });
+        return;
+      }
+
+      if (currentHasSuggestion && existingHasSuggestion) {
+        const currentConfidence = item.confidence ?? 0;
+        const existingConfidence = existing.item.confidence ?? 0;
+        if (currentConfidence > existingConfidence) {
+          dedupedMap.set(key, { item, order: existing.order });
+        }
+      }
+    });
+
+    const deduped = Array.from(dedupedMap.values())
+      .sort((a, b) => a.order - b.order)
+      .map(entry => entry.item);
+
+    const dedupedWithFallback = deduped.length > 0 ? deduped : filtered;
+
+    console.log('[ImportSummaryBlock] Valid review items:', filtered.length);
+    console.log('[ImportSummaryBlock] Deduped review items:', dedupedWithFallback.length);
+    console.log('[ImportSummaryBlock] Deduped items with suggestedCategory:', dedupedWithFallback.filter(i => i.suggestedCategory).length);
+    if (dedupedWithFallback.length > 0) {
+      console.log('[ImportSummaryBlock] First deduped review item:', dedupedWithFallback[0]);
+    }
+
+    return dedupedWithFallback;
+  }, [reviewItems]);
 
   // State management for review decisions
   const [decisions, setDecisions] = useState<Map<string, ReviewDecision>>(new Map());
