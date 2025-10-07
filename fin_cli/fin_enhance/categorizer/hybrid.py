@@ -338,7 +338,7 @@ class HybridCategorizer:
             subcategory=best.subcategory,
         )
 
-        if options.force_auto_assign:
+        if options.force_auto_assign or confidence >= options.auto_assign_threshold:
             if existing_category_id is None and options.apply_side_effects:
                 existing_category_id = models.get_or_create_category(
                     self.connection,
@@ -352,11 +352,7 @@ class HybridCategorizer:
                     auto_created.append(key)
             category_id = existing_category_id
             needs_review = False
-            method = "llm:auto-force"
-        elif existing_category_id is not None and confidence >= options.auto_assign_threshold:
-            category_id = existing_category_id
-            needs_review = False
-            method = "llm:auto"
+            method = "llm:auto-force" if options.force_auto_assign else "llm:auto"
         elif best.is_new_category:
             category_id, needs_review, method = self._handle_new_category_suggestion(
                 txn,
