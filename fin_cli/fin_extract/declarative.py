@@ -1014,7 +1014,16 @@ class DeclarativeExtractor(StatementExtractor):
         # Try configured formats
         for fmt in self.spec.dates.formats:
             try:
-                return datetime.strptime(value, fmt).date()
+                parsed = datetime.strptime(value, fmt).date()
+
+                # If year is 1900 (default from formats without year like "%b %d"), apply year inference
+                if parsed.year == 1900 and self.spec.dates.infer_year.enabled:
+                    base_year = self._infer_year_for_month(
+                        parsed.month, period, year_hint, statement_month_hint, last_date
+                    )
+                    return date(base_year, parsed.month, parsed.day)
+
+                return parsed
             except ValueError:
                 continue
 
@@ -1024,35 +1033,59 @@ class DeclarativeExtractor(StatementExtractor):
             if match:
                 month = int(match.group(1))
                 day = int(match.group(2))
-
-                # Determine base year
-                if self.spec.dates.infer_year.source == "statement_period":
-                    base_year = period.infer_year(month)
-                else:
-                    base_year = year_hint or datetime.today().year
-
-                # Apply year boundary logic
-                if self.spec.dates.year_boundary.enabled:
-                    threshold = self.spec.dates.year_boundary.month_threshold
-
-                    # Check against statement period end date if available
-                    if period.end_date and month > period.end_date.month:
-                        if month - period.end_date.month > threshold:
-                            base_year -= 1
-                    # Check against statement month hint (e.g., "January 2024")
-                    elif statement_month_hint is not None and month > statement_month_hint:
-                        if month - statement_month_hint > threshold:
-                            base_year -= 1
-                    # Fall back to last_date comparison
-                    elif last_date:
-                        if month > last_date.month and month - last_date.month > 6:
-                            base_year = last_date.year - 1
-                        elif month < last_date.month and last_date.month - month > 6:
-                            base_year = last_date.year + 1
-
+                base_year = self._infer_year_for_month(
+                    month, period, year_hint, statement_month_hint, last_date
+                )
                 return date(base_year, month, day)
 
         raise ValueError(f"Unrecognized date format: {value}")
+
+    def _infer_year_for_month(
+        self,
+        month: int,
+        period: _StatementPeriod,
+        year_hint: int | None,
+        statement_month_hint: int | None,
+        last_date: date | None,
+    ) -> int:
+        """Infer year for a given month based on configuration.
+
+        Args:
+            month: Month number (1-12)
+            period: Statement period
+            year_hint: Year hint from text
+            statement_month_hint: Statement month hint from text
+            last_date: Last successfully parsed date
+
+        Returns:
+            Inferred year
+        """
+        # Determine base year
+        if self.spec.dates.infer_year.source == "statement_period":
+            base_year = period.infer_year(month)
+        else:
+            base_year = year_hint or datetime.today().year
+
+        # Apply year boundary logic
+        if self.spec.dates.year_boundary.enabled:
+            threshold = self.spec.dates.year_boundary.month_threshold
+
+            # Check against statement period end date if available
+            if period.end_date and month > period.end_date.month:
+                if month - period.end_date.month > threshold:
+                    base_year -= 1
+            # Check against statement month hint (e.g., "January 2024")
+            elif statement_month_hint is not None and month > statement_month_hint:
+                if month - statement_month_hint > threshold:
+                    base_year -= 1
+            # Fall back to last_date comparison
+            elif last_date:
+                if month > last_date.month and month - last_date.month > 6:
+                    base_year = last_date.year - 1
+                elif month < last_date.month and last_date.month - month > 6:
+                    base_year = last_date.year + 1
+
+        return base_year
 
     def _parse_statement_period(self, text: str) -> _StatementPeriod:
         """Parse statement period from text.

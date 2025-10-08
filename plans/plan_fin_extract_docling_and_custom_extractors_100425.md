@@ -60,7 +60,15 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 - Year boundary logic correctly handles Dec→Jan transitions by extracting both month and year from statement text
 - Tested on chase-credit-20240106 statement: identical output to Python extractor (41 transactions)
 
-**Next:** Phase 3 (Port BofA and Mercury to declarative)
+---
+
+**Phase 3: In Progress**
+- ✅ BofA and Mercury YAML specs created
+- ⏳ Testing BofA extractor (3 sample PDFs available)
+- ⏳ Need Mercury sample PDFs for testing
+- ⏳ Parity validation vs Python extractors pending
+
+**Next:** Complete Phase 3 testing, then Phase 4 (User Plugin System)
 
 ---
 
@@ -132,9 +140,20 @@ Acceptance
 ---
 
 ### Phase 3 — Port BofA and Mercury to Declarative
-- [ ] Create `bofa.yaml` and `mercury.yaml` specs under `~/.finagent/extractors` with header aliases, date formats, and sign rules.
+- [x] Create `bofa.yaml` and `mercury.yaml` specs under `~/.finagent/extractors` with header aliases, date formats, and sign rules.
+  - Created bofa.yaml with dual-column support, account name inference, extensive row filtering (Oct 7, 15:35)
+  - Created mercury.yaml with money in/out columns, account number inference (Oct 7, 15:35)
+- [ ] Test BofA extractor against available statements (3 BofA PDFs in statements/)
+- [ ] Obtain Mercury sample PDFs for testing (none currently in statements/)
+- [ ] Test Mercury extractor once sample PDFs are available
 - [ ] Extend validator to cover BofA/Mercury-specific heuristics (e.g., summary row suppression, period inference).
 - [ ] Validate parity vs. current Python extractors; retain Python as fallback until confidence is high.
+
+**Current Status (2025-10-08):**
+- YAML specs written but untested
+- BofA test data available (3 statements Oct-Dec 2024)
+- Mercury test data needed
+- No testing harness yet for these extractors
 
 Acceptance
 - [ ] Declarative specs for BofA and Mercury match or exceed current extraction quality on provided samples.

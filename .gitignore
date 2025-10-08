@@ -31,3 +31,4 @@ node_modules/
 
 # Agent logs
 logs/
+.venv-py312/

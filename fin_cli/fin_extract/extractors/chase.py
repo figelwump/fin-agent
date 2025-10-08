@@ -156,8 +156,13 @@ class ChaseExtractor(StatementExtractor):
                 continue
 
             try:
-                amount = abs(parse_amount(amount_value))
+                parsed_amount = parse_amount(amount_value)
+                amount = abs(parsed_amount)
             except ValueError:
+                continue
+
+            # If amount is negative in PDF, it's a credit/refund - filter it out
+            if parsed_amount < 0:
                 continue
 
             signed = _CHASE_SIGN_CLASSIFIER.classify(
@@ -203,9 +208,15 @@ class ChaseExtractor(StatementExtractor):
                 continue
             try:
                 txn_date = _resolve_date(month, day, year)
-                amount = abs(parse_amount(amount_str))
+                parsed_amount = parse_amount(amount_str)
+                amount = abs(parsed_amount)
             except ValueError:
                 continue
+
+            # If amount is negative in PDF, it's a credit/refund - filter it out
+            if parsed_amount < 0:
+                continue
+
             signed = _CHASE_SIGN_CLASSIFIER.classify(
                 amount,
                 description=description,
