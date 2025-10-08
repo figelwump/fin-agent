@@ -61,22 +61,31 @@ class ChaseExtractor(StatementExtractor):
         transactions: list[ExtractedTransaction] = []
         statement_month, statement_year = _infer_statement_month_year(document.text)
         year_hint = statement_year or datetime.today().year
-        for table in document.tables:
+        for i, table in enumerate(document.tables):
             normalized = normalize_pdf_table(table, header_predicate=_chase_header_predicate)
             mapping = self._find_column_mapping(normalized.headers)
             if not mapping:
                 continue
-            transactions.extend(
-                self._parse_rows(
-                    normalized.rows,
-                    mapping,
-                    year_hint=year_hint,
-                    statement_month=statement_month,
-                )
+            parsed = self._parse_rows(
+                normalized.rows,
+                mapping,
+                year_hint=year_hint,
+                statement_month=statement_month,
             )
+            transactions.extend(parsed)
 
         if not transactions:
             transactions = self._extract_from_text(document.text)
+
+        # Deduplicate transactions (pdfplumber sometimes extracts duplicate tables)
+        seen = set()
+        deduplicated = []
+        for txn in transactions:
+            key = (txn.date, txn.merchant, txn.amount, txn.original_description)
+            if key not in seen:
+                seen.add(key)
+                deduplicated.append(txn)
+        transactions = deduplicated
 
         account_name = _infer_account_name(document.text)
         metadata = StatementMetadata(

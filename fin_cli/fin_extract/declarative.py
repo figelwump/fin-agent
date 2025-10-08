@@ -589,6 +589,16 @@ class DeclarativeExtractor(StatementExtractor):
                 )
             )
 
+        # Deduplicate transactions (pdfplumber sometimes extracts duplicate tables)
+        seen = set()
+        deduplicated = []
+        for txn in transactions:
+            key = (txn.date, txn.merchant, txn.amount, txn.original_description)
+            if key not in seen:
+                seen.add(key)
+                deduplicated.append(txn)
+        transactions = deduplicated
+
         # Infer account name
         account_name, account_type_override = self._infer_account_name(document.text)
         account_type = account_type_override or self.spec.account_type
@@ -779,7 +789,7 @@ class DeclarativeExtractor(StatementExtractor):
                 continue
 
             # Resolve amount
-            amount, source_column = self._resolve_amount(cells, mapping)
+            amount, source_column, original_amount = self._resolve_amount(cells, mapping)
 
             # Handle multi-line transactions
             if amount is None:
@@ -795,6 +805,10 @@ class DeclarativeExtractor(StatementExtractor):
                     last_transaction.original_description = (
                         f"{last_transaction.original_description} {description.strip()}".strip()
                     )
+                continue
+
+            # If original amount is negative, it's a credit/refund - filter it out
+            if original_amount is not None and original_amount < 0:
                 continue
 
             # Classify sign
@@ -840,7 +854,7 @@ class DeclarativeExtractor(StatementExtractor):
 
     def _resolve_amount(
         self, cells: Sequence[str], mapping: _ColumnMapping
-    ) -> tuple[float | None, str | None]:
+    ) -> tuple[float | None, str | None, float | None]:
         """Resolve amount from cells based on priority.
 
         Args:
@@ -848,17 +862,17 @@ class DeclarativeExtractor(StatementExtractor):
             mapping: Column mapping
 
         Returns:
-            Tuple of (amount, source_column_name) or (None, None)
+            Tuple of (amount, source_column_name, original_amount) or (None, None, None)
+            where original_amount preserves the sign before abs() is applied
         """
         for col_name in self.spec.amount_resolution.priority:
             if col_name == "amount" and mapping.amount_index is not None:
                 value = self._get_cell(cells, mapping.amount_index)
                 if value:
                     try:
-                        amount = parse_amount(value)
-                        if self.spec.amount_resolution.take_absolute:
-                            amount = abs(amount)
-                        return amount, "amount"
+                        parsed = parse_amount(value)
+                        amount = abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        return amount, "amount", parsed
                     except ValueError:
                         pass
 
@@ -866,10 +880,9 @@ class DeclarativeExtractor(StatementExtractor):
                 value = self._get_cell(cells, mapping.debit_index)
                 if value:
                     try:
-                        amount = parse_amount(value)
-                        if self.spec.amount_resolution.take_absolute:
-                            amount = abs(amount)
-                        return amount, "debit"
+                        parsed = parse_amount(value)
+                        amount = abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        return amount, "debit", parsed
                     except ValueError:
                         pass
 
@@ -877,14 +890,13 @@ class DeclarativeExtractor(StatementExtractor):
                 value = self._get_cell(cells, mapping.credit_index)
                 if value:
                     try:
-                        amount = parse_amount(value)
-                        if self.spec.amount_resolution.take_absolute:
-                            amount = abs(amount)
-                        return amount, "credit"
+                        parsed = parse_amount(value)
+                        amount = abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        return amount, "credit", parsed
                     except ValueError:
                         pass
 
-        return None, None
+        return None, None, None
 
     def _classify_sign(
         self,
