@@ -73,13 +73,12 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 
 **Phase 3: In Progress**
 - ✅ BofA and Mercury YAML specs created
-- [ ] Testing BofA declarative spec across sample PDFs  
-  - 2025-09 + 2025-08 statements each drop a single row: the `TARGET.COM BROOKLYN PARKMN` line is a refund (credit) and should stay excluded.  
-  - 2025-10-09 PM: Updated Python + declarative account-name inference to emit `Bank of America Credit Card` (previously mis-labeled as checking when autopay text mentioned the funding account).
+- [x] Testing BofA declarative spec across sample PDFs  
+  - 2025-10-10: Auto vs spec parity on 2025-08 and 2025-09 statements (refund rows retained as appropriate). Both report `Bank of America Credit Card` metadata.
 - [x] Mercury declarative validation  
   - Sample statements for 2025-04 through 2025-09 live under `statements/mercury/`.  
   - Declarative spec now uses the shared fallback and matches the Python extractor across the current dataset; still need automated regression coverage.
-- [ ] Parity validation vs Python extractors pending (blocked by the two issues above).
+- [x] Parity validation vs Python extractors (BofA + Mercury specs now match Python outputs on available samples; add regression suite next).
 
 **Next:** Fix declarative negative-charge handling, add Mercury row segmentation/text fallback, then rerun parity tests before moving to Phase 4 (User Plugin System).
 

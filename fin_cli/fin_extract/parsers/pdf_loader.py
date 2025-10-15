@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -87,12 +88,21 @@ def load_pdf_document_with_pdfplumber(path: str | Path, *, enable_camelot_fallba
                 page_text = page.extract_text() or ""
                 text_chunks.append(page_text)
                 extracted_tables = page.extract_tables() or []
+                page_has_transaction_table = False
                 for raw_table in extracted_tables:
                     if not raw_table:
                         continue
                     headers, rows = _normalize_table(raw_table)
                     if headers:
                         tables.append(PdfTable(headers=headers, rows=rows))
+                        if rows and _looks_like_transaction_header(headers):
+                            page_has_transaction_table = True
+
+                if not page_has_transaction_table:
+                    fallback_table = _extract_transaction_table_from_text(page_text)
+                    if fallback_table is not None:
+                        tables.append(fallback_table)
+                        page_has_transaction_table = True
     except Exception as exc:  # pragma: no cover - defensive guard
         raise ExtractionError(f"Failed to read PDF with pdfplumber: {exc}") from exc
 
@@ -107,6 +117,55 @@ def load_pdf_document_with_pdfplumber(path: str | Path, *, enable_camelot_fallba
             tables = _merge_tables(tables, fallback_tables)
 
     return PdfDocument(text="\n".join(text_chunks), tables=tables)
+
+
+TRANSACTION_LINE_RE = re.compile(
+    r"^(?P<transaction>\d{1,2}/\d{1,2})(?:\s+(?P<posting>\d{1,2}/\d{1,2}))?\s+(?P<description>.+?)\s+(?P<amount>[-\$\(\)\d,\.]+)$"
+)
+
+
+def _extract_transaction_table_from_text(page_text: str) -> PdfTable | None:
+    """Build a synthetic transaction table from plain text when pdfplumber misses it."""
+
+    rows: list[tuple[str, ...]] = []
+    for raw_line in page_text.splitlines():
+        line = " ".join(raw_line.split())
+        if not line:
+            continue
+        match = TRANSACTION_LINE_RE.match(line)
+        if not match:
+            continue
+        transaction_date = match.group("transaction")
+        posting_date = match.group("posting") or ""
+        description = match.group("description").strip()
+        amount = match.group("amount").strip()
+        rows.append((transaction_date, posting_date, description, amount))
+
+    if not rows:
+        return None
+
+    has_posting_date = any(row[1] for row in rows)
+    if has_posting_date:
+        headers = ("Transaction Date", "Posting Date", "Description", "Amount")
+        normalized_rows = rows
+    else:
+        headers = ("Transaction Date", "Description", "Amount")
+        normalized_rows = [(row[0], row[2], row[3]) for row in rows]
+
+    return PdfTable(headers=headers, rows=normalized_rows)
+
+
+def _looks_like_transaction_header(headers: tuple[str, ...]) -> bool:
+    """Heuristic to detect whether a table header likely represents transactions."""
+
+    normalized = [header.lower() for header in headers]
+    has_date = any("date" in cell for cell in normalized)
+    has_amount = any(
+        any(keyword in cell for keyword in ("amount", "debit", "credit"))
+        for cell in normalized
+    )
+    has_description = any("description" in cell or "merchant" in cell for cell in normalized)
+    return has_date and has_description and has_amount
 
 
 def _normalize_table(raw_table: Sequence[Sequence[str | None]]) -> tuple[tuple[str, ...], list[tuple[str, ...]]]:
