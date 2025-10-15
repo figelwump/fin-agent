@@ -15,8 +15,27 @@ from fin_cli.shared.models import compute_account_key
 
 from .declarative import DeclarativeExtractor, load_spec
 from .extractors import detect_extractor
-from .parsers.pdf_loader import load_pdf_document_with_engine
+from .parsers.pdf_loader import PdfDocument, load_pdf_document_with_engine
 from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
+
+
+def load_pdf_document(
+    pdf_file: str | Path,
+    *,
+    engine: str,
+    enable_camelot_fallback: bool = False,
+) -> PdfDocument:
+    """Backward-compatible wrapper around `load_pdf_document_with_engine`.
+
+    Older tests and integrations monkeypatch `fin_cli.fin_extract.main.load_pdf_document`.
+    Keeping this thin proxy preserves that surface while forwarding to the engine-aware loader.
+    """
+
+    return load_pdf_document_with_engine(
+        pdf_file,
+        engine=engine,
+        enable_camelot_fallback=enable_camelot_fallback,
+    )
 
 
 @click.command(help="Extract transactions from financial PDFs.")
@@ -50,7 +69,7 @@ def main(
 
     cli_ctx.logger.info(f"Using PDF engine: {selected_engine}")
 
-    document = load_pdf_document_with_engine(
+    document = load_pdf_document(
         pdf_file,
         engine=selected_engine,
         enable_camelot_fallback=cli_ctx.config.extraction.camelot_fallback_enabled,

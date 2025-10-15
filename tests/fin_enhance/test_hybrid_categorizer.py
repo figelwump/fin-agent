@@ -14,7 +14,6 @@ from fin_cli.fin_enhance.categorizer.llm_client import (
     LLMClientError,
     LLMResult,
     LLMSuggestion,
-    merchant_pattern_key,
 )
 from fin_cli.fin_enhance.importer import ImportedTransaction
 from fin_cli.shared import models
@@ -28,6 +27,7 @@ from fin_cli.shared.config import (
     LLMSettings,
 )
 from fin_cli.shared.logging import Logger
+from fin_cli.shared.merchants import merchant_pattern_key
 
 
 class DummyLLMClient:
@@ -46,7 +46,12 @@ def _make_config(*, llm_enabled: bool = True) -> AppConfig:
     return AppConfig(
         source_path=Path("test-config.yaml"),
         database=DatabaseSettings(path=Path("/tmp/test.db")),
-        extraction=ExtractionSettings(auto_detect_accounts=True, supported_banks=("chase",)),
+        extraction=ExtractionSettings(
+            engine="auto",
+            auto_detect_accounts=True,
+            supported_banks=("chase",),
+            camelot_fallback_enabled=True,
+        ),
         categorization=CategorizationSettings(
             llm=LLMSettings(
                 enabled=llm_enabled,

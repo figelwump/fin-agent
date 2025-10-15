@@ -20,7 +20,9 @@ _THEME = Theme(
     }
 )
 
-_console = Console(theme=_THEME)
+# Rich consoles separate stdout (for structured payloads) and stderr (for log chatter)
+_stdout_console = Console(theme=_THEME)
+_stderr_console = Console(stderr=True, theme=_THEME)
 _verbose_console = Console(stderr=True, theme=_THEME)
 
 
@@ -32,19 +34,19 @@ class Logger:
 
     @property
     def console(self) -> Console:
-        return _console
+        return _stdout_console
 
     def info(self, message: str) -> None:
-        self.console.print(message, style="info")
+        _stderr_console.print(message, style="info")
 
     def success(self, message: str) -> None:
-        self.console.print(message, style="success")
+        _stderr_console.print(message, style="success")
 
     def warning(self, message: str) -> None:
-        self.console.print(message, style="warning")
+        _stderr_console.print(message, style="warning")
 
     def error(self, message: str) -> None:
-        self.console.print(message, style="error")
+        _stderr_console.print(message, style="error")
 
     def debug(self, message: str) -> None:
         if self.verbose:

@@ -3,9 +3,9 @@ from __future__ import annotations
 import sqlite3
 from datetime import date
 
-from fin_cli.fin_enhance.categorizer.llm_client import merchant_pattern_key
 from fin_cli.fin_enhance.categorizer.rules import RuleCategorizer
 from fin_cli.shared import models
+from fin_cli.shared.merchants import merchant_pattern_key
 
 
 def _setup_db() -> sqlite3.Connection:
@@ -76,7 +76,7 @@ def test_rule_categorizer_uses_patterns() -> None:
     assert outcome.merchant_metadata == {"platform": "InStore"}
     updated = conn.execute(
         "SELECT usage_count FROM merchant_patterns WHERE pattern = ?",
-        ("WHOLEFDS #10234",),
+        (pattern,),
     ).fetchone()[0]
     assert updated == 1
 

@@ -1,1 +1,1 @@
-pytest_plugins = ["tests.fin_analyze.conftest"]
+"""Test package for fin_export CLI."""

@@ -12,12 +12,14 @@ from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
 from fin_cli.shared.merchants import merchant_pattern_key, normalize_merchant
 
-TRANSACTION_ID_RE = re.compile(r"\b[A-Z0-9]{6,}\b")
+TRANSACTION_ID_RE = re.compile(r"\b(?=[A-Z0-9]*\d)[A-Z0-9]{4,}\b")
 PHONE_RE = re.compile(r"\b\d{3}[-\s]?\d{3}[-\s]?\d{4}\b")
 DATE_RE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 ORDER_PREFIX_RE = re.compile(r"^[A-Z0-9]+\s*\*\w+\s*", re.IGNORECASE)
-STRIP_PATTERNS = (TRANSACTION_ID_RE, PHONE_RE, DATE_RE, URL_RE)
+HASH_NUMBER_RE = re.compile(r"#\d{2,}")
+DOMAIN_SUFFIX_RE = re.compile(r"\b([A-Z0-9]+)\.(COM|NET|ORG|CO|IO|AI|EDU|GOV)\b")
+STRIP_PATTERNS = (PHONE_RE, DATE_RE, URL_RE, TRANSACTION_ID_RE)
 
 
 try:  # Optional dependency
@@ -133,6 +135,10 @@ def merchant_pattern_key(merchant: str) -> str:
 
     for pattern in STRIP_PATTERNS:
         cleaned = pattern.sub(" ", cleaned)
+
+    cleaned = DOMAIN_SUFFIX_RE.sub(r"\1", cleaned)
+    cleaned = re.sub(r"\.(COM|NET|ORG|CO|IO|AI|EDU|GOV)\b", " ", cleaned)
+    cleaned = HASH_NUMBER_RE.sub(" ", cleaned)
 
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     if not cleaned:
