@@ -173,7 +173,9 @@ class BankOfAmericaExtractor(StatementExtractor):
         has_posting_column = any("posting" in header for header in normalized)
         has_dual_amount_columns = withdrawals_idx is not None or deposits_idx is not None
         if not has_posting_column and not has_dual_amount_columns:
-            return None
+            header_text = " ".join(normalized)
+            if "all transactions" in header_text or "date (utc)" in header_text or "end of day balance" in header_text:
+                return None
         return _ColumnMapping(
             date_index=date_idx,
             description_index=desc_idx,

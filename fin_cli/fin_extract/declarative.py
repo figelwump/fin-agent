@@ -14,9 +14,148 @@ from typing import Any, Sequence
 
 import yaml
 
-from .parsers.pdf_loader import PdfDocument
+from .parsers.pdf_loader import PdfDocument, PdfTable
 from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
 from .utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
+from .utils.table import NormalizedTable
+
+
+_SINGLE_COLUMN_MONTH_DAY_RE = re.compile(
+    r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b",
+    re.IGNORECASE,
+)
+_SINGLE_COLUMN_NUMERIC_DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}(?:/\d{2,4})?")
+_SINGLE_COLUMN_AMOUNT_RE = re.compile(r"[\-−–]?\$[\d,]+(?:\.\d+)?")
+_SINGLE_COLUMN_GLYPHS = ("\uea01", "\uea02", "\uea03", "\uea08")
+_SINGLE_COLUMN_STOP_PREFIXES = (
+    "total ",
+    "interest disclosure",
+    "banking services provided",
+    "error resolution",
+    "getting support",
+)
+_SINGLE_COLUMN_TYPE_SUFFIXES = (
+    "ACH In",
+    "ACH Pull",
+    "Transfer Out",
+    "Transfer In",
+    "Check Deposit",
+    "Interest Payment",
+)
+
+
+def _expand_single_column_table(table: PdfTable) -> NormalizedTable | None:
+    cells: list[str] = []
+    cells.extend(cell for cell in table.headers if cell)
+    for row in table.rows:
+        cells.extend(cell for cell in row if cell)
+
+    if not cells:
+        return None
+
+    combined = "\n".join(cells).strip()
+    lowered_combined = combined.lower()
+    if "date" not in lowered_combined or "amount" not in lowered_combined:
+        return None
+
+    lines = [line.strip() for line in combined.splitlines() if line.strip()]
+    header_idx: int | None = None
+    for idx, line in enumerate(lines):
+        lowered = line.lower()
+        if "date" in lowered and "description" in lowered and "amount" in lowered:
+            header_idx = idx
+            break
+    if header_idx is None:
+        return None
+
+    data_lines = lines[header_idx + 1 :]
+    rows: list[tuple[str, ...]] = []
+    current_date: str | None = None
+
+    for raw_line in data_lines:
+        line = _clean_single_column_text(raw_line)
+        if not line:
+            continue
+
+        lowered = line.lower()
+        if any(lowered.startswith(prefix) for prefix in _SINGLE_COLUMN_STOP_PREFIXES):
+            break
+
+        date_match = _SINGLE_COLUMN_MONTH_DAY_RE.match(line) or _SINGLE_COLUMN_NUMERIC_DATE_RE.match(line)
+        if date_match:
+            current_date = date_match.group(0).strip()
+            rest = line[date_match.end() :].strip()
+        else:
+            rest = line
+            if current_date is None:
+                continue
+
+        if not rest:
+            continue
+
+        amount_matches = list(_SINGLE_COLUMN_AMOUNT_RE.finditer(rest))
+        if not amount_matches:
+            if rows:
+                updated = list(rows[-1])
+                updated[1] = f"{updated[1]} {rest}".strip()
+                rows[-1] = tuple(updated)
+            continue
+
+        amount_match = amount_matches[0]
+        amount_str = rest[amount_match.start() : amount_match.end()]
+        amount_str = amount_str.replace("−", "-").replace("–", "-").replace("—", "-")
+        before_amount = rest[: amount_match.start()].strip(" -")
+        after_amount = rest[amount_match.end() :].strip()
+
+        balance_str = ""
+        if len(amount_matches) > 1:
+            balance_match = amount_matches[1]
+            balance_str = rest[balance_match.start() : balance_match.end()]
+            balance_str = balance_str.replace("−", "-").replace("–", "-")
+            after_amount = (
+                rest[amount_match.end() : balance_match.start()] + rest[balance_match.end() :]
+            ).strip()
+
+        description = " ".join(part for part in [before_amount, after_amount] if part)
+        description = _clean_single_column_text(description)
+        description, type_value = _split_single_column_type(description)
+
+        rows.append(
+            (
+                current_date or "",
+                description,
+                type_value,
+                amount_str.strip(),
+                balance_str.strip(),
+            )
+        )
+
+    if not rows:
+        return None
+
+    headers = ("Date", "Description", "Type", "Amount", "Balance")
+    return NormalizedTable(headers=headers, rows=rows)
+
+
+def _clean_single_column_text(value: str) -> str:
+    cleaned = value
+    for glyph in _SINGLE_COLUMN_GLYPHS:
+        cleaned = cleaned.replace(glyph, " ")
+    cleaned = cleaned.replace("•", " ")
+    cleaned = cleaned.replace("\u2013", "-").replace("\u2014", "-")
+    cleaned = cleaned.replace("\u2212", "-")
+    return " ".join(cleaned.split())
+
+
+def _split_single_column_type(description: str) -> tuple[str, str]:
+    lowered = description.lower()
+    for suffix in _SINGLE_COLUMN_TYPE_SUFFIXES:
+        suffix_lower = suffix.lower()
+        if lowered.endswith(suffix_lower):
+            trimmed = description[: -len(suffix)].strip(" -")
+            return trimmed or description, suffix
+    return description, ""
+
 from .extractors.base import StatementExtractor
 
 
@@ -576,12 +715,21 @@ class DeclarativeExtractor(StatementExtractor):
                 table, header_predicate=lambda h: self._is_valid_header(h)
             )
             mapping = self._find_column_mapping(normalized.headers)
+            rows: Sequence[tuple[str, ...]] = normalized.rows
+
+            if not mapping:
+                expanded = _expand_single_column_table(table)
+                if expanded:
+                    mapping = self._find_column_mapping(expanded.headers)
+                    if mapping:
+                        rows = expanded.rows
+
             if not mapping:
                 continue
 
             transactions.extend(
                 self._parse_rows(
-                    normalized.rows,
+                    rows,
                     mapping,
                     period=period,
                     year_hint=year_hint,
@@ -808,7 +956,7 @@ class DeclarativeExtractor(StatementExtractor):
                 continue
 
             # If original amount is negative, it's a credit/refund - filter it out
-            if original_amount is not None and original_amount < 0:
+            if source_column == "credit" and original_amount is not None and original_amount < 0:
                 continue
 
             # Classify sign
@@ -945,9 +1093,6 @@ class DeclarativeExtractor(StatementExtractor):
                 money_in_value=money_in_value,
                 money_out_value=money_out_value,
             )
-
-        # Default: positive
-        return amount
 
     def _should_skip_row(self, description: str) -> bool:
         """Check if row should be skipped based on filters.
