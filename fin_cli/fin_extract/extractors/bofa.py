@@ -59,6 +59,8 @@ _ACCOUNT_NAME_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"adv\s+relationship", re.IGNORECASE), "BofA Advantage Relationship", "checking"),
     (re.compile(r"travel\s+rewards", re.IGNORECASE), "BofA Travel Rewards", "credit"),
     (re.compile(r"customized\s+cash\s+rewards", re.IGNORECASE), "BofA Customized Cash Rewards", "credit"),
+    (re.compile(r"premium\s+rewards", re.IGNORECASE), "BofA Premium Rewards", "credit"),
+    (re.compile(r"cash\s+rewards", re.IGNORECASE), "BofA Cash Rewards", "credit"),
 ]
 
 _SUMMARY_ROW_KEYWORDS = {
@@ -163,6 +165,15 @@ class BankOfAmericaExtractor(StatementExtractor):
                 "charges",
             },
         )
+        distinct_indices = {
+            idx for idx in (date_idx, desc_idx, amount_idx, deposits_idx, withdrawals_idx) if idx is not None
+        }
+        if len(distinct_indices) <= 2:
+            return None
+        has_posting_column = any("posting" in header for header in normalized)
+        has_dual_amount_columns = withdrawals_idx is not None or deposits_idx is not None
+        if not has_posting_column and not has_dual_amount_columns:
+            return None
         return _ColumnMapping(
             date_index=date_idx,
             description_index=desc_idx,
@@ -294,6 +305,10 @@ class BankOfAmericaExtractor(StatementExtractor):
 
 
 def _bofa_header_predicate(header: tuple[str, ...]) -> bool:
+    # Require a multi-column header so single-column ledgers (e.g., Mercury)
+    # do not satisfy BofA detection heuristics.
+    if len([cell for cell in header if cell]) < 3:
+        return False
     normalized = [cell.lower() for cell in header if cell]
     return (
         any("date" in cell for cell in normalized)
@@ -346,11 +361,20 @@ def _infer_account_details(text: str) -> tuple[str, str]:
         if pattern.search(text):
             return name, acc_type
     lowered = text.lower()
+    credit_keywords = {
+        "credit card",
+        "visa",
+        "mastercard",
+        "payment due",
+        "card services",
+        "statement closing date",
+        "minimum payment",
+    }
+    if any(keyword in lowered for keyword in credit_keywords):
+        return "Bank of America Credit Card", "credit"
     if "checking" in lowered or "checking" in text:
         return "Bank of America Checking", "checking"
-    if any(keyword in lowered for keyword in {"credit card", "visa", "mastercard", "payment due", "card services"}):
-        return "Bank of America Credit Card", "credit"
-    return "Bank of America Checking", "checking"
+    return "Bank of America Credit Card", "credit"
 
 
 def _parse_bofa_date(value: str, period: _StatementPeriod) -> date:

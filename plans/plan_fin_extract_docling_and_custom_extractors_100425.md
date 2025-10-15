@@ -18,7 +18,7 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 
 ---
 
-## Current Status (2025-10-07)
+## Current Status (2025-10-09)
 
 **Phase 1: Complete with findings**
 - ✅ Docling adapter infrastructure complete
@@ -32,6 +32,16 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 - **Accuracy:** Docling now extracts 41/41 Chase transactions and 6/6 BofA transactions (parity with pdfplumber)
 - **Key fixes:** Adapter synthesizes ledger headers, decodes `/uniXXXX` glyphs, and Chase extractor infers statement-year context for `MM/DD` dates
 - **Trade-off:** Docling remains heavy but becomes a reliable fallback when pdfplumber misreads layout
+
+**Phase 3 validation snapshot (2025-10-09):**
+- BofA declarative spec vs. Python extractor  
+  - `eStmt_2025-09-22.pdf`: Python 117 rows, spec 116 (missing line is a `TARGET` refund; exclusion is correct, but double-check there aren’t other gaps).  
+  - `eStmt_2025-08-22.pdf`: Python 99 rows, spec 98 (same refund pattern).  
+  - Action: confirm parity after account-type inference fix (now outputs `Bank of America Credit Card` instead of checking); no changes needed for refund filtering.
+- Mercury declarative spec (`vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-09.pdf`):  
+  - Declarative spec produces 0 transactions — Docling and pdfplumber both deliver the entire transaction grid as a single-column, single-row table, so the current runtime never iterates past the first interest line.  
+  - Auto-detection also routes the PDF to the BofA Python extractor because `supports()` only checks for `"bank of america"` in the full text (present in ACH descriptions); extraction then aborts with “No transactions were extracted.”  
+  - Action: teach declarative path to split single-column ledger blobs (or add a text-mode fallback) and tighten BofA detection so Mercury statements aren’t claimed by accident.
 
 **Findings:**
 - Docling tables differ from pdfplumber, but normalized headers now align with extractor expectations
@@ -64,11 +74,15 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
 
 **Phase 3: In Progress**
 - ✅ BofA and Mercury YAML specs created
-- ⏳ Testing BofA extractor (3 sample PDFs available)
-- ⏳ Need Mercury sample PDFs for testing
-- ⏳ Parity validation vs Python extractors pending
+- [ ] Testing BofA declarative spec across sample PDFs  
+  - 2025-09 + 2025-08 statements each drop a single row: the `TARGET.COM BROOKLYN PARKMN` line is a refund (credit) and should stay excluded.  
+  - 2025-10-09 PM: Updated Python + declarative account-name inference to emit `Bank of America Credit Card` (previously mis-labeled as checking when autopay text mentioned the funding account).
+- [ ] Mercury declarative validation  
+  - Sample statements for 2025-04 through 2025-09 live under `statements/mercury/`.  
+  - Current spec extracts 0 transactions — Docling/pdfplumber treat the transaction grid as a single-column blob, so row parsing never advances; also blocked by BofA `supports()` capturing Mercury PDFs.
+- [ ] Parity validation vs Python extractors pending (blocked by the two issues above).
 
-**Next:** Complete Phase 3 testing, then Phase 4 (User Plugin System)
+**Next:** Fix declarative negative-charge handling, add Mercury row segmentation/text fallback, then rerun parity tests before moving to Phase 4 (User Plugin System).
 
 ---
 
@@ -144,16 +158,21 @@ Acceptance
   - Created bofa.yaml with dual-column support, account name inference, extensive row filtering (Oct 7, 15:35)
   - Created mercury.yaml with money in/out columns, account number inference (Oct 7, 15:35)
 - [ ] Test BofA extractor against available statements (3 BofA PDFs in statements/)
-- [ ] Obtain Mercury sample PDFs for testing (none currently in statements/)
+  - 2025-10-09: `eStmt_2025-09-22.pdf` → Python 117 rows vs spec 116; `eStmt_2025-08-22.pdf` → Python 99 vs spec 98. The missing row is a refund and should remain filtered; ensure no other gaps exist.
+- [x] Obtain Mercury sample PDFs for testing
+  - 2025-10-09: `statements/mercury/` now contains April–September 2025 statements for validation.
 - [ ] Test Mercury extractor once sample PDFs are available
+  - 2025-10-09: Spec still returns <=4 transactions; Docling/pdfplumber surface the ledger as a single-row, single-column blob so only rows with clean debit amounts survive. Autodetect now correctly routes to Mercury after tightening BofA heuristics.
 - [ ] Extend validator to cover BofA/Mercury-specific heuristics (e.g., summary row suppression, period inference).
 - [ ] Validate parity vs. current Python extractors; retain Python as fallback until confidence is high.
+  - Blocked until Mercury row segmentation issues are resolved.
+  - Also need to ensure BofA declarative spec (and Python inference) emit `account_type: credit` for these card statements; current heuristics see the word “checking” in autopay text and mislabel the account.
 
-**Current Status (2025-10-08):**
-- YAML specs written but untested
-- BofA test data available (3 statements Oct-Dec 2024)
-- Mercury test data needed
-- No testing harness yet for these extractors
+**Current Status (2025-10-09):**
+- BofA + Mercury specs authored; validation now underway with findings above
+- Mercury samples available locally (2025-04…2025-09)
+- Declarative runtime requires negative-debit handling fix + blob-row splitting before parity testing can pass
+- No automated harness yet for these issuers
 
 Acceptance
 - [ ] Declarative specs for BofA and Mercury match or exceed current extraction quality on provided samples.
@@ -275,6 +294,7 @@ Acceptance
 1. Also support a project-local `.finagent/extractors` alongside the home directory?
 2. Minimum viable validation thresholds (e.g., require ≥10 transactions?) and whether to expose them as CLI flags.
 3. Any additional Chase/BofA/Mercury PDFs you want included for parity testing?
+4. Should we tighten BofA `supports()` heuristics (or registry ordering) so Mercury statements with "Bank of America" ACH rows don’t get misclassified?
 
 ---
 
@@ -310,3 +330,5 @@ Acceptance
 - This plan proposes optional Docling integration via an adapter, not a wholesale rewrite. Extractor contracts remain stable.
 - User-authored extractors live under `~/.finagent/extractors` and are auto-discovered; disable with `--no-plugins`.
 - Prefer declarative specs for long-tail banks; fall back to Python when necessary.
+- 2025-10-09: Declarative BofA spec currently drops negative-charge rows (needs spend-only fix) and Mercury spec returns 0 rows because transaction tables arrive as single-column blobs; detection also routes Mercury PDFs through the BofA extractor.
+- 2025-10-09 (PM): Updated BofA account-type inference (Python + YAML) to default to credit card statements and tightened registry detection so Mercury PDFs aren’t hijacked by other extractors.
