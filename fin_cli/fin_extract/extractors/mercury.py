@@ -7,9 +7,10 @@ from datetime import date, datetime
 import re
 from typing import Iterable, Sequence
 
-from ..parsers.pdf_loader import PdfDocument
+from ..parsers.pdf_loader import PdfDocument, PdfTable
 from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
 from ..utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
+from ..utils.table import NormalizedTable
 from .base import StatementExtractor
 
 
@@ -64,6 +65,22 @@ _MERCURY_SIGN_CLASSIFIER = SignClassifier(
     card_payment_keywords={"credit card", "credit crd", "applecard", "bank of america", "card"},
 )
 
+_MONTH_DAY_RE = re.compile(
+    r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b",
+    re.IGNORECASE,
+)
+
+_AMOUNT_RE = re.compile(r"[\-−–]?\$[\d,]+(?:\.\d+)?")
+
+_MERCURY_TYPE_SUFFIXES = (
+    "ACH In",
+    "ACH Pull",
+    "Transfer Out",
+    "Transfer In",
+    "Check Deposit",
+    "Interest Payment",
+)
+
 
 class MercuryExtractor(StatementExtractor):
     name = "mercury"
@@ -90,9 +107,19 @@ class MercuryExtractor(StatementExtractor):
                 header_scan=6,
             )
             mapping = self._find_column_mapping(normalized.headers)
+            rows: Sequence[tuple[str, ...]] = normalized.rows
+
+            if not mapping:
+                expanded = _expand_single_column_table(table)
+                if expanded:
+                    mapping = self._find_column_mapping(expanded.headers)
+                    if mapping:
+                        rows = expanded.rows
+
             if not mapping:
                 continue
-            transactions.extend(self._parse_rows(normalized.rows, mapping, period))
+
+            transactions.extend(self._parse_rows(rows, mapping, period))
 
         metadata = StatementMetadata(
             institution="Mercury",
@@ -189,6 +216,103 @@ class MercuryExtractor(StatementExtractor):
             last_transaction = txn
 
         return transactions
+
+
+def _expand_single_column_table(table: PdfTable) -> NormalizedTable | None:
+    cells: list[str] = []
+    cells.extend(cell for cell in table.headers if cell)
+    for row in table.rows:
+        cells.extend(cell for cell in row if cell)
+
+    if not cells:
+        return None
+
+    combined = "\n".join(cells).strip()
+    if "all transactions" not in combined.lower():
+        return None
+
+    lines = [line.strip() for line in combined.splitlines() if line.strip()]
+    header_idx = None
+    for idx, line in enumerate(lines):
+        lower = line.lower()
+        if "date" in lower and "amount" in lower and "description" in lower:
+            header_idx = idx
+            break
+    if header_idx is None:
+        return None
+
+    data_lines = lines[header_idx + 1 :]
+    rows: list[tuple[str, ...]] = []
+    current_date: str | None = None
+
+    for line in data_lines:
+        lowered = line.lower()
+        if lowered.startswith("total ") or "banking services" in lowered or lowered.startswith("interest disclosure"):
+            break
+
+        date_match = _MONTH_DAY_RE.match(line)
+        if date_match:
+            current_date = date_match.group(0)
+            rest = line[date_match.end() :].strip()
+        else:
+            rest = line
+            if current_date is None:
+                continue
+
+        if not rest:
+            continue
+
+        amounts = _AMOUNT_RE.findall(rest)
+        if not amounts:
+            if rows:
+                updated = list(rows[-1])
+                updated[1] = f"{updated[1]} {line.strip()}".strip()
+                rows[-1] = tuple(updated)
+            continue
+
+        amount_str = amounts[0]
+        before, after = rest.split(amount_str, 1)
+        balance_str = ""
+        if len(amounts) > 1:
+            balance_str = amounts[1]
+            after = after.replace(balance_str, "", 1)
+
+        description_raw = f"{before} {after}".strip()
+        description_clean = _clean_mercury_text(description_raw)
+        description_clean, type_value = _split_mercury_type(description_clean)
+
+        rows.append(
+            (
+                current_date or "",
+                description_clean,
+                type_value,
+                amount_str,
+                balance_str,
+            )
+        )
+
+    if not rows:
+        return None
+
+    headers = ("Date", "Description", "Type", "Amount", "End of Day Balance")
+    return NormalizedTable(headers=headers, rows=rows)
+
+
+def _clean_mercury_text(value: str) -> str:
+    cleaned = value
+    for glyph in ("\uea01", "\uea02", "\uea03", "\uea08"):
+        cleaned = cleaned.replace(glyph, " ")
+    cleaned = cleaned.replace("•", " ")
+    return " ".join(cleaned.split())
+
+
+def _split_mercury_type(description: str) -> tuple[str, str]:
+    lowered = description.lower()
+    for suffix in _MERCURY_TYPE_SUFFIXES:
+        if lowered.endswith(suffix.lower()):
+            trimmed = description[: -len(suffix)].strip()
+            return trimmed or description, suffix
+    return description, ""
 
 
 def _mercury_header_predicate(header: tuple[str, ...]) -> bool:

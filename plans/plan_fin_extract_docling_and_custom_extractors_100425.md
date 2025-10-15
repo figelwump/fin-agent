@@ -39,9 +39,9 @@ Key hypothesis: Using Docling for table + text extraction reduces per-bank parsi
   - `eStmt_2025-08-22.pdf`: Python 99 rows, spec 98 (same refund pattern).  
   - Action: confirm parity after account-type inference fix (now outputs `Bank of America Credit Card` instead of checking); no changes needed for refund filtering.
 - Mercury declarative spec (`vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-09.pdf`):  
-  - Declarative spec produces 0 transactions — Docling and pdfplumber both deliver the entire transaction grid as a single-column, single-row table, so the current runtime never iterates past the first interest line.  
-  - Auto-detection also routes the PDF to the BofA Python extractor because `supports()` only checks for `"bank of america"` in the full text (present in ACH descriptions); extraction then aborts with “No transactions were extracted.”  
-  - Action: teach declarative path to split single-column ledger blobs (or add a text-mode fallback) and tighten BofA detection so Mercury statements aren’t claimed by accident.
+  - Declarative spec still produces 0 transactions — Docling/pdfplumber deliver the entire ledger as a single-column block, so the declarative runtime needs a similar fallback.  
+  - Python extractor now reads the blob by expanding it into structured rows and autodetection correctly chooses Mercury after tightening BofA heuristics (no more BofA misrouting).  
+  - Action: port the single-column expansion logic into the declarative runtime (or spec tooling) so YAML specs can achieve parity.
 
 **Findings:**
 - Docling tables differ from pdfplumber, but normalized headers now align with extractor expectations
@@ -162,7 +162,7 @@ Acceptance
 - [x] Obtain Mercury sample PDFs for testing
   - 2025-10-09: `statements/mercury/` now contains April–September 2025 statements for validation.
 - [ ] Test Mercury extractor once sample PDFs are available
-  - 2025-10-09: Spec still returns <=4 transactions; Docling/pdfplumber surface the ledger as a single-row, single-column blob so only rows with clean debit amounts survive. Autodetect now correctly routes to Mercury after tightening BofA heuristics.
+  - 2025-10-09 (PM): Python extractor now expands the blob tables into structured rows (auto engine returns 4 true spend transactions — parity with pdfplumber). Declarative runtime still needs the same feature to move forward.
 - [ ] Extend validator to cover BofA/Mercury-specific heuristics (e.g., summary row suppression, period inference).
 - [ ] Validate parity vs. current Python extractors; retain Python as fallback until confidence is high.
   - Blocked until Mercury row segmentation issues are resolved.
@@ -332,3 +332,4 @@ Acceptance
 - Prefer declarative specs for long-tail banks; fall back to Python when necessary.
 - 2025-10-09: Declarative BofA spec currently drops negative-charge rows (needs spend-only fix) and Mercury spec returns 0 rows because transaction tables arrive as single-column blobs; detection also routes Mercury PDFs through the BofA extractor.
 - 2025-10-09 (PM): Updated BofA account-type inference (Python + YAML) to default to credit card statements and tightened registry detection so Mercury PDFs aren’t hijacked by other extractors.
+- 2025-10-10: Mercury Python extractor now expands single-column Docling tables into structured rows; declarative runtime still pending equivalent support.
