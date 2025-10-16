@@ -51,6 +51,10 @@ def _make_config(*, llm_enabled: bool = True) -> AppConfig:
             auto_detect_accounts=True,
             supported_banks=("chase",),
             camelot_fallback_enabled=True,
+            enable_plugins=True,
+            plugin_paths=(Path("/tmp/plugins"),),
+            plugin_allowlist=(),
+            plugin_blocklist=(),
         ),
         categorization=CategorizationSettings(
             llm=LLMSettings(

@@ -1,0 +1,30 @@
+# Minimal template for creating a declarative extractor spec.
+
+name: your_bank
+institution: Your Bank
+account_type: checking
+
+columns:
+  date:
+    aliases: ["date"]
+  description:
+    aliases: ["description"]
+  amount:
+    aliases: ["amount"]
+
+dates:
+  formats:
+    - "%m/%d/%Y"
+
+sign_classification:
+  method: "keywords"
+  charge_keywords: []
+  credit_keywords: []
+  transfer_keywords: []
+  interest_keywords: []
+  card_payment_keywords: []
+
+detection:
+  keywords_all: ["your bank"]
+  table_required: true
+  header_requires: ["date", "description", "amount"]

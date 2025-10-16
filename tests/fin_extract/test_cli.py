@@ -8,6 +8,12 @@ from fin_cli.fin_extract.main import main
 from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable
 
 
+def _strip_ansi(value: str) -> str:
+    import re
+
+    return re.sub(r"\x1b\[[0-9;]*m", "", value)
+
+
 def _fake_document() -> PdfDocument:
     headers = ("Transaction Date", "Description", "Type", "Amount")
     rows = [("11/01/2024", "SWEETGREEN #123", "Sale", "18.47")]
@@ -26,7 +32,7 @@ def test_cli_dry_run(monkeypatch, tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(main, [str(pdf_path), "--dry-run"])
     assert result.exit_code == 0
-    assert "Transactions: 1" in result.output
+    assert "Transactions: 1" in _strip_ansi(result.output)
     assert "Institution: Chase" in result.output
 
 

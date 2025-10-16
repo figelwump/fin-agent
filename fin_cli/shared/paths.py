@@ -10,11 +10,13 @@ DEFAULT_CONFIG_DIR = "~/.finconfig"
 DEFAULT_DATA_DIR = "~/.findata"
 DEFAULT_DATABASE_PATH = "~/.finagent/data.db"
 DEFAULT_CONFIG_FILE = "config.yaml"
+DEFAULT_PLUGINS_DIR = "~/.finagent/extractors"
 
 CONFIG_DIR_ENV = "FINCLI_CONFIG_DIR"
 DATA_DIR_ENV = "FINCLI_DATA_DIR"
 CONFIG_FILE_ENV = "FINCLI_CONFIG_PATH"
 DATABASE_PATH_ENV = "FINAGENT_DATABASE_PATH"
+PLUGINS_DIR_ENV = "FINCLI_PLUGIN_DIR"
 
 
 def _expand(path_str: str) -> Path:
@@ -67,6 +69,17 @@ def default_database_path(create_parents: bool = False, env: Mapping[str, str] |
     path = _expand(DEFAULT_DATABASE_PATH)
     if create_parents:
         path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def default_plugins_path(create: bool = False, env: Mapping[str, str] | None = None) -> Path:
+    """Return the default user plugins directory."""
+
+    env = env or os.environ
+    override = env.get(PLUGINS_DIR_ENV)
+    path = _expand(override) if override else _expand(DEFAULT_PLUGINS_DIR)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 

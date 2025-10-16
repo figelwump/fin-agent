@@ -1,0 +1,200 @@
+# Bank of America Statement Extractor
+# Declarative spec for extracting transactions from BofA credit/debit account PDFs
+
+name: bofa
+institution: Bank of America
+account_type: credit  # Can be overridden by account_name_inference
+
+# Column mapping - BofA uses separate debit/credit columns
+columns:
+  date:
+    aliases:
+      - "date"
+      - "transaction date"
+      - "posting date"
+
+  description:
+    aliases:
+      - "description"
+      - "transaction description"
+
+  # Single amount column (for some statement formats)
+  amount:
+    aliases:
+      - "amount"
+      - "transaction amount"
+      - "purchase amount"
+
+  # Dual column format (more common)
+  debit:
+    aliases:
+      - "withdrawals"
+      - "withdrawals and other debits"
+      - "withdrawals/debits"
+      - "debits"
+      - "charges"
+
+  credit:
+    aliases:
+      - "deposits"
+      - "deposits and other credits"
+      - "deposits/credits"
+      - "credits"
+
+# Amount resolution - try these in order
+amount_resolution:
+  priority: ["amount", "debit", "credit"]
+  take_absolute: true
+
+# Statement period extraction for metadata and year inference
+statement_period:
+  patterns:
+    # Numeric format: "Statement Period: 10/01/2024 - 10/31/2024"
+    - regex: 'Statement Period[:\s]+(\d{1,2}/\d{1,2}/\d{2,4})\s*(?:-|to)\s*(\d{1,2}/\d{1,2}/\d{2,4})'
+      start_group: 1
+      end_group: 2
+      format: "%m/%d/%Y"
+
+    # Long format: "Statement Period: October 1, 2024 - October 31, 2024"
+    - regex: 'Statement Period[:\s]+([A-Za-z]+\s+\d{1,2},\s*\d{4})\s*(?:-|to)\s*([A-Za-z]+\s+\d{1,2},\s*\d{4})'
+      start_group: 1
+      end_group: 2
+      format: "%B %d, %Y"
+
+# Date parsing configuration
+dates:
+  formats:
+    - "%m/%d/%Y"
+    - "%m/%d/%y"
+
+  # Use statement period for year inference
+  infer_year:
+    enabled: true
+    source: "statement_period"
+
+  # Handle year boundaries
+  year_boundary:
+    enabled: true
+    month_threshold: 1
+
+# Sign classification - hybrid method (column position + keywords)
+sign_classification:
+  method: "hybrid"
+  column_determines_sign: true  # If in debit column = spend, credit column = not spend
+
+  # Keyword fallback rules
+  charge_keywords:
+    - "debit"
+    - "withdrawal"
+    - "purchase"
+    - "sale"
+    - "charge"
+
+  credit_keywords:
+    - "payment"
+    - "credit"
+    - "refund"
+    - "deposit"
+
+  transfer_keywords:
+    - "transfer"
+    - "atm withdrawal"
+    - "mercuryach"
+
+  interest_keywords:
+    - "interest"
+
+  card_payment_keywords:
+    - "credit card"
+    - "credit crd"
+    - "card services"
+    - "applecard"
+
+# Table-level filtering - skip deposit-only tables
+table_filters:
+  skip_if_all:
+    - contains: ["deposit", "other additions"]
+      not_contains: ["withdraw", "debit"]
+
+# Row-level filtering - extensive summary row suppression
+row_filters:
+  skip_descriptions_exact:
+    - "total"
+    - "balance"
+    - "summary"
+    - "fees"
+    - "transactions"
+    - "transactions continued"
+    - "payments and other credits"
+    - "charges and purchases"
+    - "purchases and adjustments"
+    - "total purchases and adjustments for this period"
+    - "total fees for this period"
+
+  skip_descriptions_pattern:
+    - "^total.*"
+    - ".*for this period$"
+    - ".*continued on next page.*"
+    - ".*continued from previous page.*"
+    - "interest charged.*"
+    - "late fee.*"
+    - "^total.*payments.*"
+    - "^total.*purchases.*"
+    - "^total.*fees.*"
+
+  spend_only: true
+
+# Multi-line transaction handling
+multiline:
+  enabled: true
+  append_to: "previous"
+  skip_append_if_summary: true
+
+# Merchant text cleanup
+merchant_cleanup:
+  remove_patterns:
+    - "continued on next page"
+    - "continued from previous page"
+  trim: true
+
+# Account name inference from statement text
+account_name_inference:
+  patterns:
+    # Advantage Banking
+    - regex: 'advantage\s+banking'
+      name: "BofA Advantage Checking"
+      account_type: "checking"
+
+    # Advantage Relationship
+    - regex: 'advantage\s+relationship'
+      name: "BofA Advantage Relationship"
+      account_type: "checking"
+
+    # Adv Relationship (abbreviated)
+    - regex: 'adv\s+relationship'
+      name: "BofA Advantage Relationship"
+      account_type: "checking"
+
+    # Travel Rewards
+    - regex: 'travel\s+rewards'
+      name: "BofA Travel Rewards"
+      account_type: "credit"
+
+    # Customized Cash Rewards
+    - regex: 'customized\s+cash\s+rewards'
+      name: "BofA Customized Cash Rewards"
+      account_type: "credit"
+
+  # Fallback logic (these are implemented as detection in Python but can be defaults)
+  default: "Bank of America Credit Card"
+
+# Detection rules
+detection:
+  keywords_all:
+    - "bank of america"  # Note: could also be "bofa"
+
+  table_required: true
+
+  header_requires:
+    - "date"
+    - "description"

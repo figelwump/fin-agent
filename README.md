@@ -147,6 +147,9 @@ date,merchant,amount,original_description,account_name,institution,account_type,
 - Use the `dev` extras for linting (`ruff`, `black`), typing (`mypy`), and tests
   (`pytest`, `pytest-mock`). Tool configuration lives in `pyproject.toml`.
 - Python tests live under `tests/` (pytest). For the MCP utilities (Node), run `bun test` to execute TypeScript unit tests (see `ccsdk/__tests__/`).
+- See `docs/plugin_workflow.md` for end-to-end instructions on authoring
+  declarative/YAML or Python extractors (LLM-friendly) and the example skeletons
+  in `docs/examples/` when creating new plugins.
 
 ## Inspecting the SQLite database
 

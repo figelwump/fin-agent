@@ -1,0 +1,129 @@
+# Chase Credit Card Statement Extractor
+# Declarative spec for extracting transactions from Chase credit card PDFs
+
+name: chase
+institution: Chase
+account_type: credit
+
+# Column mapping - find these columns in statement tables
+columns:
+  date:
+    aliases:
+      - "transaction date"
+      - "date"
+      - "post date"
+
+  description:
+    aliases:
+      - "merchant name"
+      - "description"
+      - "transaction description"
+
+  amount:
+    aliases:
+      - "amount"
+      - "transaction amount"
+      - "total"
+
+  type:
+    aliases:
+      - "type"
+      - "transaction type"
+
+# Amount handling
+amount_resolution:
+  take_absolute: true
+
+# Date parsing configuration
+dates:
+  # Try these formats in order
+  formats:
+    - "%m/%d/%Y"  # 01/15/2024
+    - "%m/%d/%y"  # 01/15/24
+
+  # For MM/DD dates without year, extract year from statement
+  infer_year:
+    enabled: true
+    source: "statement_text"
+    text_pattern: "(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(20\\d{2})"
+
+  # Handle year boundary (e.g., Dec 2024 - Jan 2025)
+  year_boundary:
+    enabled: true
+    month_threshold: 1
+
+# Sign classification - determine spend vs. credit/payment
+sign_classification:
+  method: "keywords"
+
+  charge_keywords:
+    - "sale"
+    - "purchase"
+    - "debit"
+
+  credit_keywords:
+    - "payment"
+    - "credit"
+    - "adjustment"
+    - "refund"
+
+  transfer_keywords:
+    - "transfer"
+
+  interest_keywords:
+    - "interest"
+
+  card_payment_keywords:
+    - "payment"
+
+# Row-level filtering
+row_filters:
+  # Skip section headers
+  skip_descriptions_exact:
+    - "PAYMENTS AND OTHER CREDITS"
+
+  # Only include spend transactions
+  spend_only: true
+
+# Multi-line transaction handling
+# When a row has description but no amount, append to previous transaction
+multiline:
+  enabled: true
+  append_to: "previous"
+
+# Account name inference from statement text
+account_name_inference:
+  patterns:
+    # Amazon Prime Visa
+    - keywords:
+        - "amazon"
+        - "prime visa"
+      name: "Amazon Prime Visa"
+
+    # Chase Sapphire Reserve
+    - keywords:
+        - "ultimate rewards"
+        - "travel credit"
+        - "first $300"
+      name: "Chase Sapphire Reserve"
+
+  default: "Chase Account"
+
+# Detection rules - when to use this extractor
+detection:
+  # Must have "chase" in the PDF
+  keywords_all:
+    - "chase"
+
+  # And at least one of these
+  keywords_any:
+    - "account activity"
+
+  # Must find a table with required columns
+  table_required: true
+
+  # Table must have these headers
+  header_requires:
+    - "date"
+    - "description"
+    - "amount"

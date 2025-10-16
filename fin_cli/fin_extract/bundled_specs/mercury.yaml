@@ -1,0 +1,160 @@
+# Mercury Statement Extractor
+# Declarative spec for extracting transactions from Mercury checking/savings account PDFs
+
+name: mercury
+institution: Mercury
+account_type: checking  # Default; can be overridden by account_name_inference
+
+# Column mapping - Mercury uses a single Amount column with signed values
+columns:
+  date:
+    aliases:
+      - "date"
+      - "date (utc)"
+      - "transaction date"
+
+  description:
+    aliases:
+      - "description"
+      - "transaction description"
+      - "details"
+
+  # Single amount column (most common format with signed amounts)
+  amount:
+    aliases:
+      - "amount"
+      - "transaction amount"
+
+  # Dual column format (alternate format)
+  debit:
+    aliases:
+      - "money out"
+      - "debit"
+      - "amount out"
+
+  credit:
+    aliases:
+      - "money in"
+      - "credit"
+      - "amount in"
+
+  type:
+    aliases:
+      - "type"
+      - "transaction type"
+
+# Amount resolution
+amount_resolution:
+  priority: ["amount", "debit", "credit"]
+  take_absolute: true
+
+# Statement period extraction
+statement_period:
+  patterns:
+    # Long format: "Statement Period: October 1, 2024 - October 31, 2024"
+    - regex: 'Statement Period[:\s]+([A-Za-z]+\s+\d{1,2},?\s*\d{4})\s*(?:-|to)\s*([A-Za-z]+\s+\d{1,2},?\s*\d{4})'
+      start_group: 1
+      end_group: 2
+      format: "%B %d, %Y"
+
+    # Numeric format: "Statement Period: 10/01/2024 - 10/31/2024"
+    - regex: 'Statement Period[:\s]+(\d{1,2}/\d{1,2}/\d{2,4})\s*(?:-|to)\s*(\d{1,2}/\d{1,2}/\d{2,4})'
+      start_group: 1
+      end_group: 2
+      format: "%m/%d/%Y"
+
+# Date parsing - Mercury supports multiple formats
+dates:
+  formats:
+    - "%b %d, %Y"    # Apr 25, 2025
+    - "%b %d %Y"     # Apr 25 2025
+    - "%b %d"        # Apr 25 (no year - needs inference)
+    - "%m/%d/%Y"     # 04/25/2025
+    - "%Y-%m-%d"     # 2025-04-25 (ISO format)
+    - "%m/%d/%y"     # 04/25/25
+
+  # Use current year for year inference (Mercury PDFs don't include statement period)
+  infer_year:
+    enabled: true
+    source: "statement_period"  # Will fall back to current year if no period found
+
+  # Handle year boundaries
+  year_boundary:
+    enabled: false  # Mercury uses short month statements, unlikely to cross year boundary
+
+# Sign classification - hybrid method
+sign_classification:
+  method: "hybrid"
+  column_determines_sign: true
+
+  # Keywords for fallback classification
+  charge_keywords:
+    - "ach pull"
+    - "debit"
+    - "withdrawal"
+    - "purchase"
+
+  credit_keywords:
+    - "ach in"
+    - "transfer in"
+    - "interest"
+    - "deposit"
+
+  transfer_keywords:
+    - "transfer to"
+    - "transfer from"
+    - "transfer"
+    - "cash sending apps"
+    - "mercury checking"
+
+  interest_keywords:
+    - "interest"
+
+  card_payment_keywords:
+    - "credit card"
+    - "credit crd"
+    - "applecard"
+    - "bank of america"
+    - "card"
+
+# Row-level filtering
+row_filters:
+  skip_descriptions_exact:
+    - "total"
+    - "balance"
+    - "summary"
+
+  spend_only: true
+
+# Multi-line transaction handling
+multiline:
+  enabled: true
+  append_to: "previous"
+
+# Account name inference - extract account number and type from statement
+account_name_inference:
+  patterns:
+    # Savings account with bullet pattern: "Savings ••2550"
+    - regex: 'Savings\s+••(\d{3,4})'
+      name_template: "Mercury Savings ****{1}"
+      account_type: "savings"
+
+    # Checking account with bullet pattern: "Checking ••2701"
+    - regex: 'Checking\s+••(\d{3,4})'
+      name_template: "Mercury Checking ****{1}"
+      account_type: "checking"
+
+    # Generic bullet pattern: ••1234
+    - regex: '••(\d{3,4})'
+      name_template: "Mercury ****{1}"
+
+    # Account Number pattern: "Account Number 1234" or "Account No. 1234"
+    - regex: 'Account(?:\s+(?:Number|No\.?))?[^\d]{0,10}(\d{3,4})(?!\d)'
+      name_template: "Mercury ****{1}"
+
+  default: "Mercury Business Account"
+
+# Detection rules
+detection:
+  keywords_all:
+    - "mercury"

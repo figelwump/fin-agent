@@ -28,6 +28,10 @@ class ExtractionSettings:
     auto_detect_accounts: bool
     supported_banks: tuple[str, ...]
     camelot_fallback_enabled: bool
+    enable_plugins: bool
+    plugin_paths: tuple[Path, ...]
+    plugin_allowlist: tuple[str, ...]
+    plugin_blocklist: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +94,10 @@ def _default_config(env: Mapping[str, str]) -> dict[str, Any]:
             "auto_detect_accounts": True,
             "supported_banks": ["chase", "bofa", "mercury"],
             "camelot_fallback_enabled": True,
+            "enable_plugins": True,
+            "plugin_paths": [str(paths.default_plugins_path(env=env))],
+            "plugin_allowlist": [],
+            "plugin_blocklist": [],
         },
         "categorization": {
             "llm": {
@@ -117,6 +125,10 @@ ENV_OVERRIDE_SPEC: dict[str, tuple[str, type]] = {
     "extraction.auto_detect_accounts": ("FINCLI_EXTRACTION_AUTO_DETECT_ACCOUNTS", bool),
     "extraction.supported_banks": ("FINCLI_EXTRACTION_SUPPORTED_BANKS", list),
     "extraction.camelot_fallback_enabled": ("FINCLI_EXTRACTION_CAMELOT_FALLBACK", bool),
+    "extraction.enable_plugins": ("FINCLI_EXTRACTION_ENABLE_PLUGINS", bool),
+    "extraction.plugin_paths": ("FINCLI_EXTRACTION_PLUGIN_PATHS", list),
+    "extraction.plugin_allowlist": ("FINCLI_EXTRACTION_PLUGIN_ALLOW", list),
+    "extraction.plugin_blocklist": ("FINCLI_EXTRACTION_PLUGIN_DENY", list),
     "categorization.llm.enabled": ("FINCLI_LLM_ENABLED", bool),
     "categorization.llm.provider": ("FINCLI_LLM_PROVIDER", str),
     "categorization.llm.model": ("FINCLI_LLM_MODEL", str),
@@ -233,6 +245,10 @@ def _build_config(data: Mapping[str, Any], source_path: Path) -> AppConfig:
             auto_detect_accounts=bool(data["extraction"]["auto_detect_accounts"]),
             supported_banks=tuple(data["extraction"]["supported_banks"]),
             camelot_fallback_enabled=bool(data["extraction"]["camelot_fallback_enabled"]),
+            enable_plugins=bool(data["extraction"]["enable_plugins"]),
+            plugin_paths=tuple(paths.resolve_path(p) for p in data["extraction"]["plugin_paths"]),
+            plugin_allowlist=tuple(str(name) for name in data["extraction"]["plugin_allowlist"]),
+            plugin_blocklist=tuple(str(name) for name in data["extraction"]["plugin_blocklist"]),
         )
         llm_cfg = data["categorization"]["llm"]
         llm = LLMSettings(

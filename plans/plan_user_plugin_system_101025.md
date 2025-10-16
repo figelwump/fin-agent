@@ -21,24 +21,37 @@ Goal: Implement Phase 4 of the fin-extract roadmap by bundling first-party extra
 ### plan_user_plugin_system_101025 Checklist
 
 #### Phase 1 — Bundled Specs & Discovery Wiring
-- [ ] Relocate first-party YAML specs into the repo and register them as part of the built-in extractor set.
-- [ ] Add `plugin_loader.py` with utilities to scan user directories for `.py` and `.yaml` files.
-- [ ] Load Python plugins via importlib, register subclasses of `StatementExtractor`.
-- [ ] Load YAML specs, validate, wrap in `DeclarativeExtractor`, and register under spec name.
-- [ ] Prevent duplicate name collisions (built-in precedence unless override allowed).
-- [ ] Ensure loader surfaces structured diagnostics (success/failure, skipped files).
+- [x] Relocate first-party YAML specs into the repo and register them as part of the built-in extractor set.
+- [x] Add `plugin_loader.py` with utilities to scan user directories for `.py` and `.yaml` files.
+- [x] Load Python plugins via importlib, register subclasses of `StatementExtractor`.
+- [x] Load YAML specs, validate, wrap in `DeclarativeExtractor`, and register under spec name.
+- [x] Prevent duplicate name collisions (built-in precedence unless override allowed).
+- [x] Ensure loader surfaces structured diagnostics (success/failure, skipped files).
+
+Notes (2025-10-15):
+- Bundled specs now live under `fin_cli/fin_extract/bundled_specs/`; loader registers them as alternates while preserving Python extractors as primary. (`pyproject.toml` updated to ship YAML data.)
+- New `fin_cli/fin_extract/plugin_loader.py` manages bundled/user discovery, returns structured `PluginLoadReport`, and respects registry precedence semantics (tests in `tests/fin_extract/test_plugin_loader.py`).
 
 #### Phase 2 — Configuration & CLI Controls
-- [ ] Extend `ExtractionSettings` with `plugin_paths`, `enable_plugins`, and optional allowlist/denylist.
-- [ ] Add CLI switches (`--no-plugins`, `--allow-plugin <name>`) to override config per run.
-- [ ] Wire loader invocation into CLI bootstrap respecting config/CLI flags.
-- [ ] Update logging to show loaded plugin count and any warnings.
+- [x] Extend `ExtractionSettings` with `plugin_paths`, `enable_plugins`, and optional allowlist/denylist.
+- [x] Add CLI switches (`--no-plugins`, `--allow-plugin <name>`) to override config per run.
+- [x] Wire loader invocation into CLI bootstrap respecting config/CLI flags.
+- [x] Update logging to show loaded plugin count and any warnings.
+
+Notes (2025-10-15):
+- `ExtractionSettings` now owns plugin knobs (`enable_plugins`, paths, allow/block lists) with env overrides (`FINCLI_EXTRACTION_*`). Config defaults point at `~/.finagent/extractors` and surface through new tests (`tests/shared/test_config.py`).
+- `fin-extract` CLI accepts `--no-plugins` / `--allow-plugin` and loads user plugins once per run via `_initialize_plugins`, storing the report in `cli_ctx.state`. Loader respects allow/block policies and logs successes/failures (`fin_cli/fin_extract/main.py`).
+- Plugin loader enforces configuration filters during discovery; new tests cover allowlist/denylist behavior (`tests/fin_extract/test_plugin_loader.py`).
 
 #### Phase 3 — Developer UX & Validation
-- [ ] Add a `fin-extract dev:list-plugins` (or similar) command to list discovered plugins/specs.
-- [ ] Expose validation helper (`fin-extract dev:validate-spec <yaml>`) reusing existing runtime diagnostics.
-- [ ] Document plugin authoring workflow in README/docs (Python + YAML), including safety guidance.
-- [ ] Provide sample skeleton under `docs/examples/` for community extension.
+- [x] Add a `fin-extract dev:list-plugins` (or similar) command to list discovered plugins/specs.
+- [x] Expose validation helper (`fin-extract dev:validate-spec <yaml>`) reusing existing runtime diagnostics.
+- [x] Document plugin authoring workflow in README/docs (Python + YAML), including safety guidance.
+- [x] Provide sample skeleton under `docs/examples/` for community extension.
+
+Notes (2025-10-15):
+- New developer commands live under `fin-extract dev`; `list-plugins` prints origin/kind metadata (built-in vs bundled vs user) and surfaces loader warnings, `validate-spec` loads YAML and warns about collisions/missing sections.
+- Documentation added at `docs/plugin_workflow.md` with LLM-friendly steps plus example skeletons (`docs/examples/example_spec.yaml`, `docs/examples/example_extractor.py`). README now links to the guide for quick discovery.
 
 #### Phase 4 — Testing & Hardening
 - [ ] Unit tests for loader (Python + YAML discovery, collision handling, error paths).
