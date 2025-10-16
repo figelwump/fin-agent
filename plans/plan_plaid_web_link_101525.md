@@ -84,9 +84,10 @@ Required columns: `date,merchant,amount,original_description,account_name,instit
   - Testing: 2025-10-16 sandbox run of `/api/plaid/link-token`, `/api/plaid/exchange`, `/api/plaid/fetch` (autoApprove=true) verified import pipeline and preview output.
 
 ### Phase 3 — UI
-- [ ] Add PlaidLink component and “Connected Accounts” panel.
-- [ ] Add “Refresh Data” action per item/account.
-- [ ] Minimal UX polish (loading states, errors, last updated timestamps).
+- [x] Add PlaidLink component and “Connected Accounts” panel.
+- [x] Add “Refresh Data” action per item/account.
+- [x] Minimal UX polish (loading states, errors, last updated timestamps).
+  - Notes: `ConnectedPlaidAccounts` renders connect + account listings with inline refresh summaries, preview data, and error states; `PlaidLinkButton` loads Plaid Link on demand and completes the exchange flow. Server exposes `/api/plaid/items` and `/api/plaid/accounts` for UI hydration.
 
 ### Phase 4 — Docs & Tests
 - [ ] README section: Plaid setup (Sandbox first), required env vars, and UX walkthrough.

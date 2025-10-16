@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
@@ -6,6 +5,7 @@ import { AccountBase, Transaction, TransactionsGetRequestOptions } from "plaid";
 import { bulkImportStatements, type BulkImportResult } from "../../ccsdk/bulk-import";
 import { getPlaidClient } from "./client";
 import { parseCountryCodes } from "./config";
+import { computeAccountKey, formatAccountName, normalizeAccountType } from "./helpers";
 import {
   getStoredItem,
   upsertStoredItem,
@@ -105,10 +105,10 @@ export async function fetchPlaidTransactionsAndImport(
     accounts: accounts.map(minifyAccountForStore),
   });
 
+  const institution = institutionName ?? "Plaid";
   const accountSummaries = accounts.map((account) => {
     const displayName = formatAccountName(account);
     const accountType = normalizeAccountType(account);
-    const institution = institutionName ?? "Plaid";
     return {
       account_id: account.account_id,
       name: account.name,
@@ -242,7 +242,7 @@ function mergeAccounts(primary: AccountBase[], fallback: AccountBase[]): Account
   return Array.from(byId.values());
 }
 
-async function resolveInstitutionName(
+export async function resolveInstitutionName(
   plaidClient: ReturnType<typeof getPlaidClient>,
   storedItem: StoredPlaidItem,
   countryCodes: ReturnType<typeof parseCountryCodes>,
@@ -315,38 +315,6 @@ function resolveMerchant(txn: Transaction): string {
   return "Unknown Merchant";
 }
 
-function formatAccountName(account: AccountBase | undefined): string {
-  if (!account) {
-    return "Plaid Account";
-  }
-
-  const official = account.official_name?.trim();
-  if (official) {
-    return official;
-  }
-
-  const name = account.name?.trim() || "Plaid Account";
-  const mask = account.mask?.trim();
-  if (mask) {
-    return `${name} ****${mask}`;
-  }
-  return name;
-}
-
-function normalizeAccountType(account: AccountBase | undefined): string {
-  const subtype = account?.subtype?.trim();
-  if (subtype) {
-    return subtype;
-  }
-
-  const type = account?.type?.trim();
-  if (type) {
-    return type;
-  }
-
-  return "unknown";
-}
-
 function csvEscape(value: string): string {
   const needsQuotes = /[",\n]/.test(value);
   const escaped = value.replace(/"/g, '""');
@@ -358,11 +326,6 @@ function formatAmount(amount: number | null | undefined): string {
     return "0.00";
   }
   return amount.toFixed(2);
-}
-
-function computeAccountKey(name: string, institution: string, accountType: string): string {
-  const normalized = [name.trim().toLowerCase(), institution.trim().toLowerCase(), accountType.trim().toLowerCase()].join("|");
-  return createHash("sha256").update(normalized).digest("hex");
 }
 
 async function runFinEnhance(csvContent: string, autoApprove: boolean): Promise<BulkImportResult> {

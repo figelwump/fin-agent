@@ -6,9 +6,10 @@ import { bulkImportStatements, getImportsStagingDir, sanitiseRelativePath, write
 import * as path from "path";
 import * as fs from "fs/promises";
 import { getPlaidClient } from "./plaid/client";
-import { upsertStoredItem } from "./plaid/token-store";
+import { getStoredItem as getStoredPlaidItem, loadStoredItems, upsertStoredItem } from "./plaid/token-store";
 import { parseCountryCodes, parseProducts } from "./plaid/config";
-import { fetchPlaidTransactionsAndImport, PlaidFetchError } from "./plaid/fetch";
+import { computeAccountKey, formatAccountName, normalizeAccountType } from "./plaid/helpers";
+import { fetchPlaidTransactionsAndImport, PlaidFetchError, resolveInstitutionName } from "./plaid/fetch";
 import type { LinkTokenCreateRequest } from "plaid";
 
 const wsHandler = new WebSocketHandler(DATABASE_PATH);
@@ -181,6 +182,85 @@ const server = Bun.serve({
           error: detail,
         });
         return errorResponse('Failed to exchange Plaid public token.', 500, detail);
+      }
+    }
+
+    if (url.pathname === '/api/plaid/items' && req.method === 'GET') {
+      try {
+        const storedItems = await loadStoredItems();
+        if (storedItems.length === 0) {
+          return jsonResponse({ items: [] });
+        }
+
+        const plaidClient = getPlaidClient();
+        const countryCodes = parseCountryCodes(process.env.PLAID_COUNTRY_CODES);
+
+        const items = await Promise.all(
+          storedItems.map(async (item) => {
+            const institutionName = await resolveInstitutionName(plaidClient, item, countryCodes);
+            return {
+              item_id: item.item_id,
+              institution_id: item.institution_id ?? null,
+              institution_name: institutionName,
+              account_count: item.accounts.length,
+              created_at: item.created_at,
+              updated_at: item.updated_at,
+            };
+          })
+        );
+
+        return jsonResponse({ items });
+      } catch (error: any) {
+        console.error('Plaid items error', error);
+        return errorResponse('Failed to load Plaid items.', 500, error?.message ?? String(error));
+      }
+    }
+
+    if (url.pathname === '/api/plaid/accounts' && req.method === 'GET') {
+      const itemId = url.searchParams.get('item_id');
+      if (!itemId) {
+        return errorResponse('item_id query parameter is required.', 400);
+      }
+
+      try {
+        const storedItem = await getStoredPlaidItem(itemId);
+        if (!storedItem) {
+          return errorResponse('Plaid item not found.', 404);
+        }
+
+        const plaidClient = getPlaidClient();
+        const countryCodes = parseCountryCodes(process.env.PLAID_COUNTRY_CODES);
+        const institutionName = await resolveInstitutionName(plaidClient, storedItem, countryCodes);
+        const institution = institutionName ?? 'Plaid';
+
+        const accounts = storedItem.accounts.map((account) => {
+          const displayName = formatAccountName(account);
+          const accountType = normalizeAccountType(account);
+          return {
+            account_id: account.account_id,
+            display_name: displayName,
+            account_type: accountType,
+            name: account.name,
+            official_name: account.official_name,
+            mask: account.mask,
+            type: account.type,
+            subtype: account.subtype,
+            account_key: computeAccountKey(displayName, institution, accountType),
+          };
+        });
+
+        return jsonResponse({
+          item: {
+            item_id: storedItem.item_id,
+            institution_id: storedItem.institution_id ?? null,
+            institution_name: institutionName,
+            updated_at: storedItem.updated_at,
+          },
+          accounts,
+        });
+      } catch (error: any) {
+        console.error('Plaid accounts error', error);
+        return errorResponse('Failed to load Plaid accounts.', 500, error?.message ?? String(error));
       }
     }
 
