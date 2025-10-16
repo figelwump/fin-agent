@@ -5,6 +5,11 @@ import { DATABASE_PATH } from "../database/config";
 import { bulkImportStatements, getImportsStagingDir, sanitiseRelativePath, writeUploadedFile } from "../ccsdk/bulk-import";
 import * as path from "path";
 import * as fs from "fs/promises";
+import { getPlaidClient } from "./plaid/client";
+import { upsertStoredItem } from "./plaid/token-store";
+import { parseCountryCodes, parseProducts } from "./plaid/config";
+import { fetchPlaidTransactionsAndImport, PlaidFetchError } from "./plaid/fetch";
+import type { LinkTokenCreateRequest } from "plaid";
 
 const wsHandler = new WebSocketHandler(DATABASE_PATH);
 
@@ -13,6 +18,40 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+const jsonHeaders = {
+  'Content-Type': 'application/json',
+  ...corsHeaders,
+};
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: jsonHeaders,
+  });
+}
+
+function errorResponse(message: string, status = 400, detail?: unknown): Response {
+  return jsonResponse(
+    detail !== undefined ? { error: message, detail } : { error: message },
+    status
+  );
+}
+
+async function readJsonBody<T>(req: Request): Promise<T | null> {
+  try {
+    return (await req.json()) as T;
+  } catch (error) {
+    console.warn('Failed to parse JSON body:', error);
+    return null;
+  }
+}
+
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function isIsoDate(value: string): boolean {
+  return ISO_DATE_REGEX.test(value);
+}
 
 const server = Bun.serve({
   port: 3000,
@@ -54,6 +93,153 @@ const server = Bun.serve({
           'Content-Type': 'text/html',
         },
       });
+    }
+
+    if (url.pathname === '/api/plaid/link-token' && req.method === 'POST') {
+      try {
+        const plaidClient = getPlaidClient();
+        const clientUserId = process.env.PLAID_LINK_CLIENT_USER_ID ?? 'fin-agent-local-user';
+        const clientName = process.env.PLAID_LINK_CLIENT_NAME ?? 'fin-agent';
+        const products = parseProducts(process.env.PLAID_PRODUCTS);
+        const countryCodes = parseCountryCodes(process.env.PLAID_COUNTRY_CODES);
+        const webhook = process.env.PLAID_WEBHOOK;
+        const redirectUri = process.env.PLAID_REDIRECT_URI;
+
+        const request: LinkTokenCreateRequest = {
+          client_name: clientName,
+          language: 'en',
+          country_codes: countryCodes,
+          products,
+          user: {
+            client_user_id: clientUserId,
+          },
+        };
+
+        if (webhook) {
+          request.webhook = webhook;
+        }
+        if (redirectUri) {
+          request.redirect_uri = redirectUri;
+        }
+
+        const response = await plaidClient.linkTokenCreate(request);
+        return jsonResponse({ link_token: response.data.link_token });
+      } catch (error: any) {
+        const detail = error?.response?.data ?? error?.message ?? String(error);
+        console.error('Plaid link token error', detail);
+        return errorResponse('Failed to create Plaid link token.', 500, detail);
+      }
+    }
+
+    if (url.pathname === '/api/plaid/exchange' && req.method === 'POST') {
+      const body = await readJsonBody<{ public_token?: string }>(req);
+      const publicToken = body?.public_token;
+
+      if (!publicToken || typeof publicToken !== 'string') {
+        return errorResponse('public_token is required.', 400);
+      }
+
+      try {
+        const plaidClient = getPlaidClient();
+
+        const exchange = await plaidClient.itemPublicTokenExchange({
+          public_token: publicToken,
+        });
+
+        const accessToken = exchange.data.access_token;
+        const itemId = exchange.data.item_id;
+
+        const itemResponse = await plaidClient.itemGet({ access_token: accessToken });
+        const institutionId = itemResponse.data.item?.institution_id ?? null;
+
+        const accountsResponse = await plaidClient.accountsGet({
+          access_token: accessToken,
+        });
+
+        const stored = await upsertStoredItem({
+          item_id: itemId,
+          access_token: accessToken,
+          institution_id: institutionId,
+          accounts: accountsResponse.data.accounts.map((account) => ({
+            account_id: account.account_id,
+            name: account.name ?? null,
+            official_name: account.official_name ?? null,
+            mask: account.mask ?? null,
+            type: account.type ?? null,
+            subtype: account.subtype ?? null,
+          })),
+        });
+
+        return jsonResponse({
+          item_id: stored.item_id,
+          institution_id: stored.institution_id,
+          accounts: stored.accounts,
+        });
+      } catch (error: any) {
+        const detail = error?.response?.data ?? error?.message ?? String(error);
+        console.error('Plaid exchange error', {
+          error: detail,
+        });
+        return errorResponse('Failed to exchange Plaid public token.', 500, detail);
+      }
+    }
+
+    if (url.pathname === '/api/plaid/fetch' && req.method === 'POST') {
+      const body = await readJsonBody<{
+        item_id?: string;
+        start?: string;
+        end?: string;
+        accountIds?: unknown;
+        autoApprove?: unknown;
+      }>(req);
+
+      if (!body) {
+        return errorResponse('Invalid JSON payload.', 400);
+      }
+
+      const itemId = typeof body.item_id === 'string' ? body.item_id.trim() : '';
+      const startDate = typeof body.start === 'string' ? body.start.trim() : '';
+      const endDate = typeof body.end === 'string' ? body.end.trim() : '';
+
+      if (!itemId) {
+        return errorResponse('item_id is required.', 400);
+      }
+      if (!startDate || !isIsoDate(startDate)) {
+        return errorResponse('start must be an ISO date (YYYY-MM-DD).', 400);
+      }
+      if (!endDate || !isIsoDate(endDate)) {
+        return errorResponse('end must be an ISO date (YYYY-MM-DD).', 400);
+      }
+
+      const accountIds = Array.isArray(body.accountIds)
+        ? body.accountIds.map((value) => String(value))
+        : undefined;
+      const autoApprove = Boolean(body.autoApprove);
+
+      try {
+        const result = await fetchPlaidTransactionsAndImport({
+          itemId,
+          startDate,
+          endDate,
+          accountIds,
+          autoApprove,
+        });
+
+        return jsonResponse({
+          item: result.item,
+          accounts: result.accounts,
+          totalTransactions: result.totalTransactions,
+          summary: result.bulkImport,
+          transactionsPreview: result.bulkImport.transactionsPreview,
+          reviewItems: result.bulkImport.reviewItems,
+        });
+      } catch (error: any) {
+        if (error instanceof PlaidFetchError) {
+          return errorResponse(error.message, error.status, error.detail);
+        }
+        console.error('Plaid fetch error', error);
+        return errorResponse('Failed to fetch Plaid transactions.', 500, error?.message ?? String(error));
+      }
     }
 
     if (url.pathname === '/api/bulk-import' && req.method === 'POST') {
