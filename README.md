@@ -270,6 +270,31 @@ When `--format json` is supplied, responses follow the documented schema in
 See the docs file for the full contract covering each analyzer (including the
 new filter metadata and timeline payload).
 
+## Plaid Imports via Web App
+
+The web UI can pull transactions directly from Plaid and feed them into
+`fin-enhance` without intermediate CSVs.
+
+1. **Provide credentials** – Add your Plaid keys to `.env` (see `.env.example`).
+   - Sandbox testing: keep `PLAID_ENV=sandbox` and use the keys from Plaid’s
+     dashboard; Link will surface the demo “First Platypus Bank”.
+   - Live institutions: upgrade to Development/Production, switch
+     `PLAID_ENV`, and supply the matching `PLAID_CLIENT_ID`/`PLAID_SECRET`
+     (configure `PLAID_REDIRECT_URI` if Plaid requires OAuth redirects).
+2. **Run the Bun server** – `bun run server/server.ts` and open
+   `http://localhost:3000`.
+3. **Connect an institution** – In the “Connected Accounts” panel, click
+   *Connect Bank*, complete Plaid Link, and verify the item appears with its
+   accounts.
+4. **Refresh data** – Use *Refresh Data* to fetch a default 30‑day window.
+   The server writes a temporary CSV, calls `fin-enhance`, and updates the
+   SQLite ledger. A preview of recent transactions and review counts is shown
+   inline.
+
+If you run into the sandbox “Platypus Bank” after choosing a real bank,
+double-check that you’ve switched `PLAID_ENV` and secrets to non-sandbox
+values.
+
 ## Using `fin-export`
 
 `fin-export` turns the analyses above into shareable reports. Make sure your

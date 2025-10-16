@@ -2,9 +2,19 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 
-const FIN_HOME = path.join(os.homedir(), '.finagent');
-const PLAID_DIR = path.join(FIN_HOME, 'plaid');
-const TOKENS_PATH = path.join(PLAID_DIR, 'tokens.json');
+let tokenStoreRootOverride: string | null = process.env.PLAID_TOKEN_STORE_ROOT ?? null;
+
+function getFinHome(): string {
+  return tokenStoreRootOverride ?? path.join(os.homedir(), '.finagent');
+}
+
+function getPlaidDir(): string {
+  return path.join(getFinHome(), 'plaid');
+}
+
+function getTokensPathInternal(): string {
+  return path.join(getPlaidDir(), 'tokens.json');
+}
 
 // Stored account subset keeps only what the UI and imports need.
 export interface StoredPlaidAccount {
@@ -26,15 +36,16 @@ export interface StoredPlaidItem {
 }
 
 async function ensurePlaidDir(): Promise<void> {
-  await fs.mkdir(PLAID_DIR, { recursive: true, mode: 0o700 });
-  await fs.chmod(PLAID_DIR, 0o700).catch(() => {
+  const plaidDir = getPlaidDir();
+  await fs.mkdir(plaidDir, { recursive: true, mode: 0o700 });
+  await fs.chmod(plaidDir, 0o700).catch(() => {
     // ignore if chmod fails due to platform
   });
 }
 
 async function readTokensFile(): Promise<StoredPlaidItem[]> {
   try {
-    const raw = await fs.readFile(TOKENS_PATH, 'utf-8');
+    const raw = await fs.readFile(getTokensPathInternal(), 'utf-8');
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
       console.warn('[plaid] tokens.json did not contain an array; resetting file');
@@ -53,8 +64,9 @@ async function readTokensFile(): Promise<StoredPlaidItem[]> {
 async function writeTokensFile(items: StoredPlaidItem[]): Promise<void> {
   await ensurePlaidDir();
   const payload = JSON.stringify(items, null, 2);
-  await fs.writeFile(TOKENS_PATH, `${payload}\n`, { mode: 0o600 });
-  await fs.chmod(TOKENS_PATH, 0o600).catch(() => {
+  const tokensPath = getTokensPathInternal();
+  await fs.writeFile(tokensPath, `${payload}\n`, { mode: 0o600 });
+  await fs.chmod(tokensPath, 0o600).catch(() => {
     // chmod can fail on Windows; swallow to keep flow moving
   });
 }
@@ -106,5 +118,9 @@ export async function removeStoredItem(itemId: string): Promise<boolean> {
 }
 
 export function getTokensPath(): string {
-  return TOKENS_PATH;
+  return getTokensPathInternal();
+}
+
+export function setTokenStoreRoot(root: string | null): void {
+  tokenStoreRootOverride = root;
 }

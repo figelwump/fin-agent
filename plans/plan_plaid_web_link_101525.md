@@ -90,9 +90,10 @@ Required columns: `date,merchant,amount,original_description,account_name,instit
   - Notes: `ConnectedPlaidAccounts` renders connect + account listings with inline refresh summaries, preview data, and error states; `PlaidLinkButton` loads Plaid Link on demand and completes the exchange flow. Server exposes `/api/plaid/items` and `/api/plaid/accounts` for UI hydration.
 
 ### Phase 4 — Docs & Tests
-- [ ] README section: Plaid setup (Sandbox first), required env vars, and UX walkthrough.
-- [ ] Unit tests for server helpers (token store, CSV mapping) with JSON fixtures.
-- [ ] Manual E2E: connect Sandbox item, fetch a small range, confirm DB rows and UI preview.
+- [x] README section: Plaid setup (Sandbox first), required env vars, and UX walkthrough.
+- [x] Unit tests for server helpers (token store, CSV mapping) with JSON fixtures.
+- [x] Manual E2E: connect Sandbox item, fetch a small range, confirm DB rows and UI preview.
+  - Notes: Added "Plaid Imports via Web App" to README with sandbox vs dev guidance; new Bun tests cover token store overrides and CSV helper logic; sandbox run on 2025-10-16 validated the full flow (link-token → exchange → fetch → preview).
 
 ## Notes for Future LLMs
 

@@ -89,7 +89,7 @@ export async function fetchPlaidTransactionsAndImport(
 
   const institutionName = await resolveInstitutionName(plaidClient, storedItem, countryCodes);
 
-  const csvContent = buildCsvContent({
+  const csvContent = formatPlaidTransactionsAsCsv({
     transactions,
     accounts,
     institutionName,
@@ -263,11 +263,13 @@ export async function resolveInstitutionName(
   }
 }
 
-function buildCsvContent(args: {
+export interface CsvFormattingArgs {
   transactions: Transaction[];
   accounts: AccountBase[];
   institutionName: string | null;
-}): string {
+}
+
+export function formatPlaidTransactionsAsCsv(args: CsvFormattingArgs): string {
   const { transactions, accounts, institutionName } = args;
 
   const accountMap = new Map<string, AccountBase>();
