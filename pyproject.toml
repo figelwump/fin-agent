@@ -59,12 +59,16 @@ fin-enhance = "fin_cli.fin_enhance.main:main"
 fin-query = "fin_cli.fin_query.main:main"
 fin-analyze = "fin_cli.fin_analyze.main:main"
 fin-export = "fin_cli.fin_export.main:main"
+fin-edit = "fin_cli.fin_edit.main:main"
 
 [tool.hatch.build.targets.sdist]
 include = ["fin_cli", "README.md", "specs", "plans", "AGENTS.md"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["fin_cli"]
+include = [
+  "fin_cli/fin_extract/bundled_specs/*.yaml",
+]
 
 [tool.ruff]
 select = ["E", "F", "B", "I", "UP", "NP", "G"]

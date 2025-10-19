@@ -378,6 +378,27 @@ limited to 200 rows by default; pass `--limit` on `sql` or `saved` to adjust.
 You can supply `--db` either globally (`fin-query --db … saved …`) or per
 command as shown above when you need to inspect another SQLite file.
 
+## Using `fin-edit`
+
+`fin-edit` provides safe, explicit write operations. It defaults to dry-run; add `--apply` to perform writes. Always activate the venv first: `source .venv/bin/activate`.
+
+```bash
+# Preview updating a transaction's category by id
+fin-edit --db ~/.finagent/data.db \
+  set-category --transaction-id 42 \
+  --category "Food & Dining" --subcategory "Coffee"
+
+# Apply the change
+fin-edit --db ~/.finagent/data.db --apply \
+  set-category --transaction-id 42 \
+  --category "Food & Dining" --subcategory "Coffee"
+
+# Upsert a merchant pattern (preview)
+fin-edit --db ~/.finagent/data.db \
+  add-merchant-pattern --pattern 'STARBUCKS%' \
+  --category "Food & Dining" --subcategory "Coffee" --confidence 0.95
+```
+
 ## Repository Structure
 
 ```
@@ -387,6 +408,7 @@ fin_cli/
   fin_query/        # Phase 7 implementation target
   fin_analyze/      # Phase 8 implementation target
   fin_export/       # Phase 9 implementation target
+  fin_edit/         # Write helpers (safe mutations; dry-run by default)
   shared/           # Shared infrastructure (Phases 1-2 foundation)
 plans/              # Active implementation plan(s)
 specs/              # Product & implementation specifications
