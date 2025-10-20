@@ -155,26 +155,28 @@ Acceptance
 - [x] Create `bofa.yaml` and `mercury.yaml` specs under `~/.finagent/extractors` with header aliases, date formats, and sign rules.
   - Created bofa.yaml with dual-column support, account name inference, extensive row filtering (Oct 7, 15:35)
   - Created mercury.yaml with money in/out columns, account number inference (Oct 7, 15:35)
-- [ ] Test BofA extractor against available statements (3 BofA PDFs in statements/)
+- [x] Test BofA extractor against available statements (3 BofA PDFs in statements/)
   - 2025-10-09: `eStmt_2025-09-22.pdf` → Python 117 rows vs spec 116; `eStmt_2025-08-22.pdf` → Python 99 vs spec 98. The missing row is a refund and should remain filtered; ensure no other gaps exist.
+  - 2025-10-17: Added automated parity coverage in `tests/fin_extract/test_bofa_extractor.py::test_bofa_bundled_spec_parity` for Aug & Sep 2025 statements (pdfplumber engine). Spec + Python now return identical counts (50 / 59) and transaction tuples.
 - [x] Obtain Mercury sample PDFs for testing
   - 2025-10-09: `statements/mercury/` now contains April–September 2025 statements for validation.
-- [ ] Test Mercury extractor once sample PDFs are available
+- [x] Test Mercury extractor once sample PDFs are available
   - 2025-10-10: Declarative runtime now shares the blob-expansion fallback; both Python and declarative paths return 4 spend transactions on the 2025-09 statement. Need to extend validation to other months + ensure spec-level tests cover the fallback logic.
-- [ ] Extend validator to cover BofA/Mercury-specific heuristics (e.g., summary row suppression, period inference).
-- [ ] Validate parity vs. current Python extractors; retain Python as fallback until confidence is high.
-  - Blocked until Mercury row segmentation issues are resolved.
-  - Also need to ensure BofA declarative spec (and Python inference) emit `account_type: credit` for these card statements; current heuristics see the word “checking” in autopay text and mislabel the account.
+  - 2025-10-17: Fixed `_find_column_mapping` to reject single-column pseudo headers and exercised fallback expansion via `tests/fin_extract/test_mercury_extractor.py::test_mercury_bundled_spec_parity` across Apr/May/Jul/Sep 2025 statements (spend-only rows match exactly; Apr contains zero spend as expected).
+- [x] Extend validator to cover BofA/Mercury-specific heuristics (e.g., summary row suppression, period inference).
+  - 2025-10-17: Added `fin_cli/fin_extract/validator.py` with spend-only checks, summary row detection, and account-type sanity heuristics plus warning on missing statement periods. Automated coverage in `tests/fin_extract/test_validator.py` exercises happy-path extractions and regression scenarios (summary row leak, credit row leak).
+- [x] Validate parity vs. current Python extractors; retain Python as fallback until confidence is high.
+  - 2025-10-17: Parity tests now compare declarative vs. Python outputs for BofA (Aug/Sep 2025) and Mercury (Apr/May/Jul/Sep 2025) using pdfplumber documents; all spend rows align and metadata stays in sync (BofA account type resolves to `credit` for card statements).
 
-**Current Status (2025-10-09):**
-- BofA + Mercury specs authored; validation now underway with findings above
-- Mercury samples available locally (2025-04…2025-09)
-- Declarative runtime requires negative-debit handling fix + blob-row splitting before parity testing can pass
-- No automated harness yet for these issuers
+**Current Status (2025-10-17):**
+- `_find_column_mapping` now rejects single-column pseudo headers so Mercury statements consistently trigger the blob-expansion fallback (see `fin_cli/fin_extract/extractors/mercury.py` + mirrored logic in `declarative.py`).
+- Added parity regression coverage for BofA (`tests/fin_extract/test_bofa_extractor.py::test_bofa_bundled_spec_parity`) and Mercury (`tests/fin_extract/test_mercury_extractor.py::test_mercury_bundled_spec_parity`) using sample PDFs in `statements/`.
+- Declarative date parsing pads implicit years before strptime, preventing Python 3.13 `DeprecationWarning` crashes while still leveraging statement-period inference.
+  - Validator now surfaces issuer-specific findings via `validate_extraction`; still need CLI wiring for agent loop in later phases.
 
-Acceptance
-- [ ] Declarative specs for BofA and Mercury match or exceed current extraction quality on provided samples.
-- [ ] Validator confirms spend-only output (no credits/payments/transfers included).
+ Acceptance
+ - [x] Declarative specs for BofA and Mercury match or exceed current extraction quality on provided samples. (Automated parity assertions now cover Aug/Sep 2025 BofA and multiple 2025 Mercury statements.)
+ - [x] Validator confirms spend-only output (no credits/payments/transfers included).
 
 ---
 
