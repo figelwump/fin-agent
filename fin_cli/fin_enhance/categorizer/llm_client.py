@@ -162,7 +162,17 @@ class LLMClient:
         self._api_key_env = config.categorization.llm.api_key_env
         self._client = None
         if self._enabled:
+            self._logger.info(
+                f"LLM categorization enabled: provider={self._provider} "
+                f"model={self._model} api_key_env={self._api_key_env}"
+            )
             self._client = self._bootstrap_client()
+            if self._client is None:
+                self._logger.warning(
+                    "LLM client failed to initialize; falling back to rules/review-only mode."
+                )
+        else:
+            self._logger.info("LLM categorization disabled via configuration.")
 
     @property
     def enabled(self) -> bool:
@@ -186,7 +196,11 @@ class LLMClient:
             )
             return None
         try:
-            return OpenAI(api_key=api_key)
+            client = OpenAI(api_key=api_key)
+            self._logger.info(
+                f"Initialized OpenAI client for model '{self._model}' (provider={self._provider})."
+            )
+            return client
         except Exception as exc:  # pragma: no cover - defensive
             self._logger.error(f"Failed to initialize OpenAI client: {exc}")
             return None
@@ -254,7 +268,7 @@ class LLMClient:
             chunk_txn_count = sum(len(txn_items) for txn_items in chunk.values())
             self._logger.info(
                 f"LLM batch {batch_index}/{total_chunks}: submitting {len(chunk)} merchant(s) "
-                f"({chunk_txn_count} transaction(s))…"
+                f"({chunk_txn_count} transaction(s)) via model '{self._model}'"
             )
             payload = self.build_payload(chunk, known_categories=known_categories)
             try:
@@ -264,14 +278,16 @@ class LLMClient:
                 continue
             results.update(chunk_results)
             self._logger.info(
-                f"LLM batch {batch_index}/{total_chunks} complete; "
-                f"received suggestions for {len(chunk_results)} merchant(s)."
+                f"LLM batch {batch_index}/{total_chunks} complete; received suggestions for "
+                f"{len(chunk_results)} merchant(s)."
             )
         return results
 
     def _invoke_llm(self, payload: str) -> dict[str, LLMResult]:
         if not self._client:
-            raise LLMClientError("LLM client unavailable")
+            raise LLMClientError(
+                f"LLM client unavailable (provider={self._provider}, model={self._model})"
+            )
         try:
             self._logger.debug(f"LLM request payload bytes={len(payload)}")
             response = self._client.responses.create(  # type: ignore[attr-defined]
