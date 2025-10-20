@@ -24,6 +24,7 @@ dist/
 *.log
 statements/
 output/
+tmp/
 
 # Node/Bun
 node_modules/
