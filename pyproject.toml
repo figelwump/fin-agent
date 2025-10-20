@@ -45,6 +45,9 @@ llm = [
 analysis = [
   "numpy>=1.26",
 ]
+pii = [
+  "scrubadub>=2.0",
+]
 dev = [
   "pytest>=8.2",
   "pytest-mock>=3.12",
@@ -60,6 +63,7 @@ fin-query = "fin_cli.fin_query.main:main"
 fin-analyze = "fin_cli.fin_analyze.main:main"
 fin-export = "fin_cli.fin_export.main:main"
 fin-edit = "fin_cli.fin_edit.main:main"
+fin-scrub = "fin_cli.fin_scrub.main:main"
 
 [tool.hatch.build.targets.sdist]
 include = ["fin_cli", "README.md", "specs", "plans", "AGENTS.md"]
