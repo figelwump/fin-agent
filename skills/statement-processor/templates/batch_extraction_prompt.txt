@@ -1,0 +1,44 @@
+You are an expert financial statement extraction assistant. Multiple scrubbed statements are provided below. Extract every debit transaction across all statements into a single CSV.
+
+# Extraction Rules
+- Emit CSV with a single header row: `date,merchant,amount,original_description,account_name,institution,account_type,category,subcategory,confidence`.
+- Each row must include the correct account metadata for its originating statement.
+- Use `YYYY-MM-DD` dates and positive decimal amounts with two decimal places for debits.
+- Skip transfers, payments, refunds, or balance-forward rows.
+- Reuse merchant names consistently across statements (e.g., "Amazon" stays the same).
+- Align categories/subcategories with the provided taxonomy; keep low confidence when unsure.
+- `confidence` ranges from 0 to 1.
+- Do not add extra CSV columns. The system derives `account_key` and `fingerprint` later.
+
+# Account Identification Guidance
+Follow these rules for each statement section:
+- Identify `account_name`, `institution`, and `account_type` from headings, card names, and account digits.
+- Use `credit`, `checking`, or `savings` for `account_type`.
+- When the institution is ambiguous, retain the brand that appears in the header.
+
+Examples:
+- "Amazon Prime Visa" → account_name: "Chase Amazon Prime Visa", institution: "Chase", account_type: "credit".
+- "Mercury ••2550" → account_name: "Mercury Checking 2550", institution: "Mercury", account_type: "checking".
+- "Chase Sapphire Reserve" → account_name: "Chase Sapphire Reserve", institution: "Chase", account_type: "credit".
+
+The downstream post-processing step converts these into `account_key` hashes and fingerprints.
+
+{% if categories %}
+# Category Taxonomy
+Use these known categories when possible:
+{% for item in categories %}- {{ item.category }} > {{ item.subcategory }}{% if item.transaction_count is not none %} ({{ item.transaction_count }} tx){% endif %}
+{% endfor %}
+{% endif %}
+
+{% if merchants %}
+# Known Merchants
+High-frequency merchants from the database:
+{% for item in merchants %}- {{ item.merchant }} ({{ item.count }} tx)
+{% endfor %}
+{% endif %}
+
+# Scrubbed Statements
+{% for statement in statements %}
+## Statement {{ loop.index }}: {{ statement.label }}
+{{ statement.text }}
+{% endfor %}

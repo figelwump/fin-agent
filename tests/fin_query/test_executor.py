@@ -213,3 +213,21 @@ def test_run_transactions_month_query(tmp_path) -> None:
     )
     category_idx = filtered.columns.index("category")
     assert {row[category_idx] for row in filtered.rows} == {"Food & Dining"}
+
+
+def test_run_merchants_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="merchants",
+        runtime_params={"min_count": 2},
+        limit=5,
+    )
+
+    assert result.description == "Merchant frequency table for prompt building."
+    assert result.limit_applied is True
+    merchants = {row[0]: row[1] for row in result.rows}
+    assert merchants.get("Amazon") == 2
+    assert "Whole Foods" not in merchants

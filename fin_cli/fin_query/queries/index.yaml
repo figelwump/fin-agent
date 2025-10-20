@@ -80,3 +80,11 @@ queries:
       type: string
       default: null
       description: Optional subcategory LIKE filter (use % wildcards).
+- name: merchants
+  file: merchants.sql
+  description: Merchant frequency table for prompt building.
+  parameters:
+    min_count:
+      type: integer
+      default: 1
+      description: Minimum number of transactions required to include a merchant.

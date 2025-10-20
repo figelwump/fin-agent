@@ -95,6 +95,12 @@ def run_sql(
 @click.option("--month", type=str, help="Month filter for saved queries (YYYY-MM).")
 @click.option("--limit", type=int, help="Limit results for saved queries.")
 @click.option(
+    "--min-count",
+    "min_count",
+    type=int,
+    help="Minimum frequency filter for queries that expose :min_count (e.g., merchants).",
+)
+@click.option(
     "-p",
     "--param",
     "params",
@@ -121,6 +127,7 @@ def run_saved(
     name: str,
     month: str | None,
     limit: int | None,
+    min_count: int | None,
     params: Iterable[str],
     output_format: str,
     db_override: str | None,
@@ -137,6 +144,8 @@ def run_saved(
 
     if month:
         bound_params.setdefault("month", month)
+    if min_count is not None:
+        bound_params.setdefault("min_count", min_count)
 
     target_config = _config_for_command(cli_ctx, db_override)
     try:

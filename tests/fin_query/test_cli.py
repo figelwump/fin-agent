@@ -20,25 +20,51 @@ def _prepare_database(tmp_path: Path) -> str:
             "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
             ("Shopping", "Online"),
         ).fetchone()[0]
-        connection.execute(
+        connection.executemany(
             """
             INSERT INTO transactions (
                 date, merchant, amount, category_id, account_id, original_description,
                 import_date, categorization_confidence, categorization_method, fingerprint
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                "2025-08-01",
-                "Amazon",
-                -25.00,
-                cat_id,
-                None,
-                "AMAZON MKTPLACE",
-                None,
-                0.9,
-                "rule:pattern",
-                "2025-08-01--25.00-Amazon",
-            ),
+            [
+                (
+                    "2025-08-01",
+                    "Amazon",
+                    -25.00,
+                    cat_id,
+                    None,
+                    "AMAZON MKTPLACE",
+                    None,
+                    0.9,
+                    "rule:pattern",
+                    "2025-08-01--25.00-Amazon",
+                ),
+                (
+                    "2025-08-15",
+                    "Amazon",
+                    -10.00,
+                    cat_id,
+                    None,
+                    "AMAZON MKTPLACE",
+                    None,
+                    0.85,
+                    "rule:pattern",
+                    "2025-08-15--10.00-Amazon",
+                ),
+                (
+                    "2025-08-20",
+                    "Target",
+                    -55.00,
+                    cat_id,
+                    None,
+                    "TARGET 123",
+                    None,
+                    0.92,
+                    "rule:pattern",
+                    "2025-08-20--55.00-Target",
+                ),
+            ],
         )
     return str(db_path)
 
@@ -76,3 +102,26 @@ def test_cli_schema_command(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "transactions" in result.output
+
+
+def test_cli_merchants_query(tmp_path: Path) -> None:
+    db_path = _prepare_database(tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "saved",
+            "merchants",
+            "--db",
+            db_path,
+            "--format",
+            "json",
+            "--min-count",
+            "2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Amazon" in result.output
+    assert "Target" not in result.output
