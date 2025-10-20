@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
+
+import pytest
 
 from fin_cli.fin_extract.extractors.mercury import MercuryExtractor
-from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable
+from fin_cli.fin_extract.declarative import DeclarativeExtractor, load_spec
+from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable, load_pdf_document_with_engine
 
 
 def _build_document() -> PdfDocument:
@@ -50,3 +54,37 @@ def test_mercury_extracts_transactions() -> None:
     lunch = result.transactions[-1]
     assert lunch.amount == 145.2
     assert "San Francisco" in lunch.merchant
+
+
+@pytest.mark.parametrize(
+    ("pdf_name", "expected_count"),
+    [
+        ("vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-04.pdf", 0),
+        ("vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-05.pdf", 5),
+        ("vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-07.pdf", 6),
+        ("vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-09.pdf", 4),
+    ],
+)
+def test_mercury_bundled_spec_parity(pdf_name: str, expected_count: int) -> None:
+    pytest.importorskip("pdfplumber")
+
+    pdf_path = Path("statements/mercury") / pdf_name
+    document = load_pdf_document_with_engine(pdf_path, "pdfplumber")
+
+    python_result = MercuryExtractor().extract(document)
+    spec = load_spec("fin_cli/fin_extract/bundled_specs/mercury.yaml")
+    declarative_result = DeclarativeExtractor(spec).extract(document)
+
+    assert len(python_result.transactions) == expected_count
+    assert len(declarative_result.transactions) == expected_count
+
+    python_rows = {
+        (txn.date, txn.merchant, txn.amount) for txn in python_result.transactions
+    }
+    declarative_rows = {
+        (txn.date, txn.merchant, txn.amount) for txn in declarative_result.transactions
+    }
+    assert python_rows == declarative_rows
+
+    if python_result.transactions:
+        assert all(txn.amount > 0 for txn in python_result.transactions)

@@ -811,6 +811,21 @@ class DeclarativeExtractor(StatementExtractor):
         if amount_idx is None and debit_idx is None and credit_idx is None:
             return None
 
+        distinct_indices = {
+            idx
+            for idx in (
+                date_idx,
+                desc_idx,
+                amount_idx,
+                debit_idx,
+                credit_idx,
+                type_idx,
+            )
+            if idx is not None
+        }
+        if len(distinct_indices) <= 2:
+            return None
+
         return _ColumnMapping(
             date_index=date_idx,
             description_index=desc_idx,
@@ -1170,8 +1185,16 @@ class DeclarativeExtractor(StatementExtractor):
 
         # Try configured formats
         for fmt in self.spec.dates.formats:
+            needs_year_padding = "%Y" not in fmt and "%y" not in fmt
+            adjusted_value = value
+            adjusted_fmt = fmt
+            if needs_year_padding:
+                if not self.spec.dates.infer_year.enabled:
+                    continue
+                adjusted_value = f"{value} 1900"
+                adjusted_fmt = f"{fmt} %Y"
             try:
-                parsed = datetime.strptime(value, fmt).date()
+                parsed = datetime.strptime(adjusted_value, adjusted_fmt).date()
 
                 # If year is 1900 (default from formats without year like "%b %d"), apply year inference
                 if parsed.year == 1900 and self.spec.dates.infer_year.enabled:

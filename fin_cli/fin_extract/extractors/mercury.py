@@ -140,6 +140,22 @@ class MercuryExtractor(StatementExtractor):
         money_in_idx = _find_index(normalized, {"money in", "credit", "amount in"})
         money_out_idx = _find_index(normalized, {"money out", "debit", "amount out"})
         type_idx = _find_index(normalized, {"type", "transaction type"})
+
+        distinct_indices = {
+            idx
+            for idx in (
+                date_idx,
+                desc_idx,
+                amount_idx,
+                money_in_idx,
+                money_out_idx,
+                type_idx,
+            )
+            if idx is not None
+        }
+        if len(distinct_indices) <= 2:
+            return None
+
         return _ColumnMapping(
             date_index=date_idx,
             description_index=desc_idx,

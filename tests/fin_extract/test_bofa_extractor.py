@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
+
+import pytest
 
 from fin_cli.fin_extract.extractors.bofa import BankOfAmericaExtractor
-from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable
+from fin_cli.fin_extract.declarative import DeclarativeExtractor, load_spec
+from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable, load_pdf_document_with_engine
 
 
 def _build_document() -> PdfDocument:
@@ -68,3 +72,35 @@ def test_bofa_extracts_transactions() -> None:
     assert coffee.merchant == "Café Coffee"
 
     assert all(txn.amount > 0 for txn in result.transactions)
+
+
+@pytest.mark.parametrize(
+    ("pdf_name", "expected_transactions"),
+    [
+        ("eStmt_2025-08-22.pdf", 50),
+        ("eStmt_2025-09-22.pdf", 59),
+    ],
+)
+def test_bofa_bundled_spec_parity(pdf_name: str, expected_transactions: int) -> None:
+    pytest.importorskip("pdfplumber")
+
+    pdf_path = Path("statements/bofa") / pdf_name
+    document = load_pdf_document_with_engine(pdf_path, "pdfplumber")
+
+    python_result = BankOfAmericaExtractor().extract(document)
+    spec = load_spec("fin_cli/fin_extract/bundled_specs/bofa.yaml")
+    declarative_result = DeclarativeExtractor(spec).extract(document)
+
+    assert len(python_result.transactions) == expected_transactions
+    assert len(declarative_result.transactions) == expected_transactions
+
+    python_rows = {
+        (txn.date, txn.merchant, txn.amount) for txn in python_result.transactions
+    }
+    declarative_rows = {
+        (txn.date, txn.merchant, txn.amount) for txn in declarative_result.transactions
+    }
+    assert python_rows == declarative_rows
+
+    assert python_result.metadata.account_type == "credit"
+    assert declarative_result.metadata.account_type == "credit"
