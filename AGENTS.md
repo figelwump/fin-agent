@@ -17,6 +17,7 @@
 - Add notes on architecture, schema changes, relevant files, technical decisions, choices made, etc as needed.
 - The plan is meant for an LLM to work on it.
 - Persist the plan to the plans/ directory
+  - When work continues on an existing effort, update the existing plan file instead of spinning up a new mini-plan; keep everything consolidated in the main plan document.
 
 # How to work on plans
 
