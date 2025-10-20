@@ -72,6 +72,7 @@ include = ["fin_cli", "README.md", "specs", "plans", "AGENTS.md"]
 packages = ["fin_cli"]
 include = [
   "fin_cli/fin_extract/bundled_specs/*.yaml",
+  "fin_cli/fin_scrub/default_config.yaml",
 ]
 
 [tool.ruff]

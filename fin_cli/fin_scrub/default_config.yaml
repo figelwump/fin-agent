@@ -1,0 +1,124 @@
+transaction_markers:
+  - pattern: '^\s*\d{1,2}/\d{1,2}(?:\s+\d{1,2}/\d{1,2})?\s+.+?\s+[-$\(\)0-9.,]+$'
+  - pattern: '^\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2}.*\d[\d,]*\.\d{2}'
+    flags: [IGNORECASE]
+page_reset_markers:
+  headers:
+    - pattern: '\\bPage\\s*\\d+\\s*of\\s*\\d+\\b'
+      flags: [IGNORECASE]
+  footers:
+    - pattern: 'continued on next page'
+      flags: [IGNORECASE]
+placeholders:
+  NAME: '[NAME]'
+  ADDRESS: '[ADDRESS]'
+  ACCOUNT_NUMBER: '[ACCOUNT_NUMBER]'
+  ACCOUNT_LAST4: '[ACCOUNT_LAST4:{last4}]'
+  CARD_NUMBER: '[CARD_NUMBER]'
+  CARD_NUMBER_LAST4: '[CARD_NUMBER_LAST4:{last4}]'
+  ROUTING_NUMBER: '[ROUTING_NUMBER]'
+  SSN: '[SSN]'
+  EMAIL: '[EMAIL]'
+  URL: '[URL]'
+  CUSTOMER_ID: '[CUSTOMER_ID]'
+  PII: '[PII]'
+  SECRET: '[SECRET]'
+  IP: '[IP]'
+detectors:
+  scrub_name: true
+  scrub_address: true
+  scrub_email: true
+  scrub_url: true
+  scrub_phone: false
+  scrub_customer_id: true
+  scrub_ssn: true
+skip_words:
+  name:
+    - account
+    - accounts
+    - statement
+    - statements
+    - monthly
+    - interest
+    - fees
+    - fee
+    - balance
+    - balances
+    - withdrawals
+    - withdrawal
+    - deposits
+    - deposit
+    - charges
+    - charge
+    - total
+    - activity
+    - routing
+    - number
+    - numbers
+    - all
+    - dates
+    - utc
+    - beginning
+    - preauthorized
+    - closing
+    - period
+    - summary
+    - payment
+    - payments
+    - due
+    - days
+    - customer
+    - service
+    - information
+    - address
+    - visa
+    - signature
+    - account#
+    - bank
+    - america
+    - available
+    - line
+    - credit
+    - minimum
+    - warning
+    - billing
+    - cycle
+    - september
+    - august
+    - january
+    - february
+    - march
+    - april
+    - may
+    - june
+    - july
+    - october
+    - november
+    - december
+    - target
+    - com
+    - inc
+    - corp
+    - llc
+    - service
+    - health
+    - autopay
+filth_placeholders:
+  email: EMAIL
+  name: NAME
+  address: ADDRESS
+  location: ADDRESS
+  street: ADDRESS
+  credit_card: CARD_NUMBER
+  ssn: SSN
+  ipv4: IP
+  ipv6: IP
+  password: SECRET
+  default: PII
+custom_regex:
+  - pattern: '(?i)account(?:\s+number)?[:#\s]*(\d{6,})'
+    replacement: 'Account Number [ACCOUNT_NUMBER]'
+    stat: ACCOUNT_NUMBER
+  - pattern: '(?i)routing(?:\s+number)?[:#\s]*(\d{9})'
+    replacement: 'Routing Number [ROUTING_NUMBER]'
+    stat: ROUTING_NUMBER

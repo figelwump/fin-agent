@@ -18,7 +18,40 @@
 - [x] Implement regex-based scrubbers covering high-confidence patterns (credit-card via Luhn, account/routing numbers, emails, URLs, phone numbers, SSNs, ZIP codes when part of addresses).
 - [x] Integrate chosen PII library as a second pass, ensuring it operates on the already-redacted text and respects our placeholder format.
   - Leveraged `scrubadub` detectors (TextBlob name detector + phone/email/credit card) layered after regex stage; added guardrails/skip list to avoid over-scrubbing statement vocabulary. Requires `python -m textblob.download_corpora` once to enable POS tagging.
-- [ ] Add configuration options to enable/disable specific recognizers and to customize placeholder tokens.
+- [x] Add configuration options to enable/disable specific recognizers and to customize placeholder tokens.
+  - Planned YAML schema (`~/.finagent/fin-scrub.yaml` fallback to repo defaults):
+    ```yaml
+    transaction_markers:
+      - type: regex
+        pattern: '^\s*\d{1,2}/\d{1,2}\s+\d{1,2}/\d{1,2}\s+'
+      - type: regex
+        pattern: '^\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{1,2}\b.*\d+\.\d{2}'
+    page_reset_markers:
+      headers:
+        - '\bPage\s*\d+\s*of\s*\d+\b'
+      footers:
+        - 'continued on next page'
+    placeholders:
+      NAME: '[NAME]'
+      ADDRESS: '[ADDRESS]'
+      ACCOUNT_NUMBER: '[ACCOUNT_NUMBER]'
+      CARD_NUMBER: '[CARD_NUMBER]'
+      ACCOUNT_LAST4: '[ACCOUNT_LAST4:{last4}]'
+    detectors:
+      scrub_name: true
+      scrub_address: true
+      scrub_email: true
+      scrub_phone: false
+    skip_words:
+      name:
+        - statement
+        - payment
+        - autopay
+    custom_regex:
+      - pattern: 'Ach ID:\s*(\d{12})'
+        placeholder: '[ACH_ID]'
+    ```
+  - CLI flag `--config PATH` overrides the default; config is merged with built-ins so LLMs can safely add/remove entries without editing Python.
 
 ## Phase 3 – Validation & Documentation
 - [ ] Create fixture statements (or sanitized samples) and automated tests verifying that sensitive tokens are replaced while non-PII remains intact.
