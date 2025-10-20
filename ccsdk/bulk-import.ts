@@ -26,6 +26,7 @@ export interface BulkImportResult {
   csvPaths: string[];
   reviewPath?: string;
   finEnhanceOutput?: string;
+  finEnhanceLogPath?: string;
   unsupported: string[];
   missing: string[];
   transactionsPreview: EnhancedTransactionPreview[];
@@ -276,6 +277,7 @@ export async function bulkImportStatements(options: BulkImportOptions): Promise<
   }
 
   let finEnhanceOutput: string | undefined;
+  let finEnhanceLogPath: string | undefined;
   let enhancedTransactions: EnhancedTransactionPreview[] = [];
   const importStart = Date.now();
   try {
@@ -283,10 +285,20 @@ export async function bulkImportStatements(options: BulkImportOptions): Promise<
     finEnhanceOutput = [enhanceResult.stdout.trim(), enhanceResult.stderr.trim()].filter(Boolean).join('\n');
 
     enhancedTransactions = parseEnhancedCsv(enhanceResult.stdout);
+    if (finEnhanceOutput) {
+      finEnhanceLogPath = path.join(LOGS_ROOT, `bulk-review-${timestamp}.log`);
+      await fs.writeFile(finEnhanceLogPath, `${finEnhanceOutput}\n`, 'utf8');
+    }
   } catch (error: any) {
     const enhanceError = new Error(`fin-enhance failed: ${error.message}`);
     (enhanceError as any).stdout = error.stdout;
     (enhanceError as any).stderr = error.stderr;
+
+    const combinedOutput = [error.stdout?.trim(), error.stderr?.trim()].filter(Boolean).join('\n');
+    if (combinedOutput) {
+      finEnhanceLogPath = path.join(LOGS_ROOT, `bulk-review-${timestamp}-error.log`);
+      await fs.writeFile(finEnhanceLogPath, `${combinedOutput}\n`, 'utf8');
+    }
     throw enhanceError;
   }
   steps.push({ name: 'import', durationMs: Date.now() - importStart });
@@ -299,6 +311,7 @@ export async function bulkImportStatements(options: BulkImportOptions): Promise<
     csvPaths,
     reviewPath,
     finEnhanceOutput,
+    finEnhanceLogPath,
     unsupported: expansion.unsupported,
     missing: expansion.missing,
     transactionsPreview: enhancedTransactions,

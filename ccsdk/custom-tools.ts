@@ -191,6 +191,7 @@ export const customMCPServer = createSdkMcpServer({
             autoApprove: result.autoApprove,
             csvPaths: result.csvPaths,
             reviewPath: result.reviewPath ?? null,
+            finEnhanceLogPath: result.finEnhanceLogPath ?? null,
             unsupported: result.unsupported,
             missing: result.missing,
             extraction: result.extraction,
@@ -201,6 +202,7 @@ export const customMCPServer = createSdkMcpServer({
 
           console.log('[bulk_import_statements] Result from bulkImportStatements:');
           console.log('  - reviewPath:', result.reviewPath);
+          console.log('  - finEnhanceLogPath:', result.finEnhanceLogPath ?? null);
           console.log('  - reviewItems count:', result.reviewItems?.length ?? 0);
           console.log('  - reviewItems with suggestedCategory:', result.reviewItems?.filter(i => i.suggestedCategory).length ?? 0);
 
