@@ -233,7 +233,7 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
   - Rewrote to follow preprocess/postprocess workflow with chunked prompts
 
 - [x] Update or archive `skills/statement-processor/examples/pipe-mode.md`
-  - Replaced with a minimal command loop that stages artifacts under the workspace
+  - Removed legacy doc; new workflow documented in SKILL.md and `examples/batch-processing.md`
 
 - [x] Remove or replace `skills/statement-processor/troubleshooting/extraction-errors.md` *(legacy extractor doc deleted 2025-10-20; add LLM-focused troubleshooting later if needed)*
 
