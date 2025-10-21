@@ -17,7 +17,8 @@ mkdir -p "$SCRUBBED_DIR" "$PROMPTS_DIR" "$LLM_DIR" "$ENRICHED_DIR"
 ## 2. Scrub All PDFs
 
 ```bash
-for pdf in ~/statements/2025-09/*.pdf; do
+PDF_GLOB=~/statements/2025-09/*.pdf  # Replace with the user's actual statement locations
+for pdf in $PDF_GLOB; do
   fin-scrub "$pdf" --output-dir "$WORKDIR"
 done
 ```
