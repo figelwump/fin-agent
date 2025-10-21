@@ -222,7 +222,7 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
 - [x] Update `skills/statement-processor/examples/single-statement.md`
   - Replaced with `examples/llm-extraction.md` walkthrough for the new pipeline
 
-- [ ] Create `skills/statement-processor/reference/csv-format.md`
+- [x] Create `skills/statement-processor/reference/csv-format.md`
   - Document required CSV columns
   - Document how the post-processing step derives `account_key` and `fingerprint`
   - Document account identification
@@ -232,8 +232,8 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
 - [x] Update or archive `skills/statement-processor/examples/batch-processing.md`
   - Rewrote to follow preprocess/postprocess workflow with chunked prompts
 
-- [ ] Update or archive `skills/statement-processor/examples/pipe-mode.md`
-  - Document how to stream through the preprocess/postprocess helpers, or remove if no longer useful
+- [x] Update or archive `skills/statement-processor/examples/pipe-mode.md`
+  - Replaced with a minimal command loop that stages artifacts under the workspace
 
 - [x] Remove or replace `skills/statement-processor/troubleshooting/extraction-errors.md` *(legacy extractor doc deleted 2025-10-20; add LLM-focused troubleshooting later if needed)*
 
