@@ -88,3 +88,14 @@ queries:
       type: integer
       default: 1
       description: Minimum number of transactions required to include a merchant.
+- name: merchant_search
+  file: merchant_search.sql
+  description: Transactions matching merchants via SQL LIKE patterns.
+  parameters:
+    pattern:
+      type: string
+      required: true
+      description: LIKE pattern to match merchants (use % wildcards, case-sensitive).
+    limit:
+      type: integer
+      default: 25

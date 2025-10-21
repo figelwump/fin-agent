@@ -231,3 +231,19 @@ def test_run_merchants_query(tmp_path) -> None:
     merchants = {row[0]: row[1] for row in result.rows}
     assert merchants.get("Amazon") == 2
     assert "Whole Foods" not in merchants
+
+
+def test_run_merchant_search_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="merchant_search",
+        runtime_params={"pattern": "%Amazon%"},
+        limit=5,
+    )
+
+    assert result.description == "Transactions matching merchants via SQL LIKE patterns."
+    assert result.limit_applied is True
+    assert any(row[1] == "Amazon" for row in result.rows)

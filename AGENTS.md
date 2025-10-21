@@ -7,6 +7,11 @@
 - Run `pytest` regularly to catch regressions early and keep the test suite green.
 - Multiple agents may collaborate on this repository (even simultaneously on the same branch). Commit only the changes you make unless explicitly instructed otherwise.
 
+## Schema & Query Tips
+- Core transaction columns: `date`, `merchant`, `original_description`, `amount`, `account_id`, `category_id`, `metadata`. There is no generic `description` field.
+- Prefer `fin-query schema --table transactions --format table` (or other `fin-query` commands) instead of invoking `sqlite3` directly when you need to inspect structure or run ad-hoc SQL.
+- Use saved queries where possible; a `merchant_search` query is available for LIKE-based merchant lookups.
+
 # How to write implementation plans
 - Prefix the plan name with "plan_" and suffix with a date like "_092325"
 - After you create a new plan, pause to ask the user to review and verify before continuing. Show the user the plan in your output when you ask them to verify.
@@ -30,7 +35,7 @@ You may be given an implementation plan to work through. If so, here are guideli
 
 # Tooling conventions
 
-- When you need to inspect the local SQLite database, use the `sqlite3` CLI rather than ad-hoc Python scripts. Example: `sqlite3 ~/.finagent/data.db`. From there you can run commands like `.tables` or `SELECT COUNT(*) FROM transactions;`.
+- When you need to inspect the local SQLite database, prefer the `fin-query` CLI (`fin-query saved …`, `fin-query schema …`) for read-only exploration; fall back to the `sqlite3` CLI only when functionality is missing.
 
 # fin-enhance Review Process
 
