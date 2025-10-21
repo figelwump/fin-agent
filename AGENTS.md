@@ -5,6 +5,7 @@
 - Activate the project virtualenv (`source .venv/bin/activate`) before running tests or CLI commands
 - Read README.md
 - Run `pytest` regularly to catch regressions early and keep the test suite green.
+- Multiple agents may collaborate on this repository (even simultaneously on the same branch). Commit only the changes you make unless explicitly instructed otherwise.
 
 # How to write implementation plans
 - Prefix the plan name with "plan_" and suffix with a date like "_092325"

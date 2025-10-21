@@ -13,6 +13,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from fin_cli.fin_query import executor
 from fin_cli.shared.config import AppConfig, load_config
+from fin_cli.shared.database import run_migrations
 from fin_cli.shared.merchants import AGGREGATOR_LABELS, friendly_display_name, merchant_pattern_key, normalize_merchant
 
 TEMPLATES_DIR = Path(__file__).with_name("templates")
@@ -96,6 +97,20 @@ def _get_canonical_merchant(merchant: str) -> tuple[str, str]:
     canonical = merchant_pattern_key(merchant) or normalized or "UNKNOWN"
     display = friendly_display_name(canonical, [merchant])
     return (canonical, display)
+
+
+def _ensure_database_ready(config: AppConfig) -> None:
+    """
+    Make sure the configured SQLite database exists before we issue read-only queries.
+
+    The executor layer opens the database in `mode=ro`, which fails for first-run users
+    when the file has never been created. Running migrations here safely creates the
+    file and schema without altering already-initialised databases.
+    """
+    db_path = config.database.path
+    if db_path.exists():
+        return
+    run_migrations(config)
 
 
 def _load_merchants(
@@ -212,6 +227,8 @@ def build_prompt(
         raise ValueError("labels length must match scrubbed_texts length when provided.")
 
     effective_config = config or load_config()
+    _ensure_database_ready(effective_config)
+
     categories = list(categories_data) if categories_data is not None else _load_categories(
         config=effective_config,
         limit=categories_limit,
@@ -325,6 +342,7 @@ def cli(
         batch = True
 
     config = load_config()
+    _ensure_database_ready(config)
     categories = _load_categories(config=config, limit=categories_limit)
     merchants: list[dict[str, object]] = []
     if not categories_only:
