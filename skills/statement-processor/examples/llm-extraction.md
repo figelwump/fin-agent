@@ -17,7 +17,8 @@ mkdir -p "$SCRUBBED_DIR" "$PROMPTS_DIR" "$LLM_DIR" "$ENRICHED_DIR"
 ## 2. Scrub the Statement
 
 ```bash
-fin-scrub "$HOME/statements/chase-september.pdf" \
+PDF_PATH="$HOME/statements/chase-september.pdf"  # Replace with the user's actual statement PDF
+fin-scrub "$PDF_PATH" \
   --output-dir "$WORKDIR"
 ```
 
