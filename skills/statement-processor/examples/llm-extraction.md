@@ -18,7 +18,7 @@ mkdir -p "$SCRUBBED_DIR" "$PROMPTS_DIR" "$LLM_DIR" "$ENRICHED_DIR"
 
 ```bash
 fin-scrub "$HOME/statements/chase-september.pdf" \
-  --output "$SCRUBBED_DIR/chase-september-scrubbed.txt"
+  --output-dir "$WORKDIR"
 ```
 
 `$SCRUBBED_DIR/chase-september-scrubbed.txt` contains the redacted statement text that the LLM will see.
@@ -28,7 +28,7 @@ fin-scrub "$HOME/statements/chase-september.pdf" \
 ```bash
 python ~/GiantThings/repos/fin-agent/skills/statement-processor/preprocess.py \
   --input "$SCRUBBED_DIR/chase-september-scrubbed.txt" \
-  --output "$PROMPTS_DIR/chase-september-prompt.txt" \
+  --output-dir "$WORKDIR" \
   --max-merchants 150
 ```
 
@@ -43,7 +43,7 @@ Send the prompt to your LLM of choice (Claude in this example) and save the CSV 
 ```bash
 python ~/GiantThings/repos/fin-agent/skills/statement-processor/postprocess.py \
   --input "$LLM_DIR/chase-september-llm.csv" \
-  --output "$ENRICHED_DIR/chase-september-enriched.csv"
+  --output-dir "$WORKDIR"
 ```
 
 This adds `account_key` and `fingerprint` columns while normalising merchants and confidence values.

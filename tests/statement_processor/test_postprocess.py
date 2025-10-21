@@ -73,3 +73,27 @@ def test_cli_writes_enriched_csv(tmp_path: Path) -> None:
     contents = output_path.read_text(encoding="utf-8")
     assert "account_key" in contents
     assert "fingerprint" in contents
+
+
+def test_cli_output_dir_creates_enriched(tmp_path: Path) -> None:
+    input_path = tmp_path / "batch-1-llm.csv"
+    with input_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(postprocess._REQUIRED_COLUMNS))  # type: ignore[attr-defined]
+        writer.writeheader()
+        writer.writerow(_sample_row())
+
+    runner = CliRunner()
+    workdir = tmp_path / "workspace"
+    result = runner.invoke(
+        postprocess.cli,
+        [
+            "--input",
+            str(input_path),
+            "--output-dir",
+            str(workdir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    enriched_path = workdir / "enriched" / "batch-1-enriched.csv"
+    assert enriched_path.exists()

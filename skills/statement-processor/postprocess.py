@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping, MutableMapping, Sequence
@@ -56,6 +57,28 @@ class EnrichedTransaction:
             "account_key": self.account_key,
             "fingerprint": self.fingerprint,
         }
+
+
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip())
+    slug = slug.strip("-_")
+    return slug or "statement"
+
+
+def _strip_suffix(value: str, suffix: str) -> str:
+    if value.endswith(suffix):
+        return value[: -len(suffix)]
+    return value
+
+
+def _derive_enriched_filename(source: Path | None) -> str:
+    base = source.stem if source is not None else "llm-output"
+    base = base.rstrip("-_ ")
+    base = _strip_suffix(base, "-llm")
+    base = _strip_suffix(base, "-raw")
+    base = _strip_suffix(base, "-enriched")
+    slug = _slugify(base)
+    return f"{slug}-enriched.csv"
 
 
 def _normalise_merchant(value: str) -> str:
@@ -164,15 +187,27 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
 @click.command()
 @click.option("--input", "input_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), required=True)
 @click.option("--output", "output_path", type=click.Path(path_type=Path, dir_okay=False), help="Optional destination for enriched CSV.")
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    help="Directory where enriched CSVs should be written using auto-generated filenames.",
+)
 @click.option("--stdout", is_flag=True, help="Emit enriched CSV to stdout instead of writing a file.")
-def cli(input_path: Path, output_path: Path | None, stdout: bool) -> None:
+def cli(input_path: Path, output_path: Path | None, output_dir: Path | None, stdout: bool) -> None:
     """Enrich LLM CSV output with account_key and fingerprint columns."""
 
-    if stdout and output_path is not None:
-        raise click.UsageError("Use either --stdout or --output, not both.")
+    if output_path and output_dir:
+        raise click.UsageError("Specify either --output or --output-dir, not both.")
+    if stdout and (output_path or output_dir):
+        raise click.UsageError("Use either --stdout or file output options, not both.")
 
     rows = _read_csv(input_path)
     enriched = enrich_rows(rows)
+
+    if output_dir is not None:
+        target_dir = output_dir / "enriched"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / _derive_enriched_filename(input_path)
 
     if stdout:
         writer = csv.DictWriter(click.get_text_stream("stdout"), fieldnames=list(_REQUIRED_COLUMNS) + ["account_key", "fingerprint"])
@@ -180,7 +215,7 @@ def cli(input_path: Path, output_path: Path | None, stdout: bool) -> None:
         for txn in enriched:
             writer.writerow(txn.as_dict())
     else:
-        destination = output_path or input_path.with_name(f"{input_path.stem}-enriched.csv")
+        destination = output_path or input_path.with_name(_derive_enriched_filename(input_path))
         _write_csv(destination, enriched)
         click.echo(f"Wrote enriched CSV to {destination}")
 

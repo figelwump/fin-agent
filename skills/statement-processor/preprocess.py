@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+import re
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -30,6 +31,27 @@ _JINJA_ENV = Environment(
 class StatementChunk:
     label: str
     text: str
+
+
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip())
+    slug = slug.strip("-_")
+    return slug or "statement"
+
+
+def _strip_suffix(value: str, suffix: str) -> str:
+    if value.endswith(suffix):
+        return value[: -len(suffix)]
+    return value
+
+
+def _derive_prompt_basename(labels: Sequence[str]) -> str:
+    primary = labels[0] if labels else "statement"
+    primary = _strip_suffix(primary, "-scrubbed")
+    primary = primary.rstrip("-_ ")
+    if len(labels) > 1:
+        primary = f"{primary}-batch"
+    return _slugify(primary)
 
 
 def _load_merchants(
@@ -199,6 +221,11 @@ def _write_output(prompt: str, output_path: Path) -> None:
     help="Scrubbed statement text files to include in the prompt.",
 )
 @click.option("--output", type=click.Path(path_type=Path), help="Optional file path to write the prompt.")
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    help="Directory where prompts should be written using auto-generated filenames.",
+)
 @click.option("--batch", is_flag=True, help="Treat multiple inputs as a batch (default when >1 file).")
 @click.option("--max-merchants", type=int, help="Limit the number of merchants included in the taxonomy block.")
 @click.option("--min-merchant-count", type=int, default=1, show_default=True, help="Ignore merchants with fewer than this many transactions.")
@@ -218,6 +245,7 @@ def cli(
     *,
     input_paths: tuple[Path, ...],
     output: Path | None,
+    output_dir: Path | None,
     batch: bool,
     max_merchants: int | None,
     min_merchant_count: int,
@@ -227,6 +255,9 @@ def cli(
     emit_json: bool,
 ) -> None:
     """Build extraction prompts for scrubbed statement text."""
+
+    if output and output_dir:
+        raise click.ClickException("Specify either --output or --output-dir, not both.")
 
     statements = _read_inputs(input_paths)
     if len(statements) > 1 and not batch:
@@ -248,7 +279,7 @@ def cli(
 
     chunks = _chunk_inputs(statements, max_per_chunk=max_statements_per_prompt if batch else None)
 
-    prompts: list[str] = []
+    prompts: list[tuple[str, list[str]]] = []
     for chunk in chunks:
         chunk_labels = [s.label for s in chunk]
         chunk_texts = [s.text for s in chunk]
@@ -263,23 +294,36 @@ def cli(
             categories_data=categories,
             merchants_data=merchants,
         )
-        prompts.append(prompt)
+        prompts.append((prompt, chunk_labels))
 
     if output:
         if len(prompts) == 1:
-            _write_output(prompts[0], output)
+            _write_output(prompts[0][0], output)
             click.echo(f"Wrote prompt to {output}")
         else:
             base = output
             suffix = base.suffix
             stem = base.stem
             parent = base.parent
-            for idx, prompt in enumerate(prompts, start=1):
+            for idx, (prompt, _) in enumerate(prompts, start=1):
                 chunk_path = parent / f"{stem}-part{idx}{suffix or '.txt'}"
                 _write_output(prompt, chunk_path)
                 click.echo(f"Wrote prompt chunk {idx} to {chunk_path}")
+    elif output_dir:
+        target_dir = output_dir / "prompts"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        total = len(prompts)
+        for idx, (prompt, labels) in enumerate(prompts, start=1):
+            base_name = _derive_prompt_basename(labels)
+            if total > 1:
+                filename = f"{base_name}-prompt-part{idx}.txt"
+            else:
+                filename = f"{base_name}-prompt.txt"
+            path = target_dir / filename
+            _write_output(prompt, path)
+            click.echo(f"Wrote prompt to {path}")
     else:
-        for idx, prompt in enumerate(prompts, start=1):
+        for idx, (prompt, _) in enumerate(prompts, start=1):
             if len(prompts) > 1:
                 click.echo(f"----- PROMPT {idx}/{len(prompts)} -----")
             click.echo(prompt)

@@ -176,3 +176,31 @@ def test_cli_writes_chunked_prompts(tmp_path: Path) -> None:
     contents = part1.read_text(encoding="utf-8")
     assert "Known Merchants" in contents
     assert "Statement 1" in contents
+
+
+def test_cli_writes_auto_named_prompt(tmp_path: Path) -> None:
+    config, env = _prepare_config(tmp_path)
+    (tmp_path / "statements").mkdir()
+    scrubbed = tmp_path / "statements" / "demo-scrubbed.txt"
+    scrubbed.write_text("Header\n09/01 Sample 10.00", encoding="utf-8")
+
+    runner = CliRunner()
+    workdir = tmp_path / "workspace"
+    result = runner.invoke(
+        preprocess.cli,
+        [
+            "--input",
+            str(scrubbed),
+            "--output-dir",
+            str(workdir),
+        ],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    prompt_files = list((workdir / "prompts").glob("*.txt"))
+    assert prompt_files, result.output
+    prompt_path = prompt_files[0]
+    assert prompt_path.name.endswith("-prompt.txt")
+    text = prompt_path.read_text(encoding="utf-8")
+    assert "date,merchant,amount" in text

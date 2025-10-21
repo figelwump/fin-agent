@@ -610,9 +610,33 @@ def _read_pdf(path: Path, engine: str) -> str:
     return document.text
 
 
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip())
+    slug = slug.strip("-_")
+    return slug or "statement"
+
+
+def _derive_scrubbed_filename(source: Path | None) -> str:
+    if source is None:
+        base = "stdin"
+    else:
+        base = source.stem
+    base = base.rstrip("-_ ")
+    slug = _slugify(base)
+    if slug.endswith("-scrubbed"):
+        slug = slug[: -len("-scrubbed")]
+    return f"{slug}-scrubbed.txt"
+
+
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument("input_path", type=click.Path(path_type=Path), required=False)
 @click.option("--output", "output_path", type=click.Path(path_type=Path), help="Write scrubbed text to file.")
+@click.option(
+    "--output-dir",
+    "output_dir",
+    type=click.Path(path_type=Path),
+    help="Directory where the scrubbed file should be written using an auto-generated name.",
+)
 @click.option("--stdout", "use_stdout", is_flag=True, help="Write scrubbed text to stdout.")
 @click.option("--stdin", "use_stdin", is_flag=True, help="Read raw text from stdin instead of a file.")
 @click.option("--engine", type=click.Choice(["auto", "docling", "pdfplumber"], case_sensitive=False), default="auto", show_default=True, help="PDF parsing engine to use when reading PDFs.")
@@ -621,6 +645,7 @@ def _read_pdf(path: Path, engine: str) -> str:
 def main(
     input_path: Path | None,
     output_path: Path | None,
+    output_dir: Path | None,
     use_stdout: bool,
     use_stdin: bool,
     engine: str,
@@ -633,8 +658,10 @@ def main(
         raise click.ClickException("Specify either an input file or --stdin, not both.")
     if not use_stdin and input_path is None:
         raise click.ClickException("Provide an input PDF/text file or use --stdin.")
-    if output_path is not None and use_stdout:
-        raise click.ClickException("Use either --output or --stdout, not both.")
+    if output_path is not None and output_dir is not None:
+        raise click.ClickException("Specify either --output or --output-dir, not both.")
+    if (output_path or output_dir) and use_stdout:
+        raise click.ClickException("Use either file output options or --stdout, not both.")
 
     _load_and_configure(config_path)
 
@@ -648,6 +675,11 @@ def main(
 
     stats = ScrubStats()
     scrubbed = _scrub_text(raw_text, stats)
+
+    if output_dir is not None:
+        target_dir = output_dir / "scrubbed"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / _derive_scrubbed_filename(input_path if not use_stdin else None)
 
     if output_path:
         output_path.write_text(scrubbed)

@@ -18,8 +18,7 @@ mkdir -p "$SCRUBBED_DIR" "$PROMPTS_DIR" "$LLM_DIR" "$ENRICHED_DIR"
 
 ```bash
 for pdf in ~/statements/2025-09/*.pdf; do
-  name=$(basename "${pdf%.pdf}")
-  fin-scrub "$pdf" --output "$SCRUBBED_DIR/${name}-scrubbed.txt"
+  fin-scrub "$pdf" --output-dir "$WORKDIR"
 done
 ```
 
@@ -31,7 +30,7 @@ python ~/GiantThings/repos/fin-agent/skills/statement-processor/preprocess.py \
   --input "$SCRUBBED_DIR"/*-scrubbed.txt \
   --max-merchants 200 \
   --max-statements-per-prompt 3 \
-  --output "$PROMPTS_DIR/batch-prompt.txt"
+  --output-dir "$WORKDIR"
 ```
 
 If more than three statements are provided, the CLI emits multiple prompt chunks (e.g., `$PROMPTS_DIR/batch-prompt-part1.txt`).
@@ -47,7 +46,7 @@ for csv in "$LLM_DIR"/batch-*-llm.csv; do
   base=$(basename "$csv" -llm.csv)
   python ~/GiantThings/repos/fin-agent/skills/statement-processor/postprocess.py \
     --input "$csv" \
-    --output "$ENRICHED_DIR/${base}-enriched.csv"
+    --output-dir "$WORKDIR"
 done
 ```
 
