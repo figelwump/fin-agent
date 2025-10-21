@@ -295,7 +295,7 @@ def _write_output(prompt: str, output_path: Path) -> None:
     "input_paths",
     multiple=True,
     type=click.Path(path_type=Path, exists=True, dir_okay=False),
-    required=True,
+    required=False,
     help="Scrubbed statement text files to include in the prompt.",
 )
 @click.option("--output", type=click.Path(path_type=Path), help="Optional file path to write the prompt.")
@@ -319,6 +319,11 @@ def _write_output(prompt: str, output_path: Path) -> None:
     help="Optional upper bound on the number of categories to include.",
 )
 @click.option("--json", "--emit-json", "emit_json", is_flag=True, help="Print the taxonomy payload as JSON instead of rendering prompts.")
+@click.option(
+    "--workdir",
+    type=click.Path(path_type=Path, file_okay=False),
+    help="Statement-processor workspace root (from bootstrap.sh). Auto-discovers inputs/outputs when provided.",
+)
 def cli(
     *,
     input_paths: tuple[Path, ...],
@@ -331,11 +336,27 @@ def cli(
     max_statements_per_prompt: int | None,
     categories_limit: int | None,
     emit_json: bool,
+    workdir: Path | None,
 ) -> None:
     """Build extraction prompts for scrubbed statement text."""
 
     if output and output_dir:
         raise click.ClickException("Specify either --output or --output-dir, not both.")
+    if workdir is not None:
+        workdir = workdir.expanduser().resolve()
+        if not workdir.exists():
+            raise click.ClickException(f"Workspace {workdir} does not exist. Run bootstrap.sh first.")
+        if not input_paths:
+            scrubbed_dir = workdir / "scrubbed"
+            candidates = sorted(scrubbed_dir.glob("*-scrubbed.txt"))
+            if not candidates:
+                raise click.ClickException(f"No scrubbed statements found under {scrubbed_dir}.")
+            input_paths = tuple(candidates)
+        if output is None and output_dir is None:
+            output_dir = workdir
+
+    if not input_paths:
+        raise click.ClickException("At least one --input is required if --workdir is not specified.")
 
     statements = _read_inputs(input_paths)
     if len(statements) > 1 and not batch:

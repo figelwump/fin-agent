@@ -12,11 +12,17 @@ Environment
   - `source .venv/bin/activate`
 
 Quick Start (LLM Pipeline)
-1. Scrub sensitive data: `fin-scrub statement.pdf --output statement-scrubbed.txt`
-2. Build prompt with taxonomies: `python .claude/skills/statement-processor/preprocess.py --input statement-scrubbed.txt --output prompt.txt`
-3. Send the prompt to your LLM (Claude, etc.) and save the CSV response (e.g., `llm-output.csv`).
-4. Enrich CSV with hashes: `python .claude/skills/statement-processor/postprocess.py --input llm-output.csv --output llm-enriched.csv`
-5. Import validated rows: `fin-edit import-transactions llm-enriched.csv` (preview) then `fin-edit --apply import-transactions llm-enriched.csv` once the review passes. Add `--no-create-categories` if you want to fail instead of auto-creating new categories.
+1. Initialise a workspace (shared by single or batch flows): `eval "$(.claude/skills/statement-processor/bootstrap.sh chase-2025-09)"`.  
+   - Exports `FIN_STATEMENT_WORKDIR`, `FIN_STATEMENT_SCRUBBED_DIR`, `FIN_STATEMENT_PROMPTS_DIR`, `FIN_STATEMENT_LLM_DIR`, and `FIN_STATEMENT_ENRICHED_DIR`.
+2. Scrub sensitive data: `fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"`.
+3. Build prompt with taxonomies: `python .claude/skills/statement-processor/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR"`.
+4. Send the prompt to your LLM (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
+5. Enrich CSV with hashes: `python .claude/skills/statement-processor/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR"`.
+6. Import validated rows: `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv` (preview) then `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.9` once the review passes. Add `--no-create-categories` if you want to fail instead of auto-creating new categories.
+
+The prompt builder loads the live taxonomy from SQLite automatically. For debugging you can inspect the payload by running `python .claude/skills/statement-processor/preprocess.py --input scrubbed.txt --emit-json`, or export the same data manually with:
+- Categories: `fin-query saved categories --format json > categories.json`
+- Merchants: `fin-query saved merchants --min-count 2 --format json > merchants.json` (adjust `--min-count`/`--limit` as needed).
 
 Batch Workflow
 1. Scrub all PDFs (use a loop) into `*-scrubbed.txt` files.
@@ -26,27 +32,39 @@ Batch Workflow
 5. Concatenate or import each enriched CSV via `fin-edit import-transactions` (preview) and rerun with `--apply` when ready. Use `--default-confidence` to fill empty confidence cells when needed.
 
 Working Directory
-- Create a dedicated run directory per statement batch, for example `~/.finagent/skills/statement-processor/<timestamp>/`.
-- Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside that directory so artifacts stay isolated from project source.
-- Clean up temporary files once the import is committed to the database.
+- Use `bootstrap.sh` to create a deterministic run directory (e.g., `eval "$(.claude/skills/statement-processor/bootstrap.sh chase-2025-09)"`). The script works for both single and batch workflows.
+- All helper CLIs accept `--workdir` so they can auto-discover `scrubbed/`, `prompts/`, `llm/`, and `enriched/` subdirectories.
+- The harness resets the shell’s CWD between commands; rely on the exported environment variables or absolute paths instead of `cd`.
+- Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside the workspace and clean up once the import is committed to the database.
 
 Handling Low Confidence
 - The prompt instructs the LLM to lower `confidence` (<0.7) whenever unsure.
 - Review low-confidence rows first; edit merchants/categories before import or after import using `fin-edit`.
 - If account metadata is unclear, pause and ask the user which account the statement belongs to; rerun post-processing once metadata is confirmed.
+- After the user approves a correction, update the record via `fin-edit set-category` (dry-run first) and bump confidence to 1.0 when rerunning `import-transactions`.
+- When a user wants future transactions auto-categorised, run `fin-edit add-merchant-pattern` (preview, then `--apply`) with the deterministic pattern key (use `python -c "from fin_cli.shared.merchants import merchant_pattern_key; print(merchant_pattern_key('MERCHANT RAW'))"` if needed).
+- For bulk high-confidence learning, prefer `fin-edit --apply import-transactions … --learn-patterns --learn-threshold 0.9`; keep manual `add-merchant-pattern` for edge cases or low-confidence merchants.
+
+Database Writes
+- Always preview imports: `fin-edit import-transactions enriched.csv`
+- Apply when satisfied: `fin-edit --apply import-transactions enriched.csv --learn-patterns --learn-threshold 0.9`
+- Use `--default-confidence` to backfill blanks and `--no-create-categories` to enforce pre-created taxonomy entries.
+- Validate inserts with `fin-query saved recent_imports --limit 10` or `fin-query saved transactions_month --param month=YYYY-MM`.
 
 Available Commands
+- `.claude/skills/statement-processor/bootstrap.sh`: initialise a run workspace and export helper environment variables (use via `eval "$(...)"`).
 - `fin-scrub`: sanitize PDFs to redact PII.
 - `python .claude/skills/statement-processor/preprocess.py`: build single or batch prompts with existing taxonomies.
 - `python .claude/skills/statement-processor/postprocess.py`: append `account_key`/`fingerprint` to LLM CSV output.
 - `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep).
+- `fin-edit set-category`: correct individual transactions after import (dry-run before `--apply`).
+- `fin-edit add-merchant-pattern`: remember high-confidence merchant/category mappings for future runs.
 - `fin-query saved merchants --format json --min-count N`: retrieve merchant taxonomy for debugging.
 
 Reference Material (to be refreshed)
-- `examples/llm-extraction.md` – full end-to-end example (pending update).
-- `examples/batch-processing.md` – legacy content; rewrite to match the LLM pipeline.
-- `examples/pipe-mode.md` – legacy content; either retire or adapt for preprocess/postprocess helpers.
-- `reference/csv-format.md` – upcoming canonical schema guide for enriched CSVs.
+- `examples/llm-extraction.md` – end-to-end walkthrough for a single statement.
+- `examples/batch-processing.md` – workflow for multi-statement batches.
+- `reference/csv-format.md` – canonical schema for enriched CSVs.
 
 Next Steps for Agents
 - Ensure enriched CSVs include `account_key` and `fingerprint` before import.

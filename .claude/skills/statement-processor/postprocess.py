@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
+import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Mapping, MutableMapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 import click
 
 from fin_cli.shared import models
+from fin_cli.shared.merchants import merchant_pattern_key
 from fin_cli.shared.config import AppConfig, load_config
 
 _REQUIRED_COLUMNS = (
@@ -42,8 +44,16 @@ class EnrichedTransaction:
     confidence: float
     account_key: str
     fingerprint: str
+    pattern_key: str | None = None
+    pattern_display: str | None = None
+    merchant_metadata: Mapping[str, object] | str | None = None
 
     def as_dict(self) -> dict[str, object]:
+        metadata_value: str = ""
+        if isinstance(self.merchant_metadata, Mapping):
+            metadata_value = json.dumps(self.merchant_metadata, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        elif isinstance(self.merchant_metadata, str):
+            metadata_value = self.merchant_metadata
         return {
             "date": self.date,
             "merchant": self.merchant,
@@ -57,6 +67,9 @@ class EnrichedTransaction:
             "confidence": f"{self.confidence:.4f}",
             "account_key": self.account_key,
             "fingerprint": self.fingerprint,
+            "pattern_key": self.pattern_key or "",
+            "pattern_display": self.pattern_display or "",
+            "merchant_metadata": metadata_value,
         }
 
 
@@ -187,6 +200,22 @@ def enrich_rows(rows: Iterable[Mapping[str, object]], *, config: AppConfig | Non
             None,
             account_key,
         )
+        pattern_key = str(row.get("pattern_key") or "").strip()
+        if not pattern_key:
+            pattern_key = merchant_pattern_key(merchant) or ""
+        pattern_display = str(row.get("pattern_display") or "").strip()
+        if not pattern_display and pattern_key:
+            pattern_display = merchant
+
+        merchant_metadata: Mapping[str, object] | str | None = None
+        raw_metadata = row.get("merchant_metadata")
+        if raw_metadata is not None:
+            metadata_text = str(raw_metadata).strip()
+            if metadata_text:
+                try:
+                    merchant_metadata = json.loads(metadata_text)
+                except json.JSONDecodeError:
+                    merchant_metadata = metadata_text
 
         enriched.append(
             EnrichedTransaction(
@@ -202,6 +231,9 @@ def enrich_rows(rows: Iterable[Mapping[str, object]], *, config: AppConfig | Non
                 confidence=confidence,
                 account_key=account_key,
                 fingerprint=fingerprint,
+                pattern_key=pattern_key or None,
+                pattern_display=pattern_display or None,
+                merchant_metadata=merchant_metadata,
             )
         )
     return enriched
@@ -214,7 +246,13 @@ def _read_csv(path: Path) -> list[dict[str, object]]:
 
 
 def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
-    fieldnames = list(_REQUIRED_COLUMNS) + ["account_key", "fingerprint"]
+    fieldnames = list(_REQUIRED_COLUMNS) + [
+        "account_key",
+        "fingerprint",
+        "pattern_key",
+        "pattern_display",
+        "merchant_metadata",
+    ]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -223,7 +261,7 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
 
 
 @click.command()
-@click.option("--input", "input_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), required=True)
+@click.option("--input", "input_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), required=False)
 @click.option("--output", "output_path", type=click.Path(path_type=Path, dir_okay=False), help="Optional destination for enriched CSV.")
 @click.option(
     "--output-dir",
@@ -231,7 +269,12 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
     help="Directory where enriched CSVs should be written using auto-generated filenames.",
 )
 @click.option("--stdout", is_flag=True, help="Emit enriched CSV to stdout instead of writing a file.")
-def cli(input_path: Path, output_path: Path | None, output_dir: Path | None, stdout: bool) -> None:
+@click.option(
+    "--workdir",
+    type=click.Path(path_type=Path, file_okay=False),
+    help="Statement-processor workspace root (from bootstrap.sh). Processes all LLM CSVs when --input is omitted.",
+)
+def cli(input_path: Path | None, output_path: Path | None, output_dir: Path | None, stdout: bool, workdir: Path | None) -> None:
     """Enrich LLM CSV output with account_key and fingerprint columns."""
 
     if output_path and output_dir:
@@ -239,23 +282,61 @@ def cli(input_path: Path, output_path: Path | None, output_dir: Path | None, std
     if stdout and (output_path or output_dir):
         raise click.UsageError("Use either --stdout or file output options, not both.")
 
-    rows = _read_csv(input_path)
-    enriched = enrich_rows(rows)
-
-    if output_dir is not None:
-        target_dir = output_dir / "enriched"
-        target_dir.mkdir(parents=True, exist_ok=True)
-        output_path = target_dir / _derive_enriched_filename(input_path)
-
-    if stdout:
-        writer = csv.DictWriter(click.get_text_stream("stdout"), fieldnames=list(_REQUIRED_COLUMNS) + ["account_key", "fingerprint"])
-        writer.writeheader()
-        for txn in enriched:
-            writer.writerow(txn.as_dict())
+    resolved_workdir: Path | None = None
+    inputs: list[Path]
+    if workdir is not None:
+        resolved_workdir = workdir.expanduser().resolve()
+        if not resolved_workdir.exists():
+            raise click.ClickException(f"Workspace {resolved_workdir} does not exist. Run bootstrap.sh first.")
+        if input_path is None:
+            llm_dir = resolved_workdir / "llm"
+            inputs = sorted(llm_dir.glob("*.csv"))
+            if not inputs:
+                raise click.ClickException(f"No LLM CSV files found under {llm_dir}.")
+        else:
+            inputs = [input_path]
+        if output_path is None and output_dir is None and not stdout:
+            output_dir = resolved_workdir
     else:
-        destination = output_path or input_path.with_name(_derive_enriched_filename(input_path))
-        _write_csv(destination, enriched)
-        click.echo(f"Wrote enriched CSV to {destination}")
+        if input_path is None:
+            raise click.UsageError("--input is required unless --workdir is provided.")
+        inputs = [input_path]
+
+    if stdout and len(inputs) > 1:
+        raise click.UsageError("--stdout can only be used with a single input file.")
+    if output_path and len(inputs) > 1:
+        raise click.UsageError("--output can only be used with a single input file.")
+
+    for candidate in inputs:
+        rows = _read_csv(candidate)
+        enriched = enrich_rows(rows)
+
+        effective_output_path = output_path
+        if output_dir is not None:
+            target_dir = output_dir / "enriched"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            effective_output_path = target_dir / _derive_enriched_filename(candidate)
+
+        if stdout:
+            stdout_fieldnames = list(_REQUIRED_COLUMNS) + [
+                "account_key",
+                "fingerprint",
+                "pattern_key",
+                "pattern_display",
+                "merchant_metadata",
+            ]
+            writer = csv.DictWriter(click.get_text_stream("stdout"), fieldnames=stdout_fieldnames)
+            writer.writeheader()
+            for txn in enriched:
+                writer.writerow(txn.as_dict())
+        else:
+            destination = effective_output_path or candidate.with_name(_derive_enriched_filename(candidate))
+            _write_csv(destination, enriched)
+            click.echo(f"Wrote enriched CSV to {destination}")
+
+        if stdout:
+            # Only one file allowed when stdout is true; loop will end immediately.
+            break
 
 
 if __name__ == "__main__":  # pragma: no cover

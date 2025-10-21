@@ -109,3 +109,29 @@ def test_cli_output_dir_creates_enriched(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     enriched_path = workdir / "enriched" / "batch-1-enriched.csv"
     assert enriched_path.exists()
+
+
+def test_cli_workdir_processes_all(tmp_path: Path) -> None:
+    workdir = tmp_path / "workspace"
+    llm_dir = workdir / "llm"
+    llm_dir.mkdir(parents=True, exist_ok=True)
+
+    for name in ("batch-1-llm.csv", "batch-2-llm.csv"):
+        with (llm_dir / name).open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(postprocess._REQUIRED_COLUMNS))  # type: ignore[attr-defined]
+            writer.writeheader()
+            writer.writerow(_sample_row())
+
+    runner = CliRunner()
+    result = runner.invoke(
+        postprocess.cli,
+        [
+            "--workdir",
+            str(workdir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    enriched_dir = workdir / "enriched"
+    outputs = sorted(enriched_dir.glob("*-enriched.csv"))
+    assert len(outputs) == 2
