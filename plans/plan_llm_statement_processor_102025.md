@@ -211,7 +211,7 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
   - Normalize merchant casing/whitespace to match existing dedupe expectations
   - Provide reusable function for both CSV export and direct DB writes
 
-- [ ] Create `skills/statement-processor/examples/llm-extraction.md`
+- [x] Create `skills/statement-processor/examples/llm-extraction.md`
   - Step-by-step example with real scrubbed statement
   - Show prompt building
   - Show LLM extraction
@@ -219,8 +219,8 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
   - Show post-processing that derives `account_key`/`fingerprint`
   - Show writing to database
 
-- [ ] Update `skills/statement-processor/examples/single-statement.md`
-  - Replace old workflow with new LLM-based approach
+- [x] Update `skills/statement-processor/examples/single-statement.md`
+  - Replaced with `examples/llm-extraction.md` walkthrough for the new pipeline
 
 - [ ] Create `skills/statement-processor/reference/csv-format.md`
   - Document required CSV columns
@@ -229,8 +229,8 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
   - Call out that `account_key` must combine institution + account slug for stable dedupe
   - Provide examples
 
-- [ ] Update or archive `skills/statement-processor/examples/batch-processing.md`
-  - Replace legacy instructions with the preprocess/postprocess workflow or retire the doc entirely
+- [x] Update or archive `skills/statement-processor/examples/batch-processing.md`
+  - Rewrote to follow preprocess/postprocess workflow with chunked prompts
 
 - [ ] Update or archive `skills/statement-processor/examples/pipe-mode.md`
   - Document how to stream through the preprocess/postprocess helpers, or remove if no longer useful
