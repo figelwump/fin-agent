@@ -40,6 +40,8 @@ If more than three statements are provided, the CLI emits multiple prompt chunks
 
 Send each prompt chunk to the LLM and save the CSV responses as `$LLM_DIR/batch-1-llm.csv`, `$LLM_DIR/batch-2-llm.csv`, etc. Ensure each CSV preserves the standard header columns.
 
+> Note: stick to the documented preprocess → LLM → postprocess flow. Avoid generating ad-hoc scripts to extract transactions directly from prompt text; the LLM review step is required to produce the CSV outputs that `postprocess.py` expects.
+
 ## 5. Enrich CSV Outputs
 
 ```bash
@@ -51,10 +53,21 @@ for csv in "$LLM_DIR"/batch-*-llm.csv; do
 done
 ```
 
-## 6. Review & Consolidate
+## 6. Review, Correct, and Capture Patterns
 
 - Open each enriched CSV in `$ENRICHED_DIR` and review low-confidence rows (`confidence < 0.7`).
-- Optionally concatenate them: `tail -n +2 "$ENRICHED_DIR/batch-2-enriched.csv" >> "$ENRICHED_DIR/batch-1-enriched.csv"` (keep one header).
+- For confirmed fixes, update the CSV now or stage CLI corrections:
+  ```bash
+  fin-edit set-category --fingerprint <fingerprint> \
+    --category "Auto & Transport" --subcategory "Parking"
+  ```
+- When the user asks to remember a merchant/category pairing, run `fin-edit add-merchant-pattern` (dry-run first) with the normalized pattern key (see below) so future statements skip the LLM.
+- Optionally concatenate enriched CSVs after review: `tail -n +2 "$ENRICHED_DIR/batch-2-enriched.csv" >> "$ENRICHED_DIR/batch-1-enriched.csv"` (keep one header).
+
+Tip: derive the normalized key before calling `add-merchant-pattern`:
+```bash
+python -c "from fin_cli.shared.merchants import merchant_pattern_key; print(merchant_pattern_key('STARBUCKS #1234'))"
+```
 
 ## 7. Import Transactions
 
