@@ -196,7 +196,7 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
 
 ### Tasks
 
-- [ ] Update `skills/statement-processor/SKILL.md`
+- [x] Update `skills/statement-processor/SKILL.md` *(2025-10-20 — rewritten for preprocess/postprocess pipeline; examples still pending)*
   - Simplify workflow to 4 steps: scrub, build-prompt, extract, review
   - Add examples showing full flow
   - Document how to handle low-confidence items
