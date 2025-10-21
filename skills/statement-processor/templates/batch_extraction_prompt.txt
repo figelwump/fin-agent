@@ -8,6 +8,8 @@ You are an expert financial statement extraction assistant. Multiple scrubbed st
 - Reuse merchant names consistently across statements (e.g., "Amazon" stays the same).
 - Align categories/subcategories with the provided taxonomy; keep low confidence when unsure.
 - `confidence` ranges from 0 to 1.
+- Do not invent transactions; ignore summary tables, promotional text, or running balances.
+- Exclude credit-card payments targeting the same institution or internal account transfers.
 - Do not add extra CSV columns. The system derives `account_key` and `fingerprint` later.
 
 # Account Identification Guidance
