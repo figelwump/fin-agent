@@ -12,6 +12,7 @@ from typing import Iterable, Mapping, MutableMapping, Sequence
 import click
 
 from fin_cli.shared import models
+from fin_cli.shared.config import AppConfig, load_config
 
 _REQUIRED_COLUMNS = (
     "date",
@@ -112,17 +113,45 @@ def _parse_confidence(raw: object) -> float:
     return value
 
 
-def _coerce_str(data: Mapping[str, object], key: str) -> str:
+def _coerce_str(data: Mapping[str, object], key: str, *, allow_empty: bool = False) -> str:
     value = data.get(key)
     if value is None:
         raise ValueError(f"{key} is required")
     text = str(value).strip()
-    if not text:
+    if not text and not allow_empty:
         raise ValueError(f"{key} is required")
     return text
 
 
-def enrich_rows(rows: Iterable[Mapping[str, object]]) -> list[EnrichedTransaction]:
+def _should_clear_category(
+    *,
+    category: str,
+    subcategory: str,
+    confidence: float,
+    config: AppConfig,
+) -> bool:
+    """
+    Determine whether the LLM-provided category should be cleared.
+
+    We strip categories when:
+    - The confidence is below the auto-approval threshold (default 0.8). In this case we want the
+      downstream review flow to surface the transaction for manual verification instead of silently
+      applying a guess.
+    - The category was set to the generic "Uncategorized" placeholder, which conveys no real signal.
+    """
+
+    threshold = config.categorization.confidence.auto_approve
+    if confidence < threshold:
+        return True
+
+    if category.lower() == "uncategorized":
+        return True
+
+    return False
+
+
+def enrich_rows(rows: Iterable[Mapping[str, object]], *, config: AppConfig | None = None) -> list[EnrichedTransaction]:
+    effective_config = config or load_config()
     enriched: list[EnrichedTransaction] = []
     for row in rows:
         for column in _REQUIRED_COLUMNS:
@@ -137,9 +166,18 @@ def enrich_rows(rows: Iterable[Mapping[str, object]]) -> list[EnrichedTransactio
         account_name = _coerce_str(row, "account_name")
         institution = _coerce_str(row, "institution")
         account_type = _coerce_str(row, "account_type").lower()
-        category = _coerce_str(row, "category")
-        subcategory = _coerce_str(row, "subcategory")
+        category = _coerce_str(row, "category", allow_empty=True)
+        subcategory = _coerce_str(row, "subcategory", allow_empty=True)
         confidence = _parse_confidence(row.get("confidence"))
+
+        if _should_clear_category(
+            category=category,
+            subcategory=subcategory,
+            confidence=confidence,
+            config=effective_config,
+        ):
+            category = ""
+            subcategory = ""
 
         account_key = models.compute_account_key(account_name, institution, account_type)
         fingerprint = models.compute_transaction_fingerprint(

@@ -54,6 +54,18 @@ def test_enrich_rows_computes_hashes(tmp_path: Path) -> None:
     assert txn.confidence == 0.95
 
 
+def test_enrich_rows_clears_low_confidence_uncategorized(tmp_path: Path) -> None:
+    row = _sample_row()
+    row["category"] = "Uncategorized"
+    row["subcategory"] = "Other"
+    row["confidence"] = "0.6"
+
+    enriched = postprocess.enrich_rows([row])
+    assert enriched[0].category == ""
+    assert enriched[0].subcategory == ""
+    assert enriched[0].confidence == 0.6
+
+
 def test_cli_writes_enriched_csv(tmp_path: Path) -> None:
     input_path = tmp_path / "llm.csv"
     with input_path.open("w", encoding="utf-8", newline="") as handle:
