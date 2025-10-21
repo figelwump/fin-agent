@@ -1,23 +1,19 @@
 Branch: main
-Plan: plans/plan_llm_statement_processor_102025.md
-Last Updated: 2025-10-21
+Plan: plans/plan_fin_extract_docling_and_custom_extractors_100425.md
+Last Updated: 2025-10-07
 
 ## Status
-- Phase 1 (merchants saved query) ✅
-- Phase 2 (preprocess/postprocess helpers + templates) ✅
-- Phase 3 in progress (skill docs/examples refreshed; awaiting integration work)
 
-## Statement Imports (LLM Pipeline)
-- Use the `statement-processor` skill for all PDF-to-CSV imports.
-- Recommended workspace: `~/.finagent/skills/statement-processor/<timestamp>/` with subfolders created automatically by the CLI (`scrubbed/`, `prompts/`, `llm/`, `enriched/`).
-- Key commands:
-  - `fin-scrub <pdf> --output-dir $WORKDIR`
-  - `python skills/statement-processor/preprocess.py --input $WORKDIR/scrubbed/* --output-dir $WORKDIR [--batch ...]`
-  - Call the LLM manually, save CSV responses in `$WORKDIR/llm/`.
-  - `python skills/statement-processor/postprocess.py --input $WORKDIR/llm/*.csv --output-dir $WORKDIR`
-  - `fin-edit import-transactions $WORKDIR/enriched/*.csv`
-- Low-confidence (`confidence < 0.7`) rows must be reviewed with the user before import.
+Phase 2 complete. Declarative extractor runtime implemented with Chase YAML spec validated against Python extractor (perfect parity).
+
+## What's Done
+
+- ✅ Full declarative runtime (`fin_cli/fin_extract/declarative.py`)
+- ✅ Schema documentation (`docs/declarative_extractor_schema.md`)
+- ✅ CLI `--spec` flag integration
+- ✅ Chase spec (`~/.finagent/extractors/chase.yaml`)
+- ✅ Validation: identical output to Python extractor
 
 ## Next Steps
-- Implement interactive wiring inside the statement-processor skill (Phase 3 tasks in the plan).
-- Update or retire remaining legacy docs after postprocess integration lands.
+
+Phase 3: Port BofA and Mercury to declarative specs

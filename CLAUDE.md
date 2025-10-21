@@ -2,19 +2,6 @@
 
 - Write comments in the code if it will help a future LLM understand details or nuance about how the code works.
 
-# Statement Imports (LLM Pipeline)
-
-- When a user asks to import or process bank statements, load the `statement-processor` skill (`:skill statement-processor`) and follow its quick start.
-- Stage artifacts under a timestamped workspace inside `~/.finagent/skills/statement-processor/` so subsequent commands can rely on `--output-dir` auto-naming.
-- Preferred flow:
-  1. `fin-scrub <PDF_PATH> --output-dir $WORKDIR`
-  2. `python skills/statement-processor/preprocess.py --input $WORKDIR/scrubbed/* --output-dir $WORKDIR [--batch ...]`
-  3. Send the generated prompt(s) to the LLM and save CSV replies in `$WORKDIR/llm/`.
-  4. `python skills/statement-processor/postprocess.py --input $WORKDIR/llm/*.csv --output-dir $WORKDIR`
-  5. `fin-edit import-transactions $WORKDIR/enriched/*.csv`
-- Review any rows with `confidence < 0.7` with the user before final import.
-- Only fall back to `fin-extract`/`fin-enhance` if the user explicitly asks for the legacy pipeline.
-
 # How to write implementation plans
 - Read the specs carefully to understand the requirements and the overall architecture.
 - Use markdown to write plans.
