@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from datetime import date
 from pathlib import Path
 
@@ -24,6 +25,69 @@ def _prepare_db(db_path: Path) -> None:
             account_type="checking",
             auto_detected=False,
         )
+
+
+def _write_enriched_csv(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = [
+        "date",
+        "merchant",
+        "amount",
+        "original_description",
+        "account_name",
+        "institution",
+        "account_type",
+        "category",
+        "subcategory",
+        "confidence",
+        "account_key",
+        "fingerprint",
+        "method",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+
+def _make_enriched_row(
+    txn_date: date,
+    merchant: str,
+    amount: float,
+    original_description: str,
+    category: tuple[str, str],
+    confidence: str,
+    *,
+    method: str | None = None,
+    account_name: str = "Test Account",
+    institution: str = "Test Bank",
+    account_type: str = "checking",
+) -> dict[str, str]:
+    account_key = models.compute_account_key(account_name, institution, account_type)
+    fingerprint = models.compute_transaction_fingerprint(
+        txn_date,
+        amount,
+        merchant,
+        None,
+        account_key,
+    )
+    row: dict[str, str] = {
+        "date": txn_date.isoformat(),
+        "merchant": merchant,
+        "amount": f"{amount:.2f}",
+        "original_description": original_description,
+        "account_name": account_name,
+        "institution": institution,
+        "account_type": account_type,
+        "category": category[0],
+        "subcategory": category[1],
+        "confidence": confidence,
+        "account_key": account_key,
+        "fingerprint": fingerprint,
+    }
+    if method is not None:
+        row["method"] = method
+    return row
 
 
 def test_set_category_dry_run_then_apply(tmp_path: Path) -> None:
@@ -187,3 +251,174 @@ def test_add_merchant_pattern_dry_run_then_apply(tmp_path: Path) -> None:
         assert abs(float(row["confidence"]) - 0.96) < 1e-6
         assert row["pattern_display"] == "Starbucks"
         assert row["metadata"] is None or '"source":"user"' in row["metadata"]
+
+
+def test_import_transactions_dry_run(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    csv_path = tmp_path / "enriched.csv"
+    rows = [
+        _make_enriched_row(
+            txn_date=date(2025, 9, 15),
+            merchant="ACME GROCERY",
+            amount=42.50,
+            original_description="ACME GROCERY #123",
+            category=("Food & Dining", "Groceries"),
+            confidence="0.95",
+        )
+    ]
+    _write_enriched_csv(csv_path, rows)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "import-transactions",
+            str(csv_path),
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        txn_count = connection.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"]
+        assert txn_count == 0
+        category_row = connection.execute(
+            "SELECT COUNT(*) AS c FROM categories WHERE category = ? AND subcategory = ?",
+            ("Food & Dining", "Groceries"),
+        ).fetchone()
+        assert category_row["c"] == 0
+
+
+def test_import_transactions_apply_and_dedupe(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    csv_path = tmp_path / "enriched.csv"
+    rows = [
+        _make_enriched_row(
+            txn_date=date(2025, 9, 15),
+            merchant="ACME GROCERY",
+            amount=42.50,
+            original_description="ACME GROCERY #123",
+            category=("Food & Dining", "Groceries"),
+            confidence="0.95",
+        ),
+        _make_enriched_row(
+            txn_date=date(2025, 9, 16),
+            merchant="CITY PARKING",
+            amount=18.75,
+            original_description="CITY PARKING GARAGE",
+            category=("Auto & Transport", "Parking"),
+            confidence="",
+            method="review:manual",
+        ),
+    ]
+    _write_enriched_csv(csv_path, rows)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "import-transactions",
+            str(csv_path),
+            "--default-confidence",
+            "0.82",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        rows_db = connection.execute(
+            "SELECT merchant, amount, categorization_confidence, categorization_method FROM transactions ORDER BY date"
+        ).fetchall()
+        assert len(rows_db) == 2
+        assert rows_db[0]["merchant"] == "ACME GROCERY"
+        assert abs(float(rows_db[0]["categorization_confidence"]) - 0.95) < 1e-6
+        assert rows_db[0]["categorization_method"] == "manual:fin-edit"
+        assert rows_db[1]["merchant"] == "CITY PARKING"
+        assert abs(float(rows_db[1]["categorization_confidence"]) - 0.82) < 1e-6
+        assert rows_db[1]["categorization_method"] == "review:manual"
+
+        groceries_category = connection.execute(
+            "SELECT transaction_count FROM categories WHERE category = ? AND subcategory = ?",
+            ("Food & Dining", "Groceries"),
+        ).fetchone()
+        parking_category = connection.execute(
+            "SELECT transaction_count FROM categories WHERE category = ? AND subcategory = ?",
+            ("Auto & Transport", "Parking"),
+        ).fetchone()
+        assert groceries_category is not None and int(groceries_category[0]) == 1
+        assert parking_category is not None and int(parking_category[0]) == 1
+
+    # Re-running should not create duplicates
+    second = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "import-transactions",
+            str(csv_path),
+        ],
+        env=env,
+    )
+    assert second.exit_code == 0, second.output
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        count = connection.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"]
+        assert count == 2
+        parking_category = connection.execute(
+            "SELECT transaction_count FROM categories WHERE category = ? AND subcategory = ?",
+            ("Auto & Transport", "Parking"),
+        ).fetchone()
+        assert parking_category is not None and int(parking_category[0]) == 1
+
+
+def test_import_transactions_missing_category_without_creation(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    csv_path = tmp_path / "enriched.csv"
+    rows = [
+        _make_enriched_row(
+            txn_date=date(2025, 9, 15),
+            merchant="NEW SHOP",
+            amount=12.00,
+            original_description="NEW SHOP 123",
+            category=("Shopping", "Online"),
+            confidence="0.9",
+        )
+    ]
+    _write_enriched_csv(csv_path, rows)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "import-transactions",
+            str(csv_path),
+            "--no-create-categories",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    assert "Missing categories" in result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        count = connection.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"]
+        assert count == 0

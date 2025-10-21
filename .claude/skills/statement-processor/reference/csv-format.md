@@ -1,6 +1,6 @@
 # Enriched CSV Format
 
-This reference describes the CSV schema produced after running `skills/statement-processor/postprocess.py` on an LLM extraction result.
+This reference describes the CSV schema produced after running `.claude/skills/statement-processor/postprocess.py` on an LLM extraction result.
 
 ## Required Columns
 
@@ -58,4 +58,4 @@ date,merchant,amount,original_description,account_name,institution,account_type,
 - Verify amounts are positive and formatted with two decimals.
 - Double check that transfers, payments to the same card, and refunds are excluded.
 - Ensure low-confidence rows (`confidence < 0.7`) are reviewed before import or captured in the agent conversation.
-- Run `fin-edit import-transactions` only on enriched CSVs containing both `account_key` and `fingerprint` columns.
+- Run `fin-edit import-transactions` only on enriched CSVs containing both `account_key` and `fingerprint` columns; the command previews changes by default, so add `--apply` when you are satisfied. Use `--default-confidence` to fill blank confidence cells or `--no-create-categories` to abort when taxonomy entries are missing.

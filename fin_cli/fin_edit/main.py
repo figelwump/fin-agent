@@ -7,7 +7,8 @@ We intentionally keep fin-query read-only; fin-edit holds write operations.
 
 from __future__ import annotations
 
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, Sequence
 
 import json
 import sqlite3
@@ -22,6 +23,11 @@ from fin_cli.shared.cli import (
 )
 from fin_cli.shared.database import connect
 from fin_cli.shared import models
+from fin_cli.shared.importers import (
+    CSVImportError,
+    EnrichedCSVTransaction,
+    load_enriched_transactions,
+)
 
 
 def _effective_dry_run(cli_ctx: CLIContext, apply: bool) -> bool:
@@ -248,6 +254,261 @@ def add_merchant_pattern(
         cli_ctx.logger.success(
             f"Upserted pattern '{pattern}' -> '{category} > {subcategory}' (confidence={confidence})."
         )
+
+
+@dataclass(slots=True)
+class ImportSummary:
+    total_rows: int
+    inserted: int = 0
+    duplicates: int = 0
+    categories_created: set[tuple[str, str]] = field(default_factory=set)
+    categories_missing: set[tuple[str, str]] = field(default_factory=set)
+    accounts_created: set[tuple[str, str, str]] = field(default_factory=set)
+
+
+def _format_category(category: str, subcategory: str) -> str:
+    return f"{category} > {subcategory}"
+
+
+def _format_account(account: tuple[str, str, str]) -> str:
+    name, institution, account_type = account
+    return f"{name} ({institution}, {account_type})"
+
+
+def _log_import_summary(logger, summary: ImportSummary, preview: bool) -> None:
+    prefix = "[dry-run] " if preview else ""
+    logger.success(
+        f"{prefix}Processed {summary.total_rows} transaction row(s): "
+        f"inserted {summary.inserted}, duplicates {summary.duplicates}."
+    )
+    if summary.categories_created:
+        action = "Would create" if preview else "Created"
+        formatted = ", ".join(
+            _format_category(*item) for item in sorted(summary.categories_created)
+        )
+        logger.info(f"{prefix}{action} {len(summary.categories_created)} categor{'y' if len(summary.categories_created) == 1 else 'ies'}: {formatted}.")
+    if summary.accounts_created:
+        action = "Would create" if preview else "Created"
+        formatted = ", ".join(
+            _format_account(item) for item in sorted(summary.accounts_created)
+        )
+        logger.info(
+            f"{prefix}{action} {len(summary.accounts_created)} account{'s' if len(summary.accounts_created) != 1 else ''}: {formatted}."
+        )
+
+
+def _ensure_default_confidence(value: float) -> float:
+    if value < 0 or value > 1:
+        raise click.ClickException("--default-confidence must be between 0 and 1 inclusive.")
+    return value
+
+
+def _check_fingerprint(cli_ctx: CLIContext, row: EnrichedCSVTransaction, account_id: int | None) -> None:
+    expected = models.compute_transaction_fingerprint(
+        row.date,
+        row.amount,
+        row.merchant,
+        account_id,
+        row.account_key,
+    )
+    if expected != row.fingerprint:
+        cli_ctx.logger.warning(
+            (
+                f"Fingerprint mismatch for merchant '{row.merchant}' on {row.date.isoformat()}. "
+                f"Computed {expected} but CSV provided {row.fingerprint}."
+            )
+        )
+
+
+def _import_enriched_transactions(
+    cli_ctx: CLIContext,
+    rows: Sequence[EnrichedCSVTransaction],
+    *,
+    method: str,
+    preview: bool,
+    allow_category_creation: bool,
+) -> ImportSummary:
+    summary = ImportSummary(total_rows=len(rows))
+    category_cache: dict[tuple[str, str], int | None] = {}
+    account_cache: dict[tuple[str, str, str], int | None] = {}
+
+    with connect(
+        cli_ctx.config,
+        read_only=preview,
+        apply_migrations=not preview,
+    ) as connection:
+        # Pre-flight: cache existing categories and accounts
+        for row in rows:
+            category_key = (row.category, row.subcategory)
+            if category_key not in category_cache:
+                cat_id = models.find_category_id(
+                    connection,
+                    category=row.category,
+                    subcategory=row.subcategory,
+                )
+                if cat_id is None:
+                    summary.categories_missing.add(category_key)
+                category_cache[category_key] = cat_id
+
+            if row.account_id is None:
+                account_key = (row.account_name, row.institution, row.account_type)
+                if account_key not in account_cache:
+                    result = connection.execute(
+                        "SELECT id FROM accounts WHERE name = ? AND institution = ? AND account_type = ?",
+                        account_key,
+                    ).fetchone()
+                    account_cache[account_key] = int(result[0]) if result else None
+            else:
+                account_cache[(row.account_name, row.institution, row.account_type)] = row.account_id
+
+        if summary.categories_missing and not allow_category_creation:
+            missing_formatted = ", ".join(
+                _format_category(*item) for item in sorted(summary.categories_missing)
+            )
+            raise click.ClickException(
+                "Missing categories: "
+                f"{missing_formatted}. Re-run without --no-create-categories or create them manually first."
+            )
+
+        if preview:
+            for row in rows:
+                category_key = (row.category, row.subcategory)
+                if category_cache[category_key] is None:
+                    summary.categories_created.add(category_key)
+
+                if row.account_id is None:
+                    account_key = (row.account_name, row.institution, row.account_type)
+                    if account_cache.get(account_key) is None:
+                        summary.accounts_created.add(account_key)
+
+                _check_fingerprint(cli_ctx, row, account_cache.get((row.account_name, row.institution, row.account_type)))
+                existing = connection.execute(
+                    "SELECT 1 FROM transactions WHERE fingerprint = ? LIMIT 1",
+                    (row.fingerprint,),
+                ).fetchone()
+                if existing:
+                    summary.duplicates += 1
+                else:
+                    summary.inserted += 1
+            return summary
+
+        # Apply mode: perform mutations
+        for row in rows:
+            category_key = (row.category, row.subcategory)
+            cat_id = category_cache[category_key]
+            if cat_id is None:
+                cat_id = models.get_or_create_category(
+                    connection,
+                    category=row.category,
+                    subcategory=row.subcategory,
+                    auto_generated=False,
+                    user_approved=True,
+                )
+                category_cache[category_key] = cat_id
+                summary.categories_created.add(category_key)
+
+            account_id = row.account_id
+            account_key = (row.account_name, row.institution, row.account_type)
+            if account_id is None:
+                account_id = account_cache.get(account_key)
+                if account_id is None:
+                    account_id = models.upsert_account(
+                        connection,
+                        name=row.account_name,
+                        institution=row.institution,
+                        account_type=row.account_type,
+                        auto_detected=False,
+                    )
+                    account_cache[account_key] = account_id
+                    summary.accounts_created.add(account_key)
+            else:
+                account_cache[account_key] = account_id
+
+            _check_fingerprint(cli_ctx, row, account_id)
+
+            txn = models.Transaction(
+                date=row.date,
+                merchant=row.merchant,
+                amount=row.amount,
+                account_id=account_id,
+                account_key=row.account_key,
+                category_id=cat_id,
+                original_description=row.original_description,
+                categorization_confidence=row.confidence if cat_id else None,
+                categorization_method=row.method or method,
+            )
+            inserted = models.insert_transaction(
+                connection,
+                txn,
+                allow_update=True,
+            )
+            if inserted:
+                summary.inserted += 1
+                if cat_id:
+                    models.increment_category_usage(connection, cat_id)
+            else:
+                summary.duplicates += 1
+
+        return summary
+
+
+@main.command("import-transactions")
+@click.argument("csv_path", type=click.Path(dir_okay=False, allow_dash=True))
+@click.option(
+    "--method",
+    type=str,
+    default="manual:fin-edit",
+    show_default=True,
+    help="Categorization method to use when CSV does not supply one.",
+)
+@click.option(
+    "--default-confidence",
+    type=float,
+    default=1.0,
+    show_default=True,
+    help="Confidence to apply when CSV omits the confidence column.",
+)
+@click.option(
+    "--no-create-categories",
+    is_flag=True,
+    help="Fail if a referenced category does not exist instead of creating it.",
+)
+@pass_cli_context
+def import_transactions_command(
+    cli_ctx: CLIContext,
+    csv_path: str,
+    method: str,
+    default_confidence: float,
+    no_create_categories: bool,
+) -> None:
+    """Import enriched CSV transactions into the database."""
+
+    default_conf = _ensure_default_confidence(default_confidence)
+
+    try:
+        rows = load_enriched_transactions(csv_path, default_confidence=default_conf)
+    except CSVImportError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if not rows:
+        cli_ctx.logger.info("No transactions found in CSV; nothing to import.")
+        return
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    cli_ctx.logger.debug(
+        f"Loaded {len(rows)} enriched row(s) from {csv_path} (preview={preview})."
+    )
+
+    summary = _import_enriched_transactions(
+        cli_ctx,
+        rows,
+        method=method,
+        preview=preview,
+        allow_category_creation=not no_create_categories,
+    )
+    _log_import_summary(cli_ctx.logger, summary, preview)
 
 
 if __name__ == "__main__":  # pragma: no cover

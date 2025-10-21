@@ -397,6 +397,19 @@ fin-edit --db ~/.finagent/data.db --apply \
 fin-edit --db ~/.finagent/data.db \
   add-merchant-pattern --pattern 'STARBUCKS%' \
   --category "Food & Dining" --subcategory "Coffee" --confidence 0.95
+
+# Import an enriched CSV (preview, then apply)
+fin-edit --db ~/.finagent/data.db \
+  import-transactions ~/statements/chase-september-enriched.csv
+
+fin-edit --db ~/.finagent/data.db --apply \
+  import-transactions ~/statements/chase-september-enriched.csv \
+  --default-confidence 0.9
+
+# Abort if categories are missing instead of auto-creating them
+fin-edit --db ~/.finagent/data.db \
+  import-transactions ~/statements/new-merchant.csv \
+  --no-create-categories
 ```
 
 ## Repository Structure

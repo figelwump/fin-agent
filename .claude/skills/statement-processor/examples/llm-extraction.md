@@ -27,7 +27,7 @@ fin-scrub "$PDF_PATH" \
 ## 3. Build the Prompt
 
 ```bash
-python ~/GiantThings/repos/fin-agent/skills/statement-processor/preprocess.py \
+python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/preprocess.py \
   --input "$SCRUBBED_DIR/chase-september-scrubbed.txt" \
   --output-dir "$WORKDIR" \
   --max-merchants 150
@@ -42,7 +42,7 @@ Send the prompt to your LLM of choice (Claude in this example) and save the CSV 
 ## 5. Post-Process the CSV
 
 ```bash
-python ~/GiantThings/repos/fin-agent/skills/statement-processor/postprocess.py \
+python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/postprocess.py \
   --input "$LLM_DIR/chase-september-llm.csv" \
   --output-dir "$WORKDIR"
 ```
@@ -56,7 +56,11 @@ Inspect `$ENRICHED_DIR/chase-september-enriched.csv` for any `confidence < 0.7`.
 ## 7. Import into SQLite
 
 ```bash
+# Preview (dry-run)
 fin-edit import-transactions "$ENRICHED_DIR/chase-september-enriched.csv"
+
+# Apply after confirming the preview output
+fin-edit --apply import-transactions "$ENRICHED_DIR/chase-september-enriched.csv"
 ```
 
-The tool automatically de-duplicates using fingerprints. Use `fin-query saved recent_transactions --limit 10` to validate new records.
+Add `--default-confidence 0.9` if you want to fill empty confidence cells, or `--no-create-categories` to abort when a category is missing. The tool automatically de-duplicates using fingerprints. Use `fin-query saved recent_transactions --limit 10` to validate new records.

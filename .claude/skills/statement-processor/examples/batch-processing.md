@@ -26,7 +26,7 @@ done
 ## 3. Build Batch Prompt(s)
 
 ```bash
-python ~/GiantThings/repos/fin-agent/skills/statement-processor/preprocess.py \
+python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/preprocess.py \
   --batch \
   --input "$SCRUBBED_DIR"/*-scrubbed.txt \
   --max-merchants 200 \
@@ -45,7 +45,7 @@ Send each prompt chunk to the LLM and save the CSV responses as `$LLM_DIR/batch-
 ```bash
 for csv in "$LLM_DIR"/batch-*-llm.csv; do
   base=$(basename "$csv" -llm.csv)
-  python ~/GiantThings/repos/fin-agent/skills/statement-processor/postprocess.py \
+  python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/postprocess.py \
     --input "$csv" \
     --output-dir "$WORKDIR"
 done
@@ -60,7 +60,8 @@ done
 
 ```bash
 for enriched in "$ENRICHED_DIR"/batch-*-enriched.csv; do
-  fin-edit import-transactions "$enriched"
+  fin-edit import-transactions "$enriched"           # preview
+  fin-edit --apply import-transactions "$enriched"  # write once approved
 done
 ```
 

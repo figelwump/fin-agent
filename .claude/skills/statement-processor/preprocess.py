@@ -13,6 +13,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from fin_cli.fin_query import executor
 from fin_cli.shared.config import AppConfig, load_config
+from fin_cli.shared.merchants import AGGREGATOR_LABELS, friendly_display_name, merchant_pattern_key, normalize_merchant
 
 TEMPLATES_DIR = Path(__file__).with_name("templates")
 _SINGLE_TEMPLATE = "extraction_prompt.txt"
@@ -54,6 +55,49 @@ def _derive_prompt_basename(labels: Sequence[str]) -> str:
     return _slugify(primary)
 
 
+def _get_canonical_merchant(merchant: str) -> tuple[str, str]:
+    """
+    Compute canonical merchant name and display name.
+    Returns (canonical_key, display_name).
+
+    This function handles payment platform prefixes (SQ *, DD *, TST*, etc.)
+    and aggregator labels (Uber, Lyft, Instacart, etc.) to create clean,
+    deduplicated merchant names for LLM prompts.
+    """
+    normalized = normalize_merchant(merchant)
+
+    # Check if this is a known aggregator
+    for agg_key, label in AGGREGATOR_LABELS.items():
+        if agg_key in normalized:
+            return (agg_key, label)
+
+    # Handle payment platform prefixes: "SQ *MERCHANT", "DD *MERCHANT", "TST*MERCHANT"
+    # Extract the merchant name that follows the platform prefix
+    platform_match = re.match(r"^([A-Z]{2,4})\s*\*\s*(.+)$", normalized)
+    if platform_match:
+        platform, merchant_part = platform_match.groups()
+        # Remove location info and clean up the merchant part
+        merchant_cleaned = re.sub(r"\s+\d{3}-\d{3}-\d{4}.*$", "", merchant_part)  # Remove phone numbers
+        # Remove common city names and state codes
+        merchant_cleaned = re.sub(
+            r"\s+(SAN FRANCISCO|LOS ANGELES|NEW YORK|MENLO PARK|PALO ALTO|REDWOOD CITY|SANTA CRUZ|CHICAGO|PARK CITY)\s+.*$",
+            "",
+            merchant_cleaned,
+        )
+        merchant_cleaned = re.sub(r"\s+(CA|NY|TX|FL|WA|UT|IL|CO|MA|AZ|GA)\s*$", "", merchant_cleaned)
+        # Remove trailing punctuation and extra whitespace
+        merchant_cleaned = re.sub(r"[-\s]+$", "", merchant_cleaned)
+        merchant_cleaned = re.sub(r"\s+", " ", merchant_cleaned).strip()
+        canonical = normalize_merchant(merchant_cleaned)
+        display = friendly_display_name(canonical, [merchant_cleaned])
+        return (canonical, display)
+
+    # Use pattern key as canonical, and create a friendly display name
+    canonical = merchant_pattern_key(merchant) or normalized or "UNKNOWN"
+    display = friendly_display_name(canonical, [merchant])
+    return (canonical, display)
+
+
 def _load_merchants(
     *,
     config: AppConfig,
@@ -63,20 +107,37 @@ def _load_merchants(
     result = executor.run_saved_query(
         config=config,
         name="merchants",
-        runtime_params={"min_count": min_count},
-        limit=limit,
+        runtime_params={"min_count": 1},  # Filter in Python after canonicalization
+        limit=None,  # Get all merchants for proper aggregation
     )
     if not result.rows:
         return []
     merchant_idx = result.columns.index("merchant")
     count_idx = result.columns.index("count")
-    return [
-        {
-            "merchant": str(row[merchant_idx]),
-            "count": int(row[count_idx]),
-        }
-        for row in result.rows
+
+    # Aggregate by canonical merchant name and track display names
+    canonical_data: dict[str, dict[str, object]] = {}
+    for row in result.rows:
+        raw_merchant = str(row[merchant_idx])
+        canonical, display = _get_canonical_merchant(raw_merchant)
+        if canonical:  # Skip empty canonical names
+            if canonical not in canonical_data:
+                canonical_data[canonical] = {"display": display, "count": 0}
+            canonical_data[canonical]["count"] = int(canonical_data[canonical]["count"]) + int(row[count_idx])
+
+    # Filter by min_count and sort
+    merchants = [
+        {"merchant": data["display"], "count": data["count"]}
+        for canonical, data in canonical_data.items()
+        if int(data["count"]) >= min_count
     ]
+    merchants.sort(key=lambda x: (-int(x["count"]), str(x["merchant"])))
+
+    # Apply limit
+    if limit is not None and limit > 0:
+        merchants = merchants[:limit]
+
+    return merchants
 
 
 def _load_categories(*, config: AppConfig, limit: int | None = None) -> list[dict[str, object]]:

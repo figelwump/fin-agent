@@ -13,17 +13,17 @@ Environment
 
 Quick Start (LLM Pipeline)
 1. Scrub sensitive data: `fin-scrub statement.pdf --output statement-scrubbed.txt`
-2. Build prompt with taxonomies: `python skills/statement-processor/preprocess.py --input statement-scrubbed.txt --output prompt.txt`
+2. Build prompt with taxonomies: `python .claude/skills/statement-processor/preprocess.py --input statement-scrubbed.txt --output prompt.txt`
 3. Send the prompt to your LLM (Claude, etc.) and save the CSV response (e.g., `llm-output.csv`).
-4. Enrich CSV with hashes: `python skills/statement-processor/postprocess.py --input llm-output.csv --output llm-enriched.csv`
-5. Import validated rows: `fin-edit import-transactions llm-enriched.csv`
+4. Enrich CSV with hashes: `python .claude/skills/statement-processor/postprocess.py --input llm-output.csv --output llm-enriched.csv`
+5. Import validated rows: `fin-edit import-transactions llm-enriched.csv` (preview) then `fin-edit --apply import-transactions llm-enriched.csv` once the review passes. Add `--no-create-categories` if you want to fail instead of auto-creating new categories.
 
 Batch Workflow
 1. Scrub all PDFs (use a loop) into `*-scrubbed.txt` files.
-2. Build a batch prompt with chunking when needed: `python skills/statement-processor/preprocess.py --batch --input *-scrubbed.txt --max-merchants 150 --max-statements-per-prompt 3 --output batch-prompt.txt`
+2. Build a batch prompt with chunking when needed: `python .claude/skills/statement-processor/preprocess.py --batch --input *-scrubbed.txt --max-merchants 150 --max-statements-per-prompt 3 --output batch-prompt.txt`
 3. Run the LLM once per emitted prompt chunk and save each CSV response (e.g., `chunk-1.csv`).
-4. Post-process every CSV: `python skills/statement-processor/postprocess.py --input chunk-1.csv --output chunk-1-enriched.csv`
-5. Concatenate or import each enriched CSV via `fin-edit`.
+4. Post-process every CSV: `python .claude/skills/statement-processor/postprocess.py --input chunk-1.csv --output chunk-1-enriched.csv`
+5. Concatenate or import each enriched CSV via `fin-edit import-transactions` (preview) and rerun with `--apply` when ready. Use `--default-confidence` to fill empty confidence cells when needed.
 
 Working Directory
 - Create a dedicated run directory per statement batch, for example `~/.finagent/skills/statement-processor/<timestamp>/`.
@@ -37,9 +37,9 @@ Handling Low Confidence
 
 Available Commands
 - `fin-scrub`: sanitize PDFs to redact PII.
-- `python skills/statement-processor/preprocess.py`: build single or batch prompts with existing taxonomies.
-- `python skills/statement-processor/postprocess.py`: append `account_key`/`fingerprint` to LLM CSV output.
-- `fin-edit import-transactions`: persist enriched CSV rows into SQLite.
+- `python .claude/skills/statement-processor/preprocess.py`: build single or batch prompts with existing taxonomies.
+- `python .claude/skills/statement-processor/postprocess.py`: append `account_key`/`fingerprint` to LLM CSV output.
+- `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep).
 - `fin-query saved merchants --format json --min-count N`: retrieve merchant taxonomy for debugging.
 
 Reference Material (to be refreshed)

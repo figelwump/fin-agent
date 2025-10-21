@@ -12,6 +12,7 @@ from typing import Iterable, TextIO
 from dateutil import parser as date_parser
 
 from fin_cli.shared.models import compute_account_key
+from fin_cli.shared.importers import CSVImportError
 
 
 @dataclass(slots=True)
@@ -41,10 +42,6 @@ OPTIONAL_HEADERS = {
     "account_key",
     "account_id",
 }
-
-
-class CSVImportError(Exception):
-    """Raised when the CSV cannot be parsed."""
 
 
 def load_csv_transactions_from_stream(stream: TextIO, source_name: str = "stdin") -> list[ImportedTransaction]:

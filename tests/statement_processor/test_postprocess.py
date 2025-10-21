@@ -11,7 +11,7 @@ from click.testing import CliRunner
 
 from fin_cli.shared import models
 
-MODULE_PATH = Path(__file__).resolve().parents[2] / "skills" / "statement-processor" / "postprocess.py"
+MODULE_PATH = Path(__file__).resolve().parents[2] / ".claude" / "skills" / "statement-processor" / "postprocess.py"
 _spec = importlib.util.spec_from_file_location("statement_processor_postprocess", MODULE_PATH)
 postprocess = importlib.util.module_from_spec(_spec)
 assert _spec and _spec.loader
