@@ -26,7 +26,7 @@ Batch Workflow
 5. Concatenate or import each enriched CSV via `fin-edit`.
 
 Working Directory
-- Create a dedicated run directory per statement batch, for example `~/.finagent/workflows/statement-processor/<timestamp>/`.
+- Create a dedicated run directory per statement batch, for example `~/.finagent/skills/statement-processor/<timestamp>/`.
 - Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside that directory so artifacts stay isolated from project source.
 - Clean up temporary files once the import is committed to the database.
 

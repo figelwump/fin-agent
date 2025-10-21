@@ -1,11 +1,11 @@
 # Batch LLM Extraction
 
-Process multiple statements in one session while keeping artifacts isolated under `~/.finagent/workflows/statement-processor/`.
+Process multiple statements in one session while keeping artifacts isolated under `~/.finagent/skills/statement-processor/`.
 
 ## 1. Prepare Working Directory
 
 ```bash
-WORKDIR="$HOME/.finagent/workflows/statement-processor/2025-09-batch"
+WORKDIR="$HOME/.finagent/skills/statement-processor/2025-09-batch"
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 

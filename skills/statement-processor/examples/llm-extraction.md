@@ -1,11 +1,11 @@
 # LLM Extraction Walkthrough
 
-This example demonstrates the end-to-end LLM pipeline for a single statement. All artifacts are staged under `~/.finagent/workflows/statement-processor/<timestamp>/` so the working directory stays uncluttered.
+This example demonstrates the end-to-end LLM pipeline for a single statement. All artifacts are staged under `~/.finagent/skills/statement-processor/<timestamp>/` so the working directory stays uncluttered.
 
 ## 1. Set Up Workspace
 
 ```bash
-WORKDIR="$HOME/.finagent/workflows/statement-processor/2025-09-15"
+WORKDIR="$HOME/.finagent/skills/statement-processor/2025-09-15"
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 ```

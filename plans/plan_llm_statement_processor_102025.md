@@ -203,7 +203,7 @@ python skills/statement-processor/preprocess.py --batch --max-statements-per-pro
   - Remove references to fin-extract, fin-import, fin-enhance
   - Document the interactive fallback path for ambiguous account detection (prompt user for `account_name`/`account_key` before write)
   - Call out that the skill computes `account_key`/`fingerprint` automatically before persistence so the LLM only provides raw account metadata
-  - Document the canonical working directory for artifacts (`~/.finagent/workflows/statement-processor/<timestamp>/`)
+  - Document the canonical working directory for artifacts (`~/.finagent/skills/statement-processor/<timestamp>/`)
   - Flag legacy examples/troubleshooting docs for rewrite or archival
 
 - [x] Implement `skills/statement-processor/postprocess.py` *(2025-10-20 — enrich_rows helper + CSV CLI)*
