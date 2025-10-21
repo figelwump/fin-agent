@@ -13,6 +13,7 @@ Environment
 Guidelines
 - Prefer `--format json` for parsing analyzer output
 - Use multiple analyzers for “report” requests and assemble results
+- To cover the full history, use `--period all` (do not combine with `--compare`).
 
 Common Analyzers
 ```bash
@@ -31,4 +32,3 @@ Examples
 
 Reference
 - reference/all-analyzers.md
-

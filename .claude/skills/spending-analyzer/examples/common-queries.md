@@ -30,8 +30,13 @@ Show my dining spending over the last 6 months
 fin-analyze category-timeline --period 6m --category "Food & Dining" --interval month --format json
 ```
 
+Summarize all-time spending
+```bash
+fin-analyze category-breakdown --period all --format json
+```
+> Note: `--period all` cannot be combined with `--compare`.
+
 Any unusual charges this month?
 ```bash
 fin-analyze unusual-spending --month 2025-10 --sensitivity 3 --format json
 ```
-

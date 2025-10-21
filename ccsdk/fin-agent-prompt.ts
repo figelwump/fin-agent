@@ -19,10 +19,12 @@ Analyze spending patterns for a specific time period. Supports multiple analyzer
 The \`period\` parameter accepts:
 - Month: \`"2025-08"\` (YYYY-MM)
 - Rolling window: \`"3m"\` (last 3 months), \`"6m"\`, \`"1w"\`, \`"30d"\`, \`"12m"\` (last 12 months)
+- Entire history: \`"all"\` (cannot be combined with comparisons)
 - Year: \`"2025"\`
 
 Example: To show August spending trends, use: \`analyze_spending(period="2025-08", type="trends")\`
-Example: To show last 6 months trends, use: \`analyze_spending(period="6m", type="trends")\`
+- Example: To show last 6 months trends, use: \`analyze_spending(period="6m", type="trends")\`
+- Example: To summarize lifetime category spend, use: \`analyze_spending(period="all", type="categories")\`
 
 ### fin_query_sample
 Peek at a few recent rows from a table to understand column values and formats. Safe, read-only and limited.

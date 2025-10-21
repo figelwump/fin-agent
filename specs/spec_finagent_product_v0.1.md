@@ -213,9 +213,9 @@ EXIT CODES:
 ```bash
 fin-analyze <analysis-type> [options]
   --month YYYY-MM       Analyze specific month
-  --period <N>m|w|d     Analyze period (3m = 3 months)
+  --period <N>m|w|d|all Analyze period (3m = 3 months, 'all' = entire history)
   --format text|json    Output format
-  --compare             Compare to previous period
+  --compare             Compare to previous period (not supported with --period all)
   --help                Show detailed help
 ```
 
@@ -243,9 +243,9 @@ ANALYSIS TYPES:
 
 COMMON OPTIONS:
   --month YYYY-MM       Specific month (default: current)
-  --period <N>m|w|d     Time period: 3m=3 months, 2w=2 weeks, 30d=30 days
+  --period <N>m|w|d|all Time period: 3m=3 months, 2w=2 weeks, 30d=30 days, 'all' = entire history
   --format text|json    Output format (default: text)
-  --compare             Compare to previous period
+  --compare             Compare to previous period (omit when using --period all)
   --threshold <n>       Min amount/frequency for inclusion
   --db <path>           Database path
   --help                Show this help
@@ -253,7 +253,7 @@ COMMON OPTIONS:
 ANALYSIS-SPECIFIC OPTIONS:
 
   spending-trends:
-    --period <N>m       Number of months to analyze (default: 3m)
+    --period <N>m|all   Number of months to analyze (default: 3m; 'all' for full history)
     --show-categories   Break down trend by category
     Example: fin-analyze spending-trends --period 6m --show-categories
 
@@ -284,7 +284,7 @@ ANALYSIS-SPECIFIC OPTIONS:
     Example: fin-analyze spending-patterns --by day
 
   category-evolution:
-    --period <N>m       Period to analyze category changes
+    --period <N>m|all   Period to analyze category changes
     Example: fin-analyze category-evolution --period 6m
 
   category-suggestions:
@@ -424,7 +424,7 @@ OPTIONS:
                          trends - Multi-month trends
                          evolution - Category evolution
                          all - Include everything (default)
-  --period <N>m         Include N months of trend data
+  --period <N>m|all     Include N months of trend data or entire history ('all')
   --template <file>     Use custom Markdown template
   --db <path>           Database path
   --help                Show this help

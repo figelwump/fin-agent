@@ -180,10 +180,11 @@ and analyzer-specific options.
 
 - `--month YYYY-MM` – specific calendar month.
 - `--period Nd|Nw|Nm` – rolling window ending today (e.g., `--period 6m`).
+- `--period all` – span the entire transaction history (requires DB access, not compatible with `--compare`).
 - `--year YYYY` – calendar year.
 - Use `--period 12m` for trailing 12 full months.
 - Default: current month when nothing is supplied.
-- Add `--compare` to include the immediately preceding window.
+- Add `--compare` to include the immediately preceding window (omit when using `--period all`).
 
 ### Global Options
 

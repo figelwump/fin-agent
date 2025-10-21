@@ -542,7 +542,7 @@ export const customMCPServer = createSdkMcpServer({
       {
         timeFrame: z.union([
           z.object({
-            period: z.string().describe("Relative period: '7d' for 7 days, '3m' for 3 months, '1w' for 1 week, '12m' for 12 months, etc.")
+            period: z.string().describe("Relative period: '7d' for 7 days, '3m' for 3 months, '12m' for last 12 months, 'all' for entire history (no comparisons)")
           }),
           z.object({
             month: z.string().describe("Specific month in YYYY-MM format (e.g., '2024-01')")
@@ -597,7 +597,7 @@ export const customMCPServer = createSdkMcpServer({
               // Prefer period syntax for trailing 12 months to match expected usage
               timeFlag = `--period 12m`;
             } else {
-              timeFlag = `--period ${p}`; // expects formats like 3m, 6w, 30d, 12m
+              timeFlag = `--period ${p}`; // expects formats like 3m, 6w, 30d, 12m, all
             }
           } else {
             timeFlag = `--month ${(timeFrame as any).month}`;
