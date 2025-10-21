@@ -36,7 +36,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     frames = build_window_frames(context)
     current = frames.frame
     if current.empty:
-        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, or all) or ask the user if they have imported any transactions yet.")
+        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet.")
 
     sensitivity = int(context.options.get("sensitivity", 3) or 3)
     sensitivity = min(max(sensitivity, 1), 5)

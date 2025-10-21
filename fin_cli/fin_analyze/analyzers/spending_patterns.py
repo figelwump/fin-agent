@@ -34,7 +34,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     frames = build_window_frames(context)
     frame = frames.frame
     if frame.empty:
-        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, or all) or ask the user if they have imported any transactions yet.")
+        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet.")
 
     group_by = (context.options.get("group_by") or "day").lower()
     if group_by not in _GROUP_CHOICES:
@@ -165,4 +165,3 @@ def _build_summary(rows: Sequence[PatternRow], group_by: str) -> list[str]:
         f"Highest spend group ({group_by}): {top.label} (${top.spend:,.2f}).",
     ]
     return summary
-

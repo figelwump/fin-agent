@@ -88,6 +88,7 @@ def main(
         year=year,
         last_twelve_months=last_twelve_months,
         compare=compare,
+        app_config=cli_ctx.config,
     )
 
     comparison_label = windows.comparison.label if windows.comparison else None

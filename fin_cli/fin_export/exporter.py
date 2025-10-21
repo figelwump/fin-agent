@@ -182,6 +182,7 @@ def build_report(
         year=None,
         last_twelve_months=False,
         compare=compare,
+        app_config=cli_ctx.config,
     )
 
     builder = _ReportBuilder(

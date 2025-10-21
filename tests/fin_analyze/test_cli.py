@@ -171,3 +171,44 @@ def test_cli_last_12_months_window(monkeypatch, load_analysis_dataset, app_confi
     payload = json.loads(output)["payload"]
     assert payload["window"]["label"].startswith("last_12_months_2024_09")
     assert payload["window"]["end"] == "2025-09-01"
+
+
+def test_cli_period_all_window(load_analysis_dataset, app_config, runner) -> None:
+    load_analysis_dataset("spending_multi_year")
+    exit_code, output = _invoke_cli(
+        runner,
+        [
+            "category-breakdown",
+            "--period",
+            "all",
+            "--format",
+            "json",
+            "--db",
+            str(app_config.database.path),
+        ],
+    )
+    assert exit_code == 0, output
+    payload = json.loads(output)["payload"]
+    window = payload["window"]
+    assert window["label"].startswith("period_all_")
+    assert window["start"] <= window["end"]
+    assert payload["categories"], "Expected categorized spend records for dataset"
+
+
+def test_cli_period_all_empty_dataset(load_analysis_dataset, app_config, runner) -> None:
+    load_analysis_dataset("empty")
+    exit_code, output = _invoke_cli(
+        runner,
+        [
+            "category-breakdown",
+            "--period",
+            "all",
+            "--format",
+            "json",
+            "--db",
+            str(app_config.database.path),
+        ],
+    )
+    assert exit_code != 0
+    assert "No categorized spend" in output
+    assert "24m" in output

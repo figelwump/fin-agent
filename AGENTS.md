@@ -19,6 +19,7 @@
 - The plan is meant for an LLM to work on it.
 - Persist the plan to the plans/ directory
   - When work continues on an existing effort, update the existing plan file instead of spinning up a new mini-plan; keep everything consolidated in the main plan document.
+  - Exception: for small, low-risk changes (quick fixes, copy tweaks, single-file adjustments) you can work without creating a persisted plan; medium/large efforts should continue using plan files.
 
 # How to work on plans
 

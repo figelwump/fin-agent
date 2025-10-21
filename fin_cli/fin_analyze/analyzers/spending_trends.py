@@ -45,7 +45,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     frame = frames.frame
     if frame.empty:
         raise AnalysisError(
-            "No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, or all) or ask the user if they have imported any transactions yet."
+            "No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet."
         )
 
     monthly_trend = _summarise_monthly(frame)
@@ -267,4 +267,3 @@ def _build_category_table(rows: Sequence[CategoryRow]) -> TableSeries:
         rows=table_rows,
         metadata={"unit": "USD", "percentage_basis": 100},
     )
-

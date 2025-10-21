@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Tuple
-
 from dateutil.relativedelta import relativedelta
+
+from fin_cli.shared.config import AppConfig
+from fin_cli.shared.database import connect
 
 from .types import AnalysisConfigurationError, TimeWindow
 
@@ -26,6 +27,7 @@ def resolve_windows(
     year: int | None,
     last_twelve_months: bool,
     compare: bool,
+    app_config: AppConfig | None = None,
     today: date | None = None,
 ) -> WindowResolution:
     """Resolve CLI window flags into concrete primary/comparison windows."""
@@ -36,7 +38,7 @@ def resolve_windows(
     if month:
         window = _from_month(month)
     elif period:
-        window = _from_period(period, anchor_today)
+        window = _from_period(period, anchor_today, app_config=app_config, compare=compare)
     elif year is not None:
         window = _from_year(year)
     elif last_twelve_months:
@@ -78,11 +80,21 @@ def _from_month(month: str) -> TimeWindow:
     return TimeWindow(label=label, start=start, end=end)
 
 
-def _from_period(period: str, today: date) -> TimeWindow:
+def _from_period(
+    period: str,
+    today: date,
+    *,
+    app_config: AppConfig | None,
+    compare: bool,
+) -> TimeWindow:
     if not period:
         raise AnalysisConfigurationError("Period value is required when --period is supplied.")
-    unit = period[-1].lower()
-    magnitude_str = period[:-1]
+    normalized = period.strip().lower()
+    if normalized == "all":
+        return _from_all_period(today, app_config=app_config, compare=compare)
+
+    unit = normalized[-1]
+    magnitude_str = normalized[:-1]
     if unit not in {"d", "w", "m"}:
         raise AnalysisConfigurationError(
             f"Unsupported period '{period}'. Use suffix d, w, or m (e.g., 30d, 6w, 3m)."
@@ -104,6 +116,43 @@ def _from_period(period: str, today: date) -> TimeWindow:
     else:  # unit == "m"
         start = end - relativedelta(months=magnitude)
     label = f"period_{start:%Y_%m_%d}_to_{end:%Y_%m_%d}"
+    return TimeWindow(label=label, start=start, end=end)
+
+
+def _from_all_period(
+    today: date,
+    *,
+    app_config: AppConfig | None,
+    compare: bool,
+) -> TimeWindow:
+    if compare:
+        raise AnalysisConfigurationError("--period all does not support --compare; choose a bounded period.")
+    if app_config is None:
+        raise AnalysisConfigurationError(
+            "--period all requires a configured database; pass --db or set FIN_DB_PATH."
+        )
+
+    with connect(app_config, read_only=True, apply_migrations=False) as connection:
+        row = connection.execute(
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM transactions"
+        ).fetchone()
+
+    min_date_raw = row["min_date"] if row is not None else None
+    max_date_raw = row["max_date"] if row is not None else None
+
+    if min_date_raw is None or max_date_raw is None:
+        anchor = today.replace(day=1)
+        end = anchor + relativedelta(months=1)
+        return TimeWindow(label="period_all_empty", start=anchor, end=end)
+
+    try:
+        start = date.fromisoformat(str(min_date_raw))
+        max_date = date.fromisoformat(str(max_date_raw))
+    except ValueError as exc:
+        raise AnalysisConfigurationError("Database contains invalid transaction dates.") from exc
+
+    end = max_date + relativedelta(days=1)
+    label = f"period_all_{start:%Y_%m_%d}_to_{max_date:%Y_%m_%d}"
     return TimeWindow(label=label, start=start, end=end)
 
 
@@ -148,4 +197,3 @@ def _derive_comparison(window: TimeWindow) -> TimeWindow:
     else:
         label = f"preceding_{window.label}"
     return TimeWindow(label=label, start=start, end=end)
-
