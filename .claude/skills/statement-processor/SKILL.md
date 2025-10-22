@@ -44,6 +44,7 @@ Handling Low Confidence
 - After the user approves a correction, update the record via `fin-edit set-category` (dry-run first) and bump confidence to 1.0 when rerunning `import-transactions`.
 - When a user wants future transactions auto-categorised, run `fin-edit add-merchant-pattern` (preview, then `--apply`) with the deterministic pattern key (use `python -c "from fin_cli.shared.merchants import merchant_pattern_key; print(merchant_pattern_key('MERCHANT RAW'))"` if needed).
 - For bulk high-confidence learning, prefer `fin-edit --apply import-transactions … --learn-patterns --learn-threshold 0.9`; keep manual `add-merchant-pattern` for edge cases or low-confidence merchants.
+- When you do need an LLM to categorise a handful of leftover merchants, prefer a lightweight model (Claude Haiku 4.5) for the categorisation micro-prompt to keep latency and cost down; reserve Sonnet 4.5 for the main extraction step.
 
 Database Writes
 - Always preview imports: `fin-edit import-transactions enriched.csv`
@@ -61,10 +62,37 @@ Available Commands
 - `fin-edit add-merchant-pattern`: remember high-confidence merchant/category mappings for future runs.
 - `fin-query saved merchants --format json --min-count N`: retrieve merchant taxonomy for debugging.
 
+Common Errors
+- **Missing CSV columns**: Verify LLM output has all required fields: `date,merchant,amount,original_description,account_name,institution,account_type,category,subcategory,confidence`. Run postprocess.py to add `account_key` and `fingerprint`.
+- **Fingerprint collision on import**: Transaction already exists in database. This is expected behavior - duplicates are automatically skipped.
+- **Invalid confidence value**: Ensure confidence is between 0 and 1. Use `--default-confidence 0.9` to fill empty cells during import.
+- **Unknown category on import**: Either edit the CSV to use existing categories (check with `fin-query saved categories`) or allow creation by omitting `--no-create-categories` flag.
+- **Account identification unclear**: If the LLM cannot determine which account a statement belongs to, pause and ask the user before importing. Rerun postprocess.py after updating account metadata in the CSV.
+- **Low-confidence rows (<0.7)**: Review and correct in the enriched CSV before import, or use `fin-edit set-category` after import to fix individual transactions.
+- **Malformed amount**: Ensure amounts are positive decimals with two decimal places. Credits/refunds should be excluded upstream.
+
 Reference Material (to be refreshed)
 - `examples/llm-extraction.md` – end-to-end walkthrough for a single statement.
 - `examples/batch-processing.md` – workflow for multi-statement batches.
 - `reference/csv-format.md` – canonical schema for enriched CSVs.
+
+Validation After Import
+After successfully importing transactions, verify the results:
+```bash
+# Check recent imports
+fin-query saved recent_imports --limit 5
+
+# Verify transaction count for the month
+fin-query saved transactions_month --param month=YYYY-MM --format table
+
+# Check for uncategorized transactions (should be minimal if import went well)
+fin-query saved uncategorized --limit 10
+```
+
+Cross-Skill Transitions
+- **After import with low-confidence transactions**: Switch to `transaction-categorizer` skill to interactively review and correct low-confidence categorizations (confidence < 0.7)
+- **To analyze imported data**: Use `spending-analyzer` skill to run reports on the newly imported transactions
+- **To query specific merchants or categories**: Use `ledger-query` skill for targeted lookups
 
 Next Steps for Agents
 - Ensure enriched CSVs include `account_key` and `fingerprint` before import.

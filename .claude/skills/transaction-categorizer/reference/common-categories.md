@@ -1,11 +1,19 @@
 # Category Taxonomy Guidelines
 
-Load User Taxonomy
+⚠️ **CRITICAL: ALWAYS Load User's Taxonomy First**
+
+Before suggesting any categories, ALWAYS run:
 ```bash
 fin-query saved categories --format json
 ```
 
-Suggested Categories (fallback when empty)
+This shows the user's actual category structure. **Use these categories first** - only reference the suggested categories below as a fallback if the user's taxonomy is empty or doesn't contain a suitable match.
+
+Never suggest creating new categories without first checking if an existing category fits. This prevents taxonomy bloat.
+
+---
+
+Suggested Categories (ONLY use as fallback when user taxonomy is empty)
 
 Food & Dining
 - Restaurants

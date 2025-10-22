@@ -31,7 +31,7 @@ done
 ## 3. Build Batch Prompt(s)
 
 ```bash
-python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/preprocess.py \
+python .claude/skills/statement-processor/preprocess.py \
   --batch \
   --workdir "$FIN_STATEMENT_WORKDIR" \
   --max-merchants 200 \
@@ -49,9 +49,11 @@ Send each prompt chunk to the LLM and save the CSV responses as `$FIN_STATEMENT_
 ## 5. Enrich CSV Outputs
 
 ```bash
-python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/postprocess.py \
+python .claude/skills/statement-processor/postprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR"
 ```
+
+This processes all CSV files in `$FIN_STATEMENT_LLM_DIR`, adds `account_key` and `fingerprint` columns, normalizes merchants and confidence values, and writes enriched files to `$FIN_STATEMENT_ENRICHED_DIR`.
 
 ## 6. Review, Correct, and Capture Patterns
 
@@ -79,9 +81,24 @@ for enriched in "$FIN_STATEMENT_ENRICHED_DIR"/batch-*-enriched.csv; do
 done
 ```
 
-Use `fin-query saved recent_imports --limit 20` to confirm the ingestion across accounts.
+## 8. Validate Imports
 
-## 8. Preserve Artifacts
+After importing all batches, verify the results:
+```bash
+# Check recent imports across all batches
+fin-query saved recent_imports --limit 20
+
+# Verify transaction count for the month
+fin-query saved transactions_month --param month=YYYY-MM --format table
+
+# Check for uncategorized transactions
+fin-query saved uncategorized --limit 10
+
+# Verify total count matches expectations
+fin-query sql "SELECT COUNT(*) as total FROM transactions WHERE date >= 'YYYY-MM-01' AND date < 'YYYY-MM+1-01'"
+```
+
+## 9. Preserve Artifacts
 
 Retain scrubbed text, prompts, LLM outputs, and enriched CSVs for audit and debugging.
 The CLI harness resets CWD between commands, so rely on the exported variables instead of `cd`.

@@ -21,6 +21,16 @@ This reference describes the CSV schema produced after running `.claude/skills/s
 
 The LLM is responsible for the first ten columns. The post-processing helper appends `account_key` and `fingerprint` to enforce idempotent imports.
 
+## Optional Columns
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `pattern_key` | string | Deterministic lookup key used to store learned merchant patterns. Defaults to `merchant_pattern_key(merchant)` if omitted. |
+| `pattern_display` | string | Human-friendly merchant display name used when storing learned patterns. Defaults to the `merchant` field. |
+| `merchant_metadata` | JSON/string | Optional enrichment payload (e.g., `{ "platform": "DoorDash" }`). Parsed as JSON when valid, otherwise stored as a raw string. |
+
+When present, these columns allow `fin-edit import-transactions --learn-patterns` to persist rules with enriched metadata. They are blank-safe: if the LLM omits them, the importer computes sensible defaults.
+
 ## Account Identification Guidance
 
 - Preserve the account label, institution, and account type exactly as shown in the statement header (minus PII masked by `fin-scrub`).
@@ -49,8 +59,8 @@ fingerprint = models.compute_transaction_fingerprint(
 ## Sample Row
 
 ```csv
-date,merchant,amount,original_description,account_name,institution,account_type,category,subcategory,confidence,account_key,fingerprint
-2025-09-15,Amazon,45.67,"AMZN Mktp US*7X51S5QT3",Chase Prime Visa,Chase,credit,Shopping,Online Retail,0.95,a462f0d49b7e83ee3f65c5c61c1f21943c4d59e94c56b2b9a7d38cfad5fb8f61,713ec84c0a6ac0040b3d3fbefd9b7f324f4bca329dd9336e1f42d9fd2826ebd6
+date,merchant,amount,original_description,account_name,institution,account_type,category,subcategory,confidence,account_key,fingerprint,pattern_key,pattern_display,merchant_metadata
+2025-09-15,Amazon,45.67,"AMZN Mktp US*7X51S5QT3",Chase Prime Visa,Chase,credit,Shopping,Online Retail,0.95,a462f0d49b7e83ee3f65c5c61c1f21943c4d59e94c56b2b9a7d38cfad5fb8f61,713ec84c0a6ac0040b3d3fbefd9b7f324f4bca329dd9336e1f42d9fd2826ebd6,AMAZON,Amazon,"{\"platform\":\"Online\"}"
 ```
 
 ## Quality Checklist

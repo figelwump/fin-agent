@@ -25,15 +25,13 @@ Use this category?
 
 If user approves, write safely
 ```bash
-fin-edit --db ~/.finagent/data.db --apply \
-  set-category --transaction-id <id> \
+fin-edit --apply set-category --transaction-id <id> \
   --category "Shopping" --subcategory "Online" --method claude:interactive
 ```
 
 Learn pattern when asked
 ```bash
-fin-edit --db ~/.finagent/data.db --apply \
-  add-merchant-pattern --pattern 'STARBUCKS%' \
+fin-edit --apply add-merchant-pattern --pattern 'STARBUCKS%' \
   --category "Food & Dining" --subcategory "Coffee" --confidence 0.95
 ```
 

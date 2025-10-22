@@ -34,7 +34,7 @@ fin-scrub "$PDF_PATH" \
 ## 3. Build the Prompt
 
 ```bash
-python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/preprocess.py \
+python .claude/skills/statement-processor/preprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR" \
   --max-merchants 150
 ```
@@ -48,7 +48,7 @@ Send the prompt to your LLM of choice (Claude in this example) and save the CSV 
 ## 5. Post-Process the CSV
 
 ```bash
-python ~/GiantThings/repos/fin-agent/.claude/skills/statement-processor/postprocess.py \
+python .claude/skills/statement-processor/postprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR"
 ```
 
