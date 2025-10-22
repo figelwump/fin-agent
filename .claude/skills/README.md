@@ -22,6 +22,7 @@ Skill Packages
 - statement-processor: extract statements and import into SQLite
 - transaction-categorizer: interactive categorization and pattern learning
 - spending-analyzer: run analyzers and assemble custom reports
+- ledger-query: answer direct data questions with fin-query saved/ad-hoc queries
 
 Notes for LLMs
 - Load skills progressively based on user intent (e.g., load transaction-categorizer
@@ -29,4 +30,3 @@ Notes for LLMs
 - Validate category names against the existing taxonomy (`fin-query saved categories`).
 - Avoid taxonomy bloat: prefer existing categories and confirm with the user
   before creating new ones.
-
