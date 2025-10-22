@@ -35,6 +35,10 @@ def _seed_transactions(config) -> None:
             "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
             ("Shopping", "Online"),
         ).fetchone()[0]
+        entertainment_id = connection.execute(
+            "INSERT INTO categories (category, subcategory) VALUES (?, ?) RETURNING id",
+            ("Entertainment", "Comedy"),
+        ).fetchone()[0]
         rows = [
             (
                 date(2025, 8, 1).isoformat(),
@@ -72,6 +76,18 @@ def _seed_transactions(config) -> None:
                 "rule:pattern",
                 "2025-09-03--19.99-Amazon",
             ),
+            (
+                date(2025, 7, 15).isoformat(),
+                "Comedy Cellar",
+                -75.00,
+                entertainment_id,
+                account_id,
+                "COMEDY CELLAR NYC",
+                "2025-07-16T20:15:00",
+                0.95,
+                "review:manual",
+                "2025-07-15--75.00-ComedyCellar",
+            ),
         ]
         connection.executemany(
             """
@@ -107,7 +123,7 @@ def test_execute_sql_applies_limit(tmp_path) -> None:
     assert result.limit_applied is True
     assert result.limit_value == 1
     assert result.truncated is True
-    assert result.rows == [("Amazon",)]
+    assert result.rows == [("Comedy Cellar",)]
 
 
 def test_run_saved_query_requires_params(tmp_path) -> None:
@@ -247,3 +263,19 @@ def test_run_merchant_search_query(tmp_path) -> None:
     assert result.description == "Transactions matching merchants via SQL LIKE patterns."
     assert result.limit_applied is True
     assert any(row[1] == "Amazon" for row in result.rows)
+
+
+def test_run_category_transactions_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="category_transactions",
+        runtime_params={"category": "Entertainment", "subcategory": "Comedy"},
+        limit=10,
+    )
+
+    assert result.description == "Transactions filtered by category and optional subcategory."
+    categories = {(row[result.columns.index("category")], row[result.columns.index("subcategory")]) for row in result.rows}
+    assert categories == {("Entertainment", "Comedy")}

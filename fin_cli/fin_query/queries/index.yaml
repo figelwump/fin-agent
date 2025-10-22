@@ -99,3 +99,18 @@ queries:
     limit:
       type: integer
       default: 25
+- name: category_transactions
+  file: category_transactions.sql
+  description: Transactions filtered by category and optional subcategory.
+  parameters:
+    category:
+      type: string
+      default: null
+      description: Category filter (use % wildcards; NULL returns all categories).
+    subcategory:
+      type: string
+      default: null
+      description: Optional subcategory filter (use % wildcards).
+    limit:
+      type: integer
+      default: 100

@@ -342,6 +342,7 @@ The current saved query catalog includes:
 - `uncategorized` – transactions without category assignments.
 - `merchant_patterns` – learned merchant rules with confidence/usage metrics.
 - `merchant_search` – transactions filtered by merchant LIKE pattern.
+- `category_transactions` – transactions filtered by category/subcategory.
 - `recent_imports` – most recent imports ordered by `import_date`.
 - `categories` – category catalog with usage counts and approval flags.
 
@@ -361,6 +362,9 @@ fin-query saved merchant_patterns --param pattern=%AMAZON% --limit 20
 
 # Look up historical charges for a specific merchant pattern
 fin-query saved merchant_search --param pattern=%YouTube TV% --limit 12
+
+# List Entertainment > Comedy transactions
+fin-query saved category_transactions --param category=Entertainment --param subcategory=Comedy --limit 20
 
 # View the most recently imported transactions (ordered by import timestamp)
 fin-query saved recent_imports --limit 15

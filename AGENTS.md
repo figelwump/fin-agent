@@ -11,6 +11,7 @@
 - Core transaction columns: `date`, `merchant`, `original_description`, `amount`, `account_id`, `category_id`, `metadata`. There is no generic `description` field.
 - Prefer `fin-query schema --table transactions --format table` (or other `fin-query` commands) instead of invoking `sqlite3` directly when you need to inspect structure or run ad-hoc SQL.
 - Use saved queries where possible; a `merchant_search` query is available for LIKE-based merchant lookups.
+- Use saved queries where possible; `merchant_search` covers LIKE-based merchant lookups and `category_transactions` pulls category/subcategory slices.
 
 # How to write implementation plans
 - Prefix the plan name with "plan_" and suffix with a date like "_092325"
