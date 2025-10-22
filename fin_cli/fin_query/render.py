@@ -46,8 +46,7 @@ def render_query_result(
     if result.truncated:
         # Warn via logger so callers honour the safety limit in interactive sessions.
         logger.warning(
-            "Result truncated to %s rows. Re-run with --limit or --format csv/json for full output.",
-            result.limit_value,
+            f"Result truncated to {result.limit_value} rows. Re-run with --limit or --format csv/json for full output."
         )
 
 
