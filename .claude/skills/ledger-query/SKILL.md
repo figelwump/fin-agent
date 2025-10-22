@@ -17,8 +17,6 @@ Guidelines
 - Always cap result size (e.g., `--limit 25`) to keep responses concise.
 - Use `--db` only when the user explicitly points to an alternate database.
 - Need schema details? Run `fin-query schema --table transactions --format table` (or `--all`).
-- Merchant lookups: `fin-query saved merchant_search --param pattern=%YouTube TV% --limit 12`.
-- Category slices: `fin-query saved category_transactions --param category=Entertainment --param subcategory=Comedy --limit 20`.
 
 Workflow
 1. Clarify the time frame, category, or pattern the user cares about.
