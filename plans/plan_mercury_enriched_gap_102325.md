@@ -11,9 +11,20 @@
 - [x] Verify enrichment scripts/steps that write `chunk-1-enriched-test.csv`. *(Found indentation bug in `.claude/skills/statement-processor/scripts/postprocess.py` causing only final row to be appended.)*
 
 ## Phase 3 – Diagnose & Outline Fix
-- [ ] Identify the root cause behind the missing transactions.
-- [ ] Document proposed remediation (code change, config, rerun steps).
-- [ ] Note any required follow-up actions or tests.
+- [ ] Confirm statement-processor postprocess flow keeps all LLM rows (multi-row regression test).
+- [ ] Trace how low-confidence rows flow into `categorize_leftovers.py` and why enriched CSV edits are manual-only.
+- [ ] Capture remediation options (script changes vs. workflow guidance) plus validation requirements.
+
+## Phase 4 – Automate Leftover Categorization Round-Trip
+- [ ] Update `categorize_leftovers.py` prompt + schema to tag each row with the transaction fingerprint (or equivalent stable ID).
+- [ ] Add an automation entrypoint (new script or postprocess flag) that merges leftover decisions back into enriched CSVs safely.
+- [ ] Cover the new workflow with unit/integration tests (fingerprint propagation + merge happy-path & mismatch handling).
+- [ ] Document the updated flow in `SKILL.md` / helper notes so agents stop editing enriched CSVs manually.
+
+## Phase 5 – Validation & Regression Guardrails
+- [ ] Re-run the Mercury April 2025 workspace end-to-end (postprocess → leftovers merge → fin-edit preview) to confirm import passes.
+- [ ] Add regression tests or fixtures ensuring multi-row enriched outputs and leftover merges remain stable.
+- [ ] Summarize follow-up actions (pattern learning tweaks, config changes) if any gaps remain.
 
 ## Notes
 - Dataset paths: `~/.finagent/skills/statement-processor/mercury-2025-04-05-20251022-170227/`.
