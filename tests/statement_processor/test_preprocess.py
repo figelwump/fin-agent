@@ -10,7 +10,14 @@ from fin_cli.shared import paths
 from fin_cli.shared.config import load_config
 from fin_cli.shared.database import connect, run_migrations
 
-MODULE_PATH = Path(__file__).resolve().parents[2] / ".claude" / "skills" / "statement-processor" / "preprocess.py"
+MODULE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / ".claude"
+    / "skills"
+    / "statement-processor"
+    / "scripts"
+    / "preprocess.py"
+)
 spec = importlib.util.spec_from_file_location("statement_processor_preprocess", MODULE_PATH)
 preprocess = importlib.util.module_from_spec(spec)
 assert spec and spec.loader  # narrow type checker; loader exists when spec resolves.

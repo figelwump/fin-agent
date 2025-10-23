@@ -16,7 +16,22 @@ from fin_cli.shared.config import AppConfig, load_config
 from fin_cli.shared.database import run_migrations
 from fin_cli.shared.merchants import AGGREGATOR_LABELS, friendly_display_name, merchant_pattern_key, normalize_merchant
 
-TEMPLATES_DIR = Path(__file__).with_name("templates")
+def _resolve_templates_dir() -> Path:
+    """Locate templates directory regardless of repo layout."""
+    candidates = [
+        Path(__file__).with_name("templates"),
+        Path(__file__).resolve().parent.parent / "templates",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        "Unable to locate prompt templates. Expected directories:\n"
+        + "\n".join(str(path) for path in candidates)
+    )
+
+
+TEMPLATES_DIR = _resolve_templates_dir()
 _SINGLE_TEMPLATE = "extraction_prompt.txt"
 _BATCH_TEMPLATE = "batch_extraction_prompt.txt"
 
