@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from datetime import date
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from click.testing import CliRunner
 
 from fin_cli.fin_edit.main import main as edit_cli
 from fin_cli.shared import models, paths
+from fin_cli.shared.merchants import merchant_pattern_key
 from fin_cli.shared.config import load_config
 from fin_cli.shared.database import connect
 
@@ -42,6 +44,9 @@ def _write_enriched_csv(path: Path, rows: list[dict[str, str]]) -> None:
         "account_key",
         "fingerprint",
         "method",
+        "pattern_key",
+        "pattern_display",
+        "merchant_metadata",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -62,6 +67,9 @@ def _make_enriched_row(
     account_name: str = "Test Account",
     institution: str = "Test Bank",
     account_type: str = "checking",
+    pattern_key: str | None = None,
+    pattern_display: str | None = None,
+    merchant_metadata: dict[str, object] | None = None,
 ) -> dict[str, str]:
     account_key = models.compute_account_key(account_name, institution, account_type)
     fingerprint = models.compute_transaction_fingerprint(
@@ -87,6 +95,12 @@ def _make_enriched_row(
     }
     if method is not None:
         row["method"] = method
+    if pattern_key:
+        row["pattern_key"] = pattern_key
+    if pattern_display:
+        row["pattern_display"] = pattern_display
+    if merchant_metadata:
+        row["merchant_metadata"] = json.dumps(merchant_metadata)
     return row
 
 
@@ -384,6 +398,117 @@ def test_import_transactions_apply_and_dedupe(tmp_path: Path) -> None:
         ).fetchone()
         assert parking_category is not None and int(parking_category[0]) == 1
 
+
+def test_import_transactions_learn_patterns_apply(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    csv_path = tmp_path / "enriched.csv"
+    rows = [
+        _make_enriched_row(
+            txn_date=date(2025, 9, 20),
+            merchant="STARBUCKS #1234",
+            amount=5.50,
+            original_description="STARBUCKS #1234",
+            category=("Food & Dining", "Coffee"),
+            confidence="0.95",
+            pattern_key="STARBUCKS",
+            pattern_display="Starbucks",
+            merchant_metadata={"platform": "InStore"},
+        )
+    ]
+    _write_enriched_csv(csv_path, rows)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "import-transactions",
+            str(csv_path),
+            "--learn-patterns",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        pattern_row = connection.execute(
+            "SELECT category_id, confidence, pattern_display, metadata FROM merchant_patterns WHERE pattern = ?",
+            ("STARBUCKS",),
+        ).fetchone()
+        assert pattern_row is not None
+        assert abs(float(pattern_row["confidence"]) - 0.95) < 1e-6
+        assert pattern_row["pattern_display"] == "Starbucks"
+        metadata = json.loads(pattern_row["metadata"])
+        assert metadata == {"platform": "InStore"}
+
+        txn_row = connection.execute(
+            "SELECT metadata FROM transactions WHERE merchant = ?",
+            ("STARBUCKS #1234",),
+        ).fetchone()
+        assert txn_row is not None and txn_row["metadata"] is not None
+        txn_meta = json.loads(txn_row["metadata"])
+        assert txn_meta["merchant_pattern_key"] == "STARBUCKS"
+        assert txn_meta["merchant_pattern_display"] == "Starbucks"
+        assert txn_meta["merchant_metadata"] == {"platform": "InStore"}
+
+
+def test_import_transactions_learn_patterns_threshold(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    csv_path = tmp_path / "enriched.csv"
+    rows = [
+        _make_enriched_row(
+            txn_date=date(2025, 9, 21),
+            merchant="LOCAL BAKERY",
+            amount=12.25,
+            original_description="LOCAL BAKERY",
+            category=("Food & Dining", "Restaurants"),
+            confidence="0.60",
+            pattern_display="Local Bakery",
+        )
+    ]
+    _write_enriched_csv(csv_path, rows)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "import-transactions",
+            str(csv_path),
+            "--learn-patterns",
+            "--learn-threshold",
+            "0.9",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        pattern_count = connection.execute(
+            "SELECT COUNT(*) AS c FROM merchant_patterns"
+        ).fetchone()["c"]
+        assert pattern_count == 0
+
+        txn_row = connection.execute(
+            "SELECT metadata FROM transactions WHERE merchant = ?",
+            ("LOCAL BAKERY",),
+        ).fetchone()
+        assert txn_row is not None
+        txn_meta = json.loads(txn_row["metadata"])
+        assert txn_meta["merchant_pattern_key"] == merchant_pattern_key("LOCAL BAKERY")
+        assert txn_meta["merchant_pattern_display"] == "Local Bakery"
 
 def test_import_transactions_missing_category_without_creation(tmp_path: Path) -> None:
     db_path = tmp_path / "db.sqlite"

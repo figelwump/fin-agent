@@ -39,3 +39,11 @@
 - Touch points: `fin_cli/fin_enhance/categorizer/{llm_client,hybrid,rules}.py`, `fin_cli/shared/models.py`, migrations, importer/pipeline tests.
 - Ensure JSON metadata remains compact (no large blobs) and guard against `None` vs `{}` so we avoid noisy DB diffs.
 - Consider backward compatibility: existing `merchant_patterns.pattern` remains the lookup key; new display field is additive.
+
+## Phase 6 – Skill-Facing Automation
+- [x] Extend `fin_cli/shared/importers.py` to accept optional `pattern_key`, `pattern_display`, and `merchant_metadata` columns from enriched CSV rows; parse JSON metadata safely. *(2025-10-21 — importer now reads optional columns, parses metadata JSON, and stores on each `EnrichedCSVTransaction`.)*
+- [x] Add `--learn-patterns` (default off) and `--learn-threshold` options to `fin-edit import-transactions` so high-confidence rows can auto-record merchant patterns when categories resolve. *(2025-10-21 — CLI flag + threshold wired into importer pipeline.)*
+- [x] Update import preview/apply summaries to show how many patterns would be/are learned, including category pairing and confidence. *(2025-10-21 — summary logs enumerate learned patterns, skipped candidates, and threshold context.)*
+- [x] When learning, derive a pattern key via CSV column or fallback to `merchant_pattern_key(row.merchant)`; persist display/metadata when provided. *(2025-10-21 — import path stores pattern metadata on transactions and records patterns with display/metadata payloads.)*
+- [x] Add tests covering both dry-run and apply flows, ensuring patterns are upserted once and respect confidence thresholds. *(2025-10-21 — new pytest cases validate learning/on-threshold behaviour and metadata persistence.)*
+- [x] Refresh statement-processor documentation to instruct the skill to run `fin-edit import-transactions --learn-patterns --learn-threshold 0.9 …` for auto-learning, while keeping manual `add-merchant-pattern` guidance for edge cases. *(2025-10-21 — SKILL.md + examples updated with new flags and guidance.)*

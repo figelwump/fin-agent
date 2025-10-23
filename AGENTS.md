@@ -5,7 +5,6 @@
 - Activate the project virtualenv (`source .venv/bin/activate`) before running tests or CLI commands
 - Read README.md
 - Run `pytest` regularly to catch regressions early and keep the test suite green.
-- Multiple agents may collaborate on this repository (even simultaneously on the same branch). Commit only the changes you make unless explicitly instructed otherwise.
 
 ## Schema & Query Tips
 - Core transaction columns: `date`, `merchant`, `original_description`, `amount`, `account_id`, `category_id`, `metadata`. There is no generic `description` field.

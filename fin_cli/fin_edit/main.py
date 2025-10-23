@@ -8,7 +8,7 @@ We intentionally keep fin-query read-only; fin-edit holds write operations.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 import json
 import sqlite3
@@ -23,6 +23,7 @@ from fin_cli.shared.cli import (
 )
 from fin_cli.shared.database import connect
 from fin_cli.shared import models
+from fin_cli.shared.merchants import merchant_pattern_key
 from fin_cli.shared.importers import (
     CSVImportError,
     EnrichedCSVTransaction,
@@ -264,6 +265,9 @@ class ImportSummary:
     categories_created: set[tuple[str, str]] = field(default_factory=set)
     categories_missing: set[tuple[str, str]] = field(default_factory=set)
     accounts_created: set[tuple[str, str, str]] = field(default_factory=set)
+    patterns_learned: set[tuple[str, str, str]] = field(default_factory=set)
+    patterns_skipped_low_conf: int = 0
+    learn_threshold: float | None = None
 
 
 def _format_category(category: str, subcategory: str) -> str:
@@ -294,6 +298,33 @@ def _log_import_summary(logger, summary: ImportSummary, preview: bool) -> None:
         )
         logger.info(
             f"{prefix}{action} {len(summary.accounts_created)} account{'s' if len(summary.accounts_created) != 1 else ''}: {formatted}."
+        )
+    if summary.patterns_learned:
+        action = "Would learn" if preview else "Learned"
+        formatted_list = sorted(summary.patterns_learned)
+        preview_count = len(formatted_list)
+        sample = ", ".join(
+            f"{pattern} → {category} > {subcategory}"
+            for pattern, category, subcategory in formatted_list[:5]
+        )
+        if preview_count > 5:
+            sample = f"{sample}, …"
+        details = f": {sample}" if sample else "."
+        logger.info(
+            f"{prefix}{action} {preview_count} merchant pattern{'s' if preview_count != 1 else ''}{details}"
+        )
+    elif summary.learn_threshold is not None:
+        logger.info(
+            f"{prefix}No merchant patterns met the learning criteria (threshold {summary.learn_threshold:.2f})."
+        )
+    if summary.patterns_skipped_low_conf:
+        threshold_text = (
+            f"below confidence {summary.learn_threshold:.2f}"
+            if summary.learn_threshold is not None
+            else "below confidence threshold"
+        )
+        logger.info(
+            f"{prefix}Skipped {summary.patterns_skipped_low_conf} pattern candidate{'s' if summary.patterns_skipped_low_conf != 1 else ''} {threshold_text}."
         )
 
 
@@ -327,10 +358,26 @@ def _import_enriched_transactions(
     method: str,
     preview: bool,
     allow_category_creation: bool,
+    learn_patterns: bool,
+    learn_threshold: float,
 ) -> ImportSummary:
     summary = ImportSummary(total_rows=len(rows))
+    if learn_patterns:
+        summary.learn_threshold = learn_threshold
     category_cache: dict[tuple[str, str], int | None] = {}
     account_cache: dict[tuple[str, str, str], int | None] = {}
+    patterns_recorded: set[tuple[str, int]] = set()
+
+    def _resolve_pattern(row: EnrichedCSVTransaction) -> tuple[str | None, str | None, Mapping[str, Any] | str | None]:
+        pattern = (row.pattern_key or "").strip() if row.pattern_key else ""
+        if not pattern:
+            pattern = merchant_pattern_key(row.merchant) or ""
+        pattern = pattern.strip()
+        display = (row.pattern_display or "").strip() if row.pattern_display else ""
+        if not display and pattern:
+            display = row.merchant
+        metadata = row.merchant_metadata
+        return (pattern or None, display or None, metadata)
 
     with connect(
         cli_ctx.config,
@@ -390,6 +437,15 @@ def _import_enriched_transactions(
                     summary.duplicates += 1
                 else:
                     summary.inserted += 1
+                if learn_patterns:
+                    pattern_key, _, _ = _resolve_pattern(row)
+                    if pattern_key:
+                        if row.confidence >= learn_threshold:
+                            summary.patterns_learned.add(
+                                (pattern_key, row.category, row.subcategory)
+                            )
+                        else:
+                            summary.patterns_skipped_low_conf += 1
             return summary
 
         # Apply mode: perform mutations
@@ -425,6 +481,18 @@ def _import_enriched_transactions(
                 account_cache[account_key] = account_id
 
             _check_fingerprint(cli_ctx, row, account_id)
+            pattern_key, pattern_display, merchant_metadata = _resolve_pattern(row)
+            txn_metadata = None
+            if pattern_key or pattern_display or merchant_metadata is not None:
+                payload: dict[str, Any] = {}
+                if pattern_key:
+                    payload["merchant_pattern_key"] = pattern_key
+                if pattern_display:
+                    payload["merchant_pattern_display"] = pattern_display
+                if merchant_metadata is not None:
+                    payload["merchant_metadata"] = merchant_metadata
+                if payload:
+                    txn_metadata = payload
 
             txn = models.Transaction(
                 date=row.date,
@@ -436,6 +504,7 @@ def _import_enriched_transactions(
                 original_description=row.original_description,
                 categorization_confidence=row.confidence if cat_id else None,
                 categorization_method=row.method or method,
+                metadata=txn_metadata,
             )
             inserted = models.insert_transaction(
                 connection,
@@ -448,6 +517,24 @@ def _import_enriched_transactions(
                     models.increment_category_usage(connection, cat_id)
             else:
                 summary.duplicates += 1
+            if learn_patterns and pattern_key:
+                if row.confidence >= learn_threshold and cat_id is not None:
+                    cache_key = (pattern_key, cat_id)
+                    if cache_key not in patterns_recorded:
+                        models.record_merchant_pattern(
+                            connection,
+                            pattern=pattern_key,
+                            category_id=cat_id,
+                            confidence=row.confidence,
+                            pattern_display=pattern_display,
+                            metadata=merchant_metadata,
+                        )
+                        patterns_recorded.add(cache_key)
+                    summary.patterns_learned.add(
+                        (pattern_key, row.category, row.subcategory)
+                    )
+                else:
+                    summary.patterns_skipped_low_conf += 1
 
         return summary
 
@@ -473,6 +560,18 @@ def _import_enriched_transactions(
     is_flag=True,
     help="Fail if a referenced category does not exist instead of creating it.",
 )
+@click.option(
+    "--learn-patterns",
+    is_flag=True,
+    help="Automatically record merchant patterns for high-confidence rows.",
+)
+@click.option(
+    "--learn-threshold",
+    type=float,
+    default=0.9,
+    show_default=True,
+    help="Minimum confidence required before --learn-patterns records a merchant pattern.",
+)
 @pass_cli_context
 def import_transactions_command(
     cli_ctx: CLIContext,
@@ -480,10 +579,13 @@ def import_transactions_command(
     method: str,
     default_confidence: float,
     no_create_categories: bool,
+    learn_patterns: bool,
+    learn_threshold: float,
 ) -> None:
     """Import enriched CSV transactions into the database."""
 
     default_conf = _ensure_default_confidence(default_confidence)
+    learn_threshold = _ensure_default_confidence(learn_threshold)
 
     try:
         rows = load_enriched_transactions(csv_path, default_confidence=default_conf)
@@ -507,6 +609,8 @@ def import_transactions_command(
         method=method,
         preview=preview,
         allow_category_creation=not no_create_categories,
+        learn_patterns=learn_patterns,
+        learn_threshold=learn_threshold,
     )
     _log_import_summary(cli_ctx.logger, summary, preview)
 

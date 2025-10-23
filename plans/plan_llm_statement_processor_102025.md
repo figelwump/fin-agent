@@ -101,7 +101,7 @@ SAVED_QUERIES["merchants"] = {
 - [x] `fin-query saved merchants --format json` returns `[{"merchant": "Amazon", "count": 42}, …]`
 - [x] `fin-query saved merchants --top 100` limits to top 100 by frequency *(via --limit)*
 - [x] `fin-query saved merchants --min-count 5` filters out low-frequency merchants *(new CLI flag)*
-- [ ] Documentation updated in statement-processor skill notes so LLM prompt builders know how to consume the query
+- [x] Documentation updated in statement-processor skill notes so LLM prompt builders know how to consume the query *(2025-10-21 — added taxonomy refresh section to `.claude/skills/statement-processor/SKILL.md`)*
 
 ## Phase 2: Build Preprocessing Helper
 
@@ -330,11 +330,11 @@ source .venv/bin/activate
 
 ### Acceptance Criteria
 
-- [ ] Skill instructions are clear and actionable
-- [ ] Examples show complete end-to-end flow
-- [ ] Low-confidence review process is documented
-- [ ] Database write options are explained
-- [ ] No references to deprecated tools
+- [x] Skill instructions are clear and actionable *(2025-10-21 — SKILL.md clarifies manual corrections, merchant pattern learning, and validation steps)*
+- [x] Examples show complete end-to-end flow *(2025-10-21 — updated `examples/llm-extraction.md` and `examples/batch-processing.md` with review, import, and archival guidance)*
+- [x] Low-confidence review process is documented *(2025-10-21 — SKILL.md and examples now outline CLI correction workflow and confidence escalation)*
+- [x] Database write options are explained *(2025-10-21 — added explicit preview/apply instructions and validation commands in SKILL.md)*
+- [x] No references to deprecated tools *(2025-10-21 — scrubbed fin-extract/fin-enhance mentions and refreshed reference section)*
 
 ## Phase 4: Test and Validate
 
@@ -492,7 +492,8 @@ Option C: Keep using fin-extract (deprecated but functional)
 - [ ] Learning from corrections: Update prompt with user fixes
 - [ ] Merchant aliasing: "AMZN" → "Amazon" via learned patterns
 - [ ] Category suggestions based on similar transactions
-- [ ] Automatic pattern learning (similar to merchant_patterns table)
+- [x] Automatic pattern learning (similar to merchant_patterns table) *(2025-10-21 — `fin-edit import-transactions` now supports `--learn-patterns/--learn-threshold`, enabling the skill to persist high-confidence merchants automatically.)*
+- [x] Post-process pattern application: apply `merchant_patterns` to rows before categorization prompts so known merchants skip the LLM; feed leftover rows into a Haiku micro-prompt with live taxonomies. *(2025-10-21 — `postprocess.py --apply-patterns` now fills categories/confidence from the DB; `categorize_leftovers.py` assembles a Haiku prompt for the remaining transactions.)*
 
 ## Implementation Notes
 
@@ -531,6 +532,14 @@ Initial confidence scores may be over/under-confident. Monitor and adjust:
 - Track user corrections by confidence level
 - If >50% of 0.9 confidence items need correction → recalibrate prompt
 - Build calibration dataset over time
+
+### Merchant Patterns
+
+- `merchant_patterns` remains an active rules cache. Legacy `fin-enhance` still auto-upserts via `HybridCategorizer._record_merchant_pattern`, so the new statement-processor workflow must keep contributing to this table.
+- Until automatic learning ships, the skill should call `fin-edit add-merchant-pattern` (dry-run, then `--apply`) whenever the user confirms that a merchant/category pairing should persist. Reuse `fin_cli.shared.merchants.merchant_pattern_key()` to derive the deterministic pattern string and pass any LLM-provided display/metadata through `--display`/`--metadata`.
+- Follow-up enhancements:
+  1. Add a post-processing pass that applies existing `merchant_patterns` (fill category/subcategory/confidence from the DB before any categorization prompt runs).
+  2. For the remaining uncategorized merchants, issue a single Haiku 4.5 micro-prompt seeded with live category + merchant taxonomies—no chunking needed because the leftover set should be small.
 
 ## Batch Processing Strategy
 

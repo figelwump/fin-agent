@@ -8,13 +8,14 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import click
 
 from fin_cli.shared import models
 from fin_cli.shared.merchants import merchant_pattern_key
 from fin_cli.shared.config import AppConfig, load_config
+from fin_cli.shared.database import connect
 
 _REQUIRED_COLUMNS = (
     "date",
@@ -163,15 +164,31 @@ def _should_clear_category(
     return False
 
 
-def enrich_rows(rows: Iterable[Mapping[str, object]], *, config: AppConfig | None = None) -> list[EnrichedTransaction]:
+def enrich_rows(
+    rows: Iterable[Mapping[str, object]],
+    *,
+    config: AppConfig | None = None,
+    connection=None,
+    apply_patterns: bool = False,
+) -> list[EnrichedTransaction]:
     effective_config = config or load_config()
-    enriched: list[EnrichedTransaction] = []
-    for row in rows:
-        for column in _REQUIRED_COLUMNS:
-            if column not in row:
-                raise KeyError(f"Missing required column '{column}' in LLM output")
+    connection_ctx = None
+    if apply_patterns:
+        if connection is None:
+            connection_ctx = connect(effective_config, read_only=True)
+            connection = connection_ctx.__enter__()
+        if connection is None:
+            raise RuntimeError("apply_patterns=True requires a database connection")
 
-        date_text = _coerce_str(row, "date")
+    pattern_cache: dict[str, dict[str, Any] | None] = {}
+    enriched: list[EnrichedTransaction] = []
+    try:
+        for row in rows:
+            for column in _REQUIRED_COLUMNS:
+                if column not in row:
+                    raise KeyError(f"Missing required column '{column}' in LLM output")
+
+            date_text = _coerce_str(row, "date")
         date_obj = datetime.strptime(date_text, "%Y-%m-%d").date()
         merchant = _normalise_merchant(_coerce_str(row, "merchant"))
         original_description = _normalise_description(_coerce_str(row, "original_description"))
@@ -217,6 +234,50 @@ def enrich_rows(rows: Iterable[Mapping[str, object]], *, config: AppConfig | Non
                 except json.JSONDecodeError:
                     merchant_metadata = metadata_text
 
+        if apply_patterns and connection is not None and pattern_key:
+            cached = pattern_cache.get(pattern_key)
+            if pattern_key not in pattern_cache:
+                db_row = connection.execute(
+                    """
+                    SELECT mp.confidence, mp.pattern_display, mp.metadata,
+                           c.category, c.subcategory
+                    FROM merchant_patterns mp
+                    JOIN categories c ON c.id = mp.category_id
+                    WHERE mp.pattern = ?
+                    ORDER BY mp.confidence DESC
+                    LIMIT 1
+                    """,
+                    (pattern_key,),
+                ).fetchone()
+                if db_row:
+                    metadata_value: Any = db_row["metadata"]
+                    if metadata_value:
+                        try:
+                            metadata_value = json.loads(metadata_value)
+                        except json.JSONDecodeError:
+                            pass
+                    pattern_cache[pattern_key] = {
+                        "category": db_row["category"],
+                        "subcategory": db_row["subcategory"],
+                        "confidence": float(db_row["confidence"]) if db_row["confidence"] is not None else 1.0,
+                        "pattern_display": db_row["pattern_display"],
+                        "metadata": metadata_value,
+                    }
+                else:
+                    pattern_cache[pattern_key] = None
+                cached = pattern_cache[pattern_key]
+            if cached:
+                category = cached["category"]
+                subcategory = cached["subcategory"]
+                confidence = float(cached["confidence"]) if cached["confidence"] is not None else confidence
+                display_from_db = cached.get("pattern_display")  # type: ignore[index]
+                if display_from_db:
+                    pattern_display = str(display_from_db)
+                elif not pattern_display:
+                    pattern_display = merchant
+                if merchant_metadata is None and cached.get("metadata") is not None:  # type: ignore[index]
+                    merchant_metadata = cached["metadata"]  # type: ignore[index]
+
         enriched.append(
             EnrichedTransaction(
                 date=date_text,
@@ -236,6 +297,9 @@ def enrich_rows(rows: Iterable[Mapping[str, object]], *, config: AppConfig | Non
                 merchant_metadata=merchant_metadata,
             )
         )
+    finally:
+        if connection_ctx is not None:
+            connection_ctx.__exit__(None, None, None)
     return enriched
 
 
@@ -274,7 +338,19 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
     type=click.Path(path_type=Path, file_okay=False),
     help="Statement-processor workspace root (from bootstrap.sh). Processes all LLM CSVs when --input is omitted.",
 )
-def cli(input_path: Path | None, output_path: Path | None, output_dir: Path | None, stdout: bool, workdir: Path | None) -> None:
+@click.option(
+    "--apply-patterns",
+    is_flag=True,
+    help="Use existing merchant_patterns to fill category/confidence before export.",
+)
+def cli(
+    input_path: Path | None,
+    output_path: Path | None,
+    output_dir: Path | None,
+    stdout: bool,
+    workdir: Path | None,
+    apply_patterns: bool,
+) -> None:
     """Enrich LLM CSV output with account_key and fingerprint columns."""
 
     if output_path and output_dir:
@@ -307,36 +383,52 @@ def cli(input_path: Path | None, output_path: Path | None, output_dir: Path | No
     if output_path and len(inputs) > 1:
         raise click.UsageError("--output can only be used with a single input file.")
 
-    for candidate in inputs:
-        rows = _read_csv(candidate)
-        enriched = enrich_rows(rows)
+    config = load_config()
+    connection_ctx = None
+    connection = None
+    if apply_patterns:
+        connection_ctx = connect(config, read_only=True)
+        connection = connection_ctx.__enter__()
 
-        effective_output_path = output_path
-        if output_dir is not None:
-            target_dir = output_dir / "enriched"
-            target_dir.mkdir(parents=True, exist_ok=True)
-            effective_output_path = target_dir / _derive_enriched_filename(candidate)
+    try:
+        for candidate in inputs:
+            rows = _read_csv(candidate)
+            enriched = enrich_rows(
+                rows,
+                config=config,
+                connection=connection,
+                apply_patterns=apply_patterns,
+            )
 
-        if stdout:
-            stdout_fieldnames = list(_REQUIRED_COLUMNS) + [
-                "account_key",
-                "fingerprint",
-                "pattern_key",
-                "pattern_display",
-                "merchant_metadata",
-            ]
-            writer = csv.DictWriter(click.get_text_stream("stdout"), fieldnames=stdout_fieldnames)
-            writer.writeheader()
-            for txn in enriched:
-                writer.writerow(txn.as_dict())
-        else:
-            destination = effective_output_path or candidate.with_name(_derive_enriched_filename(candidate))
-            _write_csv(destination, enriched)
-            click.echo(f"Wrote enriched CSV to {destination}")
+            effective_output_path = output_path
+            if output_dir is not None:
+                target_dir = output_dir / "enriched"
+                target_dir.mkdir(parents=True, exist_ok=True)
+                effective_output_path = target_dir / _derive_enriched_filename(candidate)
 
-        if stdout:
-            # Only one file allowed when stdout is true; loop will end immediately.
-            break
+            if stdout:
+                stdout_fieldnames = list(_REQUIRED_COLUMNS) + [
+                    "account_key",
+                    "fingerprint",
+                    "pattern_key",
+                    "pattern_display",
+                    "merchant_metadata",
+                ]
+                writer = csv.DictWriter(click.get_text_stream("stdout"), fieldnames=stdout_fieldnames)
+                writer.writeheader()
+                for txn in enriched:
+                    writer.writerow(txn.as_dict())
+            else:
+                destination = effective_output_path or candidate.with_name(_derive_enriched_filename(candidate))
+                _write_csv(destination, enriched)
+                click.echo(f"Wrote enriched CSV to {destination}")
+
+            if stdout:
+                # Only one file allowed when stdout is true; loop will end immediately.
+                break
+    finally:
+        if connection_ctx is not None:
+            connection_ctx.__exit__(None, None, None)
 
 
 if __name__ == "__main__":  # pragma: no cover

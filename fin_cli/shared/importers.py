@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import csv
+import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable, TextIO
+from typing import Any, Iterable, Mapping, TextIO
 
 from fin_cli.shared import models
 
@@ -34,6 +35,9 @@ _OPTIONAL_ENRICHED_COLUMNS = {
     "fingerprint",
     "method",
     "categorization_method",
+    "pattern_key",
+    "pattern_display",
+    "merchant_metadata",
 }
 
 
@@ -53,6 +57,9 @@ class EnrichedCSVTransaction:
     fingerprint: str
     account_id: int | None = None
     method: str | None = None
+    pattern_key: str | None = None
+    pattern_display: str | None = None
+    merchant_metadata: Mapping[str, Any] | str | None = None
 
 
 def _normalise_whitespace(text: str) -> str:
@@ -138,6 +145,19 @@ def _parse_enriched_row(
 
     method = (row.get("categorization_method") or row.get("method") or "").strip() or None
 
+    pattern_key = (row.get("pattern_key") or "").strip() or None
+    pattern_display = (row.get("pattern_display") or "").strip() or None
+
+    merchant_metadata: Mapping[str, Any] | str | None = None
+    metadata_raw = row.get("merchant_metadata")
+    if metadata_raw is not None:
+        metadata_text = (metadata_raw or "").strip()
+        if metadata_text:
+            try:
+                merchant_metadata = json.loads(metadata_text)
+            except json.JSONDecodeError:
+                merchant_metadata = metadata_text
+
     return EnrichedCSVTransaction(
         date=txn_date,
         merchant=merchant,
@@ -153,6 +173,9 @@ def _parse_enriched_row(
         fingerprint=fingerprint,
         account_id=account_id,
         method=method,
+        pattern_key=pattern_key,
+        pattern_display=pattern_display,
+        merchant_metadata=merchant_metadata,
     )
 
 

@@ -6,7 +6,7 @@ Process multiple statements in one session while keeping artifacts isolated unde
 
 ```bash
 # Run from the repository root so relative paths resolve.
-eval "$(.claude/skills/statement-processor/bootstrap.sh chase-2025-09-batch)"
+eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09-batch)"
 ```
 
 The script exports:
@@ -19,26 +19,45 @@ FIN_STATEMENT_LLM_DIR
 FIN_STATEMENT_ENRICHED_DIR
 ```
 
-## 2. Scrub All PDFs
+## 2. Automate Scrubbing + Prompt Prep
+
+Use the helper to run workflow steps 1–2 in one go:
 
 ```bash
-PDF_GLOB=~/statements/2025-09/*.pdf  # Replace with the user's actual statement locations
-for pdf in $PDF_GLOB; do
-  fin-scrub "$pdf" --output-dir "$FIN_STATEMENT_WORKDIR"
-done
-```
-
-## 3. Build Batch Prompt(s)
-
-```bash
-python .claude/skills/statement-processor/preprocess.py \
-  --batch \
+.claude/skills/statement-processor/scripts/run_batch.sh \
   --workdir "$FIN_STATEMENT_WORKDIR" \
   --max-merchants 200 \
-  --max-statements-per-prompt 3
+  --max-statements-per-prompt 3 \
+  ~/statements/2025-09/*.pdf
 ```
 
-If more than three statements are provided, the CLI emits multiple prompt chunks (e.g., `$FIN_STATEMENT_PROMPTS_DIR/batch-prompt-part1.txt`).
+Example output (truncated):
+
+```
+No --workdir provided. Using /Users/alex/.finagent/skills/statement-processor/20251022-181530
+Scrubbing PDF statements...
+  [1/3] fin-scrub /Users/alex/statements/2025-09/Chase.pdf -> .../scrubbed/Chase-scrubbed.txt
+  [2/3] fin-scrub /Users/alex/statements/2025-09/BofA.pdf -> .../scrubbed/BofA-scrubbed.txt
+  [3/3] fin-scrub /Users/alex/statements/2025-09/Mercury.pdf -> .../scrubbed/Mercury-scrubbed.txt
+Generating prompts via preprocess.py...
+Wrote prompt to .../prompts/chase-batch-prompt.txt
+
+Batch preparation complete.
+Workspace: /Users/alex/.finagent/skills/statement-processor/20251022-181530
+Scrubbed statements:
+  - .../scrubbed/Chase-scrubbed.txt
+  - .../scrubbed/BofA-scrubbed.txt
+  - .../scrubbed/Mercury-scrubbed.txt
+Prompt chunks:
+  - .../prompts/chase-batch-prompt.txt
+
+Next steps:
+  1. Run the LLM over each prompt in the order emitted above and save the CSV responses.
+  2. Post-process each CSV with postprocess.py.
+  3. Review/import transactions via fin-edit.
+```
+
+The script deletes stale `*-scrubbed.txt` files (unless `--no-clean` is used), reruns `fin-scrub` for each PDF, and invokes `preprocess.py --batch` so chunk files land in `$FIN_STATEMENT_PROMPTS_DIR` (`$FIN_STATEMENT_WORKDIR/prompts`).
 
 ## 4. Collect LLM Responses
 
@@ -49,8 +68,9 @@ Send each prompt chunk to the LLM and save the CSV responses as `$FIN_STATEMENT_
 ## 5. Enrich CSV Outputs
 
 ```bash
-python .claude/skills/statement-processor/postprocess.py \
-  --workdir "$FIN_STATEMENT_WORKDIR"
+python .claude/skills/statement-processor/scripts/postprocess.py \
+  --workdir "$FIN_STATEMENT_WORKDIR" \
+  --apply-patterns
 ```
 
 This processes all CSV files in `$FIN_STATEMENT_LLM_DIR`, adds `account_key` and `fingerprint` columns, normalizes merchants and confidence values, and writes enriched files to `$FIN_STATEMENT_ENRICHED_DIR`.
@@ -65,6 +85,13 @@ This processes all CSV files in `$FIN_STATEMENT_LLM_DIR`, adds `account_key` and
   ```
 - When the user asks to remember a merchant/category pairing, run `fin-edit add-merchant-pattern` (dry-run first) with the normalized pattern key (see below) so future statements skip the LLM.
 - Optionally concatenate enriched CSVs after review: `tail -n +2 "$FIN_STATEMENT_ENRICHED_DIR/batch-2-enriched.csv" >> "$FIN_STATEMENT_ENRICHED_DIR/batch-1-enriched.csv"` (keep one header).
+- Build a prompt for the remaining blanks (if any):
+  ```bash
+  python .claude/skills/statement-processor/scripts/categorize_leftovers.py \
+    --workdir "$FIN_STATEMENT_WORKDIR" \
+    --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"
+  ```
+  If the script reports leftovers, send the prompt to **Claude Haiku 4.5** and merge the resulting CSV before import.
 
 Tip: derive the normalized key before calling `add-merchant-pattern`:
 ```bash

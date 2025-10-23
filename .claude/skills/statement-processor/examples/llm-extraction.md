@@ -6,7 +6,7 @@ This example demonstrates the end-to-end LLM pipeline for a single statement. Al
 
 ```bash
 # Run from the repository root so relative paths resolve.
-eval "$(.claude/skills/statement-processor/bootstrap.sh chase-2025-09)"
+eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09)"
 ```
 
 This exports helper environment variables:
@@ -34,7 +34,7 @@ fin-scrub "$PDF_PATH" \
 ## 3. Build the Prompt
 
 ```bash
-python .claude/skills/statement-processor/preprocess.py \
+python .claude/skills/statement-processor/scripts/preprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR" \
   --max-merchants 150
 ```
@@ -48,8 +48,9 @@ Send the prompt to your LLM of choice (Claude in this example) and save the CSV 
 ## 5. Post-Process the CSV
 
 ```bash
-python .claude/skills/statement-processor/postprocess.py \
-  --workdir "$FIN_STATEMENT_WORKDIR"
+python .claude/skills/statement-processor/scripts/postprocess.py \
+  --workdir "$FIN_STATEMENT_WORKDIR" \
+  --apply-patterns
 ```
 
 This processes every CSV under `$FIN_STATEMENT_LLM_DIR`, adds `account_key` and `fingerprint` columns while normalising merchants and confidence values, and writes enriched files to `$FIN_STATEMENT_ENRICHED_DIR`.
@@ -71,6 +72,13 @@ This processes every CSV under `$FIN_STATEMENT_LLM_DIR`, adds `account_key` and 
     --confidence 0.95
   fin-edit --apply add-merchant-pattern …
   ```
+- If the enriched CSV still has blank categories, build a dedicated prompt:
+  ```bash
+  python .claude/skills/statement-processor/scripts/categorize_leftovers.py \
+    --workdir "$FIN_STATEMENT_WORKDIR" \
+    --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"
+  ```
+  Run that prompt with **Claude Haiku 4.5**, apply the returned CSV (overwriting the blanks), then proceed to import.
 
 ## 7. Import into SQLite
 

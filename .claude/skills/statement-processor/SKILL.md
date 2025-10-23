@@ -12,27 +12,30 @@ Environment
   - `source .venv/bin/activate`
 
 Quick Start (LLM Pipeline)
-1. Initialise a workspace (shared by single or batch flows): `eval "$(.claude/skills/statement-processor/bootstrap.sh chase-2025-09)"`.  
+1. Initialise a workspace (shared by single or batch flows): `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09)"`.  
    - Exports `FIN_STATEMENT_WORKDIR`, `FIN_STATEMENT_SCRUBBED_DIR`, `FIN_STATEMENT_PROMPTS_DIR`, `FIN_STATEMENT_LLM_DIR`, and `FIN_STATEMENT_ENRICHED_DIR`.
 2. Scrub sensitive data: `fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"`.
-3. Build prompt with taxonomies: `python .claude/skills/statement-processor/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR"`.
+3. Build prompt with taxonomies: `python .claude/skills/statement-processor/scripts/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR"`.
 4. Send the prompt to your LLM (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
-5. Enrich CSV with hashes: `python .claude/skills/statement-processor/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR"`.
-6. Import validated rows: `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv` (preview) then `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.9` once the review passes. Add `--no-create-categories` if you want to fail instead of auto-creating new categories.
+5. Enrich CSV and apply known rules: `python .claude/skills/statement-processor/scripts/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --apply-patterns`.
+6. Build a prompt for any uncategorized rows (optional): `python .claude/skills/statement-processor/scripts/categorize_leftovers.py --workdir "$FIN_STATEMENT_WORKDIR" --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"`. If the tool reports “No uncategorized transactions found” you can skip this step; otherwise send the prompt to **Claude Haiku 4.5** and apply the returned CSV before import.
+7. Import validated rows: `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv` (preview) then `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.9` once the review passes. Add `--no-create-categories` if you want to fail instead of auto-creating new categories.
 
-The prompt builder loads the live taxonomy from SQLite automatically. For debugging you can inspect the payload by running `python .claude/skills/statement-processor/preprocess.py --input scrubbed.txt --emit-json`, or export the same data manually with:
+The prompt builder loads the live taxonomy from SQLite automatically. For debugging you can inspect the payload by running `python .claude/skills/statement-processor/scripts/preprocess.py --input scrubbed.txt --emit-json`, or export the same data manually with:
 - Categories: `fin-query saved categories --format json > categories.json`
 - Merchants: `fin-query saved merchants --min-count 2 --format json > merchants.json` (adjust `--min-count`/`--limit` as needed).
 
 Batch Workflow
-1. Scrub all PDFs (use a loop) into `*-scrubbed.txt` files.
-2. Build a batch prompt with chunking when needed: `python .claude/skills/statement-processor/preprocess.py --batch --input *-scrubbed.txt --max-merchants 150 --max-statements-per-prompt 3 --output batch-prompt.txt`
-3. Run the LLM once per emitted prompt chunk and save each CSV response (e.g., `chunk-1.csv`).
-4. Post-process every CSV: `python .claude/skills/statement-processor/postprocess.py --input chunk-1.csv --output chunk-1-enriched.csv`
+1. Automate scrubbing + prompt prep with the helper script:
+   - `.claude/skills/statement-processor/scripts/run_batch.sh --workdir "$FIN_STATEMENT_WORKDIR" --max-merchants 150 --max-statements-per-prompt 3 statements/*.pdf`
+   - The script cleans stale `*-scrubbed.txt` files in the workspace, runs `fin-scrub` for each PDF, and invokes `preprocess.py --batch` so prompts land in `$FIN_STATEMENT_PROMPTS_DIR` using the default naming scheme.
+2. Run the LLM once per emitted prompt chunk and save each CSV response (e.g., `chunk-1.csv`).
+3. Post-process every CSV: `python .claude/skills/statement-processor/scripts/postprocess.py --input chunk-1.csv --output chunk-1-enriched.csv --apply-patterns`
+4. Generate a single prompt for any remaining uncategorized rows: `python .claude/skills/statement-processor/scripts/categorize_leftovers.py --workdir "$FIN_STATEMENT_WORKDIR" --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"`.
 5. Concatenate or import each enriched CSV via `fin-edit import-transactions` (preview) and rerun with `--apply` when ready. Use `--default-confidence` to fill empty confidence cells when needed.
 
 Working Directory
-- Use `bootstrap.sh` to create a deterministic run directory (e.g., `eval "$(.claude/skills/statement-processor/bootstrap.sh chase-2025-09)"`). The script works for both single and batch workflows.
+- Use `bootstrap.sh` to create a deterministic run directory (e.g., `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09)"`). The script works for both single and batch workflows.
 - All helper CLIs accept `--workdir` so they can auto-discover `scrubbed/`, `prompts/`, `llm/`, and `enriched/` subdirectories.
 - The harness resets the shell’s CWD between commands; rely on the exported environment variables or absolute paths instead of `cd`.
 - Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside the workspace and clean up once the import is committed to the database.
@@ -53,10 +56,12 @@ Database Writes
 - Validate inserts with `fin-query saved recent_imports --limit 10` or `fin-query saved transactions_month --param month=YYYY-MM`.
 
 Available Commands
-- `.claude/skills/statement-processor/bootstrap.sh`: initialise a run workspace and export helper environment variables (use via `eval "$(...)"`).
+- `.claude/skills/statement-processor/scripts/bootstrap.sh`: initialise a run workspace and export helper environment variables (use via `eval "$(...)"`).
+- `.claude/skills/statement-processor/scripts/run_batch.sh`: scrub multiple PDFs and generate batch prompts (steps 1–2 of the batch workflow).
 - `fin-scrub`: sanitize PDFs to redact PII.
-- `python .claude/skills/statement-processor/preprocess.py`: build single or batch prompts with existing taxonomies.
-- `python .claude/skills/statement-processor/postprocess.py`: append `account_key`/`fingerprint` to LLM CSV output.
+- `python .claude/skills/statement-processor/scripts/preprocess.py`: build single or batch prompts with existing taxonomies.
+- `python .claude/skills/statement-processor/scripts/postprocess.py`: append `account_key`/`fingerprint` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns.
+- `python .claude/skills/statement-processor/scripts/categorize_leftovers.py`: assemble a prompt for uncategorized merchants after rules have been applied.
 - `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep).
 - `fin-edit set-category`: correct individual transactions after import (dry-run before `--apply`).
 - `fin-edit add-merchant-pattern`: remember high-confidence merchant/category mappings for future runs.
