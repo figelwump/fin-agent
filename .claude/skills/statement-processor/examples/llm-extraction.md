@@ -6,7 +6,7 @@ This example demonstrates the end-to-end LLM pipeline for a single statement. Al
 
 ```bash
 # Run from the repository root so relative paths resolve.
-eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09)"
+eval "$(scripts/bootstrap.sh chase-2025-09)"
 ```
 
 This exports helper environment variables:
@@ -34,7 +34,7 @@ fin-scrub "$PDF_PATH" \
 ## 3. Build the Prompt
 
 ```bash
-python .claude/skills/statement-processor/scripts/preprocess.py \
+python scripts/preprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR" \
   --max-merchants 150
 ```
@@ -43,12 +43,12 @@ This pulls existing merchant/category taxonomies from SQLite and renders an extr
 
 ## 4. Run the LLM
 
-Send the prompt to your LLM of choice (Claude in this example) and save the CSV reply as `$FIN_STATEMENT_LLM_DIR/chase-september-llm.csv`. Ensure the LLM output has the header `date,merchant,amount,original_description,account_name,institution,account_type,category,subcategory,confidence`.
+Send the prompt to your LLM of choice and save the CSV reply as `$FIN_STATEMENT_LLM_DIR/chase-september-llm.csv`. Ensure the LLM output has the header `date,merchant,amount,original_description,account_name,institution,account_type,category,subcategory,confidence`.
 
 ## 5. Post-Process the CSV
 
 ```bash
-python .claude/skills/statement-processor/scripts/postprocess.py \
+python scripts/postprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR" \
   --apply-patterns \
   --verbose
@@ -86,12 +86,12 @@ For any uncategorized or low-confidence transactions, use the `transaction-categ
 fin-query saved uncategorized --limit 20
 
 # Switch to transaction-categorizer skill
-# The skill ALWAYS tries LLM categorization first (Haiku) for ALL uncategorized transactions
+# The skill always tries an automated LLM pass first for ALL uncategorized transactions
 # Only if leftovers remain, it will use interactive manual review
 # Merchant patterns are learned automatically for future auto-categorization
 ```
 
-The categorizer uses an LLM-first approach for cost efficiency: always attempts bulk categorization with Claude Haiku 4.5 for all uncategorized transactions, then falls back to interactive review only for leftovers. Patterns are learned automatically to improve future imports.
+The categorizer uses an LLM-first approach for cost efficiency: it attempts bulk categorization for all uncategorized transactions, then falls back to interactive review only for leftovers. Patterns are learned automatically to improve future imports.
 
 ## 9. Archive Artifacts
 

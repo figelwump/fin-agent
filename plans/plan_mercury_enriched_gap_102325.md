@@ -8,7 +8,7 @@
 ## Phase 2 – Trace Processing Pipeline
 - [x] Review statement processor configuration for this import batch. *(No custom config in ~/.finagent/config.yaml; defaults in `postprocess.py` apply auto-approve=0.8 etc.)*
 - [x] Inspect intermediate outputs/logs to see where transactions drop. *(LLM chunk (`llm/chunk-1.csv`) retains 5 rows; drop occurs between LLM output and enriched CSV.)*
-- [x] Verify enrichment scripts/steps that write `chunk-1-enriched-test.csv`. *(Found indentation bug in `.claude/skills/statement-processor/scripts/postprocess.py` causing only final row to be appended.)*
+- [x] Verify enrichment scripts/steps that write `chunk-1-enriched-test.csv`. *(Found indentation bug in `scripts/postprocess.py` causing only final row to be appended.)*
 
 ## Phase 3 – Diagnose & Outline Fix
 - [ ] Confirm statement-processor postprocess flow keeps all LLM rows (multi-row regression test).

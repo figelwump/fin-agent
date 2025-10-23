@@ -73,7 +73,7 @@ def build_prompt(
     return f"""
 You are helping categorize a small set of transactions that existing merchant patterns did not handle.
 
-PLEASE RUN THIS PROMPT WITH CLAUDE HAIKU 4.5.
+Use your designated categorization LLM to produce the response below.
 
 ## Available Categories
 {categories_section}

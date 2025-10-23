@@ -7,7 +7,7 @@
 ---
 
 ## Overview & Notes
-- Helper scripts live alongside the statement-processor skill under `.claude/skills/statement-processor/scripts/`.
+- Helper scripts live alongside the statement-processor skill under `scripts/`.
 - Keep behaviour deterministic/reproducible; prefer explicit arguments over implicit globbing when possible.
 - Preserve manual checkpoints: user still reviews LLM CSV output before import; script can stage files and emit instructions.
 - Ensure compatibility with existing prompt chunking logic (`preprocess.py --batch` emits multiple prompts when needed).
@@ -28,7 +28,7 @@
 - [x] Implement scrub loop (honours include/exclude patterns; removes stale `*-scrubbed.txt` in workdir, then writes fresh files). *(2025-10-22 — loop runs fin-scrub per PDF, cleans existing files by default.)*
 - [x] Invoke `preprocess.py --batch` with configured limits and `--output-dir` so prompt filenames follow default naming. *(2025-10-22 — passes `--output-dir $WORKDIR` with configurable knobs.)*
 - [x] Emit clear next-step instructions indicating where prompt chunks are located. *(2025-10-22 — script prints workspace summary and follow-up checklist.)*
-- [x] Consolidate helper scripts under `.claude/skills/statement-processor/scripts/` and update references. *(2025-10-22 — relocated bootstrap/preprocess/postprocess/run_batch + doc updates.)*
+- [x] Consolidate helper scripts under `scripts/` and update references. *(2025-10-22 — relocated bootstrap/preprocess/postprocess/run_batch + doc updates.)*
 
 ## Phase 3 — Documentation & Validation
 - [x] Update `.claude/skills/statement-processor/SKILL.md` batch workflow to reference the script for steps 1–2. *(2025-10-22)*

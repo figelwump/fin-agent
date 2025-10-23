@@ -6,7 +6,7 @@ description: Categorize uncategorized transactions using LLM-first approach, the
 # Transaction Categorizer Skill
 
 Teach the agent how to categorize uncategorized transactions using a two-phase approach:
-1. **LLM bulk categorization** (Claude Haiku 4.5) for ALL uncategorized transactions
+1. **LLM bulk categorization** using the configured model for ALL uncategorized transactions
 2. **Interactive manual review** for low-confidence or failed categorizations, using LLM suggestions as starting points
 
 The skill validates against the existing taxonomy and learns merchant patterns for future auto-categorization.
@@ -19,7 +19,7 @@ Database Path
 - Only specify `--db <path>` when the user explicitly provides an alternate database
 
 Working Directory
-- Use `bootstrap.sh` to create a workspace for the categorization session: `eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh categorization-session)"`. This exports:
+- Use `scripts/bootstrap.sh` to create a workspace for the categorization session (it reuses `SESSION_SLUG` exported by the statement-processor skill, or accept `--session` when starting standalone): `eval "$(scripts/bootstrap.sh)"`. This exports:
   - `FIN_CATEGORIZER_WORKDIR` - root working directory
   - `FIN_CATEGORIZER_QUERIES_DIR` - for saved query results (uncategorized.json)
   - `FIN_CATEGORIZER_PROMPTS_DIR` - for generated LLM prompts
@@ -30,7 +30,7 @@ Principles
 - Always load the existing taxonomy first to prevent bloat
 - Use `fin-edit` for writes (dry-run by default; add `--apply`)
 - Prefer existing categories; only create new ones if the user insists
-- **LLM-First Approach**: Always try LLM categorization first for ALL uncategorized transactions (using Claude Haiku 4.5 for cost efficiency), then fall back to manual review only for leftovers
+- **LLM-First Approach**: Always try LLM categorization first for ALL uncategorized transactions, then fall back to manual review only for leftovers
 - **Confidence Threshold**:
   - ≥0.9: High confidence - apply categorization and learn merchant pattern
   - <0.9: Low confidence - save as suggestion for manual review, present to user with LLM's proposed category
@@ -38,11 +38,14 @@ Principles
 ## Recommended Workflow
 
 **Step 0: Initialize workspace**
+
+Ensure `SESSION_SLUG` matches the value used by the statement-processor skill (it will already be exported when you ran the statement processor bootstrap). Then bootstrap this skill's workspace:
+
 ```bash
-eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh categorization)"
+eval "$(scripts/bootstrap.sh)"
 ```
 
-This creates a timestamped workspace and exports environment variables for organized file management.
+Using the shared `SESSION_SLUG` keeps this workspace aligned with the statement-processor artifacts and exports the environment variables you will reuse for the rest of the session.
 
 **Step 1: Query and save uncategorized transactions**
 ```bash
@@ -56,15 +59,15 @@ If no uncategorized transactions found (count is 0), you're done!
 
 **Step 2: Generate LLM categorization prompt**
 ```bash
-python .claude/skills/transaction-categorizer/scripts/build_prompt.py \
+python scripts/build_prompt.py \
   --input "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json" \
   --output "$FIN_CATEGORIZER_PROMPTS_DIR/categorization-prompt.txt"
 
 cat "$FIN_CATEGORIZER_PROMPTS_DIR/categorization-prompt.txt"
 ```
 
-**Step 3: Send prompt to Claude Haiku 4.5**
-- Copy the generated prompt and send it to **Claude Haiku 4.5** (not Sonnet - Haiku is cost-efficient for categorization)
+**Step 3: Send prompt to your categorization LLM**
+- Copy the generated prompt and send it to your configured categorization model
 - The LLM will return a CSV with columns: `transaction_id,canonical_merchant,category,subcategory,confidence,notes`
 - Save the LLM's CSV response to `$FIN_CATEGORIZER_LLM_DIR/categorizations.csv`
 
@@ -82,14 +85,14 @@ Preview the categorization:
 ```bash
 fin-edit set-category --transaction-id <id> \
   --category "<category>" --subcategory "<subcategory>" \
-  --confidence <confidence> --method llm:haiku
+  --confidence <confidence> --method llm:auto
 ```
 
 After reviewing the preview, apply and learn the pattern:
 ```bash
 fin-edit --apply set-category --transaction-id <id> \
   --category "<category>" --subcategory "<subcategory>" \
-  --confidence <confidence> --method llm:haiku
+  --confidence <confidence> --method llm:auto
 
 # Learn the pattern for future auto-categorization
 fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
@@ -184,8 +187,8 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 
 ## Available Commands
 
-- `.claude/skills/transaction-categorizer/scripts/bootstrap.sh`: Initialize a categorization workspace and export environment variables (use via `eval "$(...)"`).
-- `python .claude/skills/transaction-categorizer/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
+- `scripts/bootstrap.sh`: Initialize a categorization workspace and export environment variables (use via `eval "$(...)"`).
+- `python scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
 - `fin-query saved uncategorized`: Query uncategorized transactions from the database.
 - `fin-query saved categories`: Query existing category taxonomy.
 - `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write).
@@ -228,7 +231,7 @@ fin-query saved merchant_patterns --param pattern='PATTERN%' --limit 5
 ```
 
 Cross-Skill Transitions
-- **From statement-processor**: After importing transactions (including uncategorized ones), use this skill to categorize remaining transactions. Always try LLM categorization first (Haiku), then manual review for leftovers.
+- **From statement-processor**: After importing transactions (including uncategorized ones), use this skill to categorize remaining transactions. Always try the automated LLM pass first, then manual review for leftovers.
 - **To explore similar transactions**: Use `ledger-query` skill with `merchant_search` or `category_transactions` saved queries to see historical patterns
 - **After categorization is complete**: Use `spending-analyzer` skill to analyze spending patterns across the newly categorized transactions
 
@@ -240,4 +243,3 @@ References
 - examples/interactive-review.md
 - examples/pattern-learning.md
 - reference/common-categories.md
-

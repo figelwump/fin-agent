@@ -493,7 +493,7 @@ Option C: Keep using fin-extract (deprecated but functional)
 - [ ] Merchant aliasing: "AMZN" → "Amazon" via learned patterns
 - [ ] Category suggestions based on similar transactions
 - [x] Automatic pattern learning (similar to merchant_patterns table) *(2025-10-21 — `fin-edit import-transactions` now supports `--learn-patterns/--learn-threshold`, enabling the skill to persist high-confidence merchants automatically.)*
-- [x] Post-process pattern application: apply `merchant_patterns` to rows before categorization prompts so known merchants skip the LLM; feed leftover rows into a Haiku micro-prompt with live taxonomies. *(2025-10-21 — `postprocess.py --apply-patterns` now fills categories/confidence from the DB; `categorize_leftovers.py` assembles a Haiku prompt for the remaining transactions.)*
+- [x] Post-process pattern application: apply `merchant_patterns` to rows before categorization prompts so known merchants skip the LLM; feed leftover rows into a lightweight LLM micro-prompt with live taxonomies. *(2025-10-21 — `postprocess.py --apply-patterns` now fills categories/confidence from the DB; `categorize_leftovers.py` assembles a compact prompt for the remaining transactions.)*
 
 ## Implementation Notes
 
@@ -539,7 +539,7 @@ Initial confidence scores may be over/under-confident. Monitor and adjust:
 - Until automatic learning ships, the skill should call `fin-edit add-merchant-pattern` (dry-run, then `--apply`) whenever the user confirms that a merchant/category pairing should persist. Reuse `fin_cli.shared.merchants.merchant_pattern_key()` to derive the deterministic pattern string and pass any LLM-provided display/metadata through `--display`/`--metadata`.
 - Follow-up enhancements:
   1. Add a post-processing pass that applies existing `merchant_patterns` (fill category/subcategory/confidence from the DB before any categorization prompt runs).
-  2. For the remaining uncategorized merchants, issue a single Haiku 4.5 micro-prompt seeded with live category + merchant taxonomies—no chunking needed because the leftover set should be small.
+  2. For the remaining uncategorized merchants, issue a single lightweight micro-prompt seeded with live category + merchant taxonomies—no chunking needed because the leftover set should be small.
 
 ## Batch Processing Strategy
 

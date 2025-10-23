@@ -6,7 +6,7 @@
 - [x] Note current default confidence threshold so prompts stay consistent.
 
 ## Phase 2 – Implementation
-- [x] Add `.claude/skills/statement-processor/scripts/bootstrap.sh` to create deterministic working directories (shared by single/batch flows) and export helper environment variables.
+- [x] Add `scripts/bootstrap.sh` to create deterministic working directories (shared by single/batch flows) and export helper environment variables.
 - [x] Update `preprocess.py` to accept `--workdir` (auto-discover inputs/outputs) while preserving existing flags.
 - [x] Update `postprocess.py` to accept `--workdir` and process all LLM CSVs into enriched outputs.
 - [x] Enhance skill docs/templates/scripts to rely on bootstrap workflow (e.g., looped `fin-scrub`, instructions about shell cwd reset).

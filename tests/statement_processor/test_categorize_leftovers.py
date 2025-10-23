@@ -101,7 +101,7 @@ def test_cli_builds_prompt(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     prompt = output_path.read_text(encoding="utf-8")
-    assert "CLAUDE HAIKU 4.5" in prompt
+    assert "categorization LLM" in prompt
     assert "AMZN Mktp US" in prompt
     assert "Food & Dining > Coffee" in prompt or "Shopping > Online" in prompt
 
