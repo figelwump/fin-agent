@@ -4,7 +4,7 @@
 - Target Python 3.11+ with a single distributable package `fin_cli` providing entrypoints `fin-extract`, `fin-enhance`, `fin-query`, `fin-analyze`, and `fin-export`.
 - Follow the directory layout from the implementation spec (`fin-extract/`, `fin-enhance/`, etc.) with a shared package containing config, database, models, and utilities.
 - Persist data in `~/.finagent/data.db`; manage connections via a shared database module that also drives simple versioned migrations stored in `shared/migrations/`.
-- Place global configuration at `~/.finconfig/config.yaml` with environment variable overrides, and expose helper functions for resolving paths and defaults.
+- Place global configuration at `~/.finagent/config.yaml` with environment variable overrides, and expose helper functions for resolving paths and defaults.
 - Enforce privacy guarantees and stateless extraction: `fin-extract` performs local PDF parsing only and never touches SQLite; `fin-enhance` is the sole tool that mutates the database or invokes LLM APIs (with opt-out and caching).
 - Reuse common CLI patterns (Click + Rich) across tools; centralize styling, logging, and error handling helpers in `shared/cli.py`.
 - Cache LLM categorizations and learned merchant rules in SQLite tables (`merchant_patterns`, `categories`) to reduce repeated API calls.
@@ -22,7 +22,7 @@
 **Notes:** Build reusable utilities that every CLI depends on before implementing tool-specific logic.
 - [x] Implement `shared/config.py` to load and merge config from default values, YAML file, and environment variables.
 - [x] Implement `shared/logging.py` (or integrate into `shared/utils.py`) for consistent Rich console logging and verbose output toggles.
-- [x] Implement `shared/paths.py` helpers for resolving `~/.findata` and `~/.finconfig` directories, ensuring they are created lazily.
+- [x] Implement `shared/paths.py` helpers for resolving `~/.findata` and `~/.finagent` directories, ensuring they are created lazily.
 - [x] Implement `shared/exceptions.py` defining custom exception classes (e.g., `ExtractionError`, `CategorizationError`, `DatabaseError`) used across CLIs.
 - [x] Implement `shared/cli.py` with Click parameter factories, shared options (`--db`, `--config`, `--verbose`, `--dry-run`), and global error handlers.
   - Notes: 2025-09-19 — added environment-aware config loader, path utilities, Rich-backed logger, shared CLI context injection, and pytest coverage for config/path behaviour.

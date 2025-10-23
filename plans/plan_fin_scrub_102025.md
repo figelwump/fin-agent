@@ -11,7 +11,7 @@
   - Decision: use **scrubadub** with the TextBlob name detector; Presidio + spaCy required heavy compiled dependencies in this environment. scrubadub provides lightweight detectors we can augment with custom regex placeholders.
 - [x] Specify CLI ergonomics: accept PDF inputs directly (handle conversion to text internally), support `--stdin` raw text mode, define output channel (file/stdout), logging, and extensibility (e.g., allow users to extend regex patterns via config file).
   - CLI contract: `fin-scrub <statement.pdf>` emits scrubbed text to stdout by default; `--output FILE` writes to disk; `--stdin` consumes plain text; `--report` prints counts per PII type to stderr.
-  - Internally: use existing PDF loader (`load_pdf_document_with_engine`) to extract text so statement coverage stays aligned with `fin-extract`. Config file (`~/.finconfig/fin-scrub.yaml`) can override placeholders or disable recognizers.
+  - Internally: use existing PDF loader (`load_pdf_document_with_engine`) to extract text so statement coverage stays aligned with `fin-extract`. Config file (`~/.finagent/fin-scrub.yaml`) can override placeholders or disable recognizers.
 
 ## Phase 2 – Implementation
 - [x] Scaffold `fin-scrub` CLI entrypoint with Click (consistent with other tools) and wire it into `pyproject.toml` console scripts.

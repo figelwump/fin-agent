@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Mapping
 
-DEFAULT_CONFIG_DIR = "~/.finconfig"
+DEFAULT_CONFIG_DIR = "~/.finagent"
 DEFAULT_DATA_DIR = "~/.findata"
 DEFAULT_DATABASE_PATH = "~/.finagent/data.db"
 DEFAULT_CONFIG_FILE = "config.yaml"

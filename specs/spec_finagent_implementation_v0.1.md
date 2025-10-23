@@ -138,7 +138,7 @@ CREATE TABLE schema_versions (
 
 #### 4. Configuration Management
 
-**Location**: `~/.finconfig/config.yaml`
+**Location**: `~/.finagent/config.yaml`
 
 **Structure**:
 ```yaml

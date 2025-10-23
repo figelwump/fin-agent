@@ -27,7 +27,7 @@ Work is organized around the multi-phase implementation plan in
    - PDF extraction and categorization are local-first by design.
    - When enabling LLM features in later phases, export the relevant API key
      (default: `OPENAI_API_KEY`).
-   - Global configuration defaults to `~/.finconfig/config.yaml`; this file will
+   - Global configuration defaults to `~/.finagent/config.yaml`; this file will
      be generated or edited by upcoming implementation phases.
 
 ## Available CLI Entry Points
