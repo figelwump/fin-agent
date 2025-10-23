@@ -50,35 +50,19 @@ Send the prompt to your LLM of choice (Claude in this example) and save the CSV 
 ```bash
 python .claude/skills/statement-processor/scripts/postprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR" \
-  --apply-patterns
+  --apply-patterns \
+  --verbose
 ```
 
-This processes every CSV under `$FIN_STATEMENT_LLM_DIR`, adds `account_key` and `fingerprint` columns while normalising merchants and confidence values, and writes enriched files to `$FIN_STATEMENT_ENRICHED_DIR`.
+This processes every CSV under `$FIN_STATEMENT_LLM_DIR`, adds `account_key`, `fingerprint`, and `source` columns while normalising merchants and confidence values, applies known merchant patterns, and writes enriched files to `$FIN_STATEMENT_ENRICHED_DIR`. The `--verbose` flag shows which patterns matched and which transactions remain uncategorized.
 
-## 6. Review & Correct Low-Confidence Rows
+## 6. Review the Enriched CSV
 
-- Inspect `$FIN_STATEMENT_ENRICHED_DIR/chase-september-enriched.csv` for any `confidence < 0.7`.
-- If a category needs to change now, edit the CSV and rerun post-processing (to regenerate fingerprints) or plan to run:
-  ```bash
-  fin-edit set-category --fingerprint <fingerprint> \
-    --category "Food & Dining" --subcategory "Coffee" \
-    --confidence 1.0 --method claude:interactive
-  fin-edit --apply set-category …
-  ```
-- Note merchants that should be remembered; after confirming the mapping with the user, capture it via:
-  ```bash
-  fin-edit add-merchant-pattern --pattern 'STARBUCKS%' \
-    --category "Food & Dining" --subcategory "Coffee" \
-    --confidence 0.95
-  fin-edit --apply add-merchant-pattern …
-  ```
-- If the enriched CSV still has blank categories, build a dedicated prompt:
-  ```bash
-  python .claude/skills/statement-processor/scripts/categorize_leftovers.py \
-    --workdir "$FIN_STATEMENT_WORKDIR" \
-    --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"
-  ```
-  Run that prompt with **Claude Haiku 4.5**, apply the returned CSV (overwriting the blanks), then proceed to import.
+- Inspect `$FIN_STATEMENT_ENRICHED_DIR/chase-september-enriched.csv` to understand categorization results:
+  - Check the `source` column: `llm_extraction` (from initial LLM), `pattern_match` (from merchant patterns DB), or empty (uncategorized)
+  - Review transactions with `confidence < 0.7` or empty category/subcategory
+- The `--verbose` output from step 5 shows which patterns matched and which merchants have no patterns yet
+- Uncategorized transactions (empty category/subcategory) will be imported successfully in the next step
 
 ## 7. Import into SQLite
 
@@ -91,8 +75,24 @@ fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR/chase-septembe
   --learn-patterns --learn-threshold 0.9
 ```
 
-Add `--default-confidence 0.9` if you want to fill empty confidence cells, or `--no-create-categories` to abort when a category is missing. The tool automatically de-duplicates using fingerprints. Use `fin-query saved recent_transactions --limit 10` to validate new records.
+Add `--default-confidence 0.9` if you want to fill empty confidence cells, or `--no-create-categories` to abort when a category is missing. The tool automatically de-duplicates using fingerprints and will import uncategorized transactions successfully. Use `fin-query saved recent_transactions --limit 10` to validate new records.
 
-## 8. Archive Artifacts
+## 8. Categorize Remaining Transactions
+
+For any uncategorized or low-confidence transactions, use the `transaction-categorizer` skill:
+
+```bash
+# Check for uncategorized transactions
+fin-query saved uncategorized --limit 20
+
+# Switch to transaction-categorizer skill
+# The skill ALWAYS tries LLM categorization first (Haiku) for ALL uncategorized transactions
+# Only if leftovers remain, it will use interactive manual review
+# Merchant patterns are learned automatically for future auto-categorization
+```
+
+The categorizer uses an LLM-first approach for cost efficiency: always attempts bulk categorization with Claude Haiku 4.5 for all uncategorized transactions, then falls back to interactive review only for leftovers. Patterns are learned automatically to improve future imports.
+
+## 9. Archive Artifacts
 
 Keep the scrubbed source text, prompts, LLM CSV, and enriched CSV inside the run directory for auditing. Clean them up once reconciled with the user.

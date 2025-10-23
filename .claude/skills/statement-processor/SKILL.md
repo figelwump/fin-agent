@@ -12,14 +12,14 @@ Environment
   - `source .venv/bin/activate`
 
 Quick Start (LLM Pipeline)
-1. Initialise a workspace (shared by single or batch flows): `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09)"`.  
+1. Initialise a workspace (shared by single or batch flows): `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09)"`.
    - Exports `FIN_STATEMENT_WORKDIR`, `FIN_STATEMENT_SCRUBBED_DIR`, `FIN_STATEMENT_PROMPTS_DIR`, `FIN_STATEMENT_LLM_DIR`, and `FIN_STATEMENT_ENRICHED_DIR`.
 2. Scrub sensitive data: `fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"`.
 3. Build prompt with taxonomies: `python .claude/skills/statement-processor/scripts/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR"`.
 4. Send the prompt to your LLM (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
-5. Enrich CSV and apply known rules: `python .claude/skills/statement-processor/scripts/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --apply-patterns`.
-6. Build a prompt for any uncategorized rows (optional): `python .claude/skills/statement-processor/scripts/categorize_leftovers.py --workdir "$FIN_STATEMENT_WORKDIR" --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"`. If the tool reports “No uncategorized transactions found” you can skip this step; otherwise send the prompt to **Claude Haiku 4.5** and apply the returned CSV before import.
-7. Import validated rows: `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv` (preview) then `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.9` once the review passes. Add `--no-create-categories` if you want to fail instead of auto-creating new categories.
+5. Enrich CSV and apply known rules: `python .claude/skills/statement-processor/scripts/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --apply-patterns --verbose`.
+6. Import validated rows: `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv` (preview) then `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.9` once the review passes. Add `--no-create-categories` if you want to fail instead of auto-creating new categories. Uncategorized transactions will be imported successfully.
+7. Review uncategorized transactions: Use the `transaction-categorizer` skill to interactively categorize any remaining uncategorized transactions.
 
 The prompt builder loads the live taxonomy from SQLite automatically. For debugging you can inspect the payload by running `python .claude/skills/statement-processor/scripts/preprocess.py --input scrubbed.txt --emit-json`, or export the same data manually with:
 - Categories: `fin-query saved categories --format json > categories.json`
@@ -30,9 +30,9 @@ Batch Workflow
    - `.claude/skills/statement-processor/scripts/run_batch.sh --workdir "$FIN_STATEMENT_WORKDIR" --max-merchants 150 --max-statements-per-prompt 3 statements/*.pdf`
    - The script cleans stale `*-scrubbed.txt` files in the workspace, runs `fin-scrub` for each PDF, and invokes `preprocess.py --batch` so prompts land in `$FIN_STATEMENT_PROMPTS_DIR` using the default naming scheme.
 2. Run the LLM once per emitted prompt chunk and save each CSV response (e.g., `chunk-1.csv`).
-3. Post-process every CSV: `python .claude/skills/statement-processor/scripts/postprocess.py --input chunk-1.csv --output chunk-1-enriched.csv --apply-patterns`
-4. Generate a single prompt for any remaining uncategorized rows: `python .claude/skills/statement-processor/scripts/categorize_leftovers.py --workdir "$FIN_STATEMENT_WORKDIR" --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"`.
-5. Concatenate or import each enriched CSV via `fin-edit import-transactions` (preview) and rerun with `--apply` when ready. Use `--default-confidence` to fill empty confidence cells when needed.
+3. Post-process every CSV: `python .claude/skills/statement-processor/scripts/postprocess.py --input chunk-1.csv --output chunk-1-enriched.csv --apply-patterns --verbose`
+4. Concatenate or import each enriched CSV via `fin-edit import-transactions` (preview) and rerun with `--apply` when ready. Use `--default-confidence` to fill empty confidence cells when needed. Uncategorized transactions will be imported successfully.
+5. Review uncategorized transactions: Use the `transaction-categorizer` skill to interactively categorize any remaining uncategorized transactions.
 
 Working Directory
 - Use `bootstrap.sh` to create a deterministic run directory (e.g., `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh chase-2025-09)"`). The script works for both single and batch workflows.
@@ -40,14 +40,17 @@ Working Directory
 - The harness resets the shell’s CWD between commands; rely on the exported environment variables or absolute paths instead of `cd`.
 - Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside the workspace and clean up once the import is committed to the database.
 
-Handling Low Confidence
+Handling Low Confidence and Uncategorized Transactions
 - The prompt instructs the LLM to lower `confidence` (<0.7) whenever unsure.
-- Review low-confidence rows first; edit merchants/categories before import or after import using `fin-edit`.
+- Post-processing with `--apply-patterns` will apply known merchant patterns. Use `--verbose` to see which patterns matched and which transactions remain uncategorized.
+- Import transactions with `fin-edit import-transactions` - uncategorized transactions (empty category/subcategory) will be imported successfully.
+- After import, use the `transaction-categorizer` skill to handle remaining uncategorized or low-confidence transactions:
+  - The categorizer will ALWAYS attempt LLM categorization first using Claude Haiku 4.5 (cost-effective) for ALL uncategorized transactions
+  - Only if leftovers remain after LLM categorization, the categorizer will offer interactive manual review
+  - Merchant patterns are learned automatically to improve future auto-categorization
 - If account metadata is unclear, pause and ask the user which account the statement belongs to; rerun post-processing once metadata is confirmed.
-- After the user approves a correction, update the record via `fin-edit set-category` (dry-run first) and bump confidence to 1.0 when rerunning `import-transactions`.
-- When a user wants future transactions auto-categorised, run `fin-edit add-merchant-pattern` (preview, then `--apply`) with the deterministic pattern key (use `python -c "from fin_cli.shared.merchants import merchant_pattern_key; print(merchant_pattern_key('MERCHANT RAW'))"` if needed).
-- For bulk high-confidence learning, prefer `fin-edit --apply import-transactions … --learn-patterns --learn-threshold 0.9`; keep manual `add-merchant-pattern` for edge cases or low-confidence merchants.
-- When you do need an LLM to categorise a handful of leftover merchants, prefer a lightweight model (Claude Haiku 4.5) for the categorisation micro-prompt to keep latency and cost down; reserve Sonnet 4.5 for the main extraction step.
+- For bulk high-confidence learning during import, use `fin-edit --apply import-transactions … --learn-patterns --learn-threshold 0.9`; this will automatically create patterns for high-confidence transactions.
+- For manual pattern creation, use `fin-edit add-merchant-pattern` (preview, then `--apply`) with the deterministic pattern key (use `python -c "from fin_cli.shared.merchants import merchant_pattern_key; print(merchant_pattern_key('MERCHANT RAW'))"` if needed).
 
 Database Writes
 - Always preview imports: `fin-edit import-transactions enriched.csv`
@@ -60,9 +63,8 @@ Available Commands
 - `.claude/skills/statement-processor/scripts/run_batch.sh`: scrub multiple PDFs and generate batch prompts (steps 1–2 of the batch workflow).
 - `fin-scrub`: sanitize PDFs to redact PII.
 - `python .claude/skills/statement-processor/scripts/preprocess.py`: build single or batch prompts with existing taxonomies.
-- `python .claude/skills/statement-processor/scripts/postprocess.py`: append `account_key`/`fingerprint` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns.
-- `python .claude/skills/statement-processor/scripts/categorize_leftovers.py`: assemble a prompt for uncategorized merchants after rules have been applied.
-- `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep).
+- `python .claude/skills/statement-processor/scripts/postprocess.py`: append `account_key`/`fingerprint`/`source` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns. Use `--verbose` to see pattern matching details.
+- `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep). Uncategorized transactions will be imported successfully.
 - `fin-edit set-category`: correct individual transactions after import (dry-run before `--apply`).
 - `fin-edit add-merchant-pattern`: remember high-confidence merchant/category mappings for future runs.
 - `fin-query saved merchants --format json --min-count N`: retrieve merchant taxonomy for debugging.
@@ -95,11 +97,15 @@ fin-query saved uncategorized --limit 10
 ```
 
 Cross-Skill Transitions
-- **After import with low-confidence transactions**: Switch to `transaction-categorizer` skill to interactively review and correct low-confidence categorizations (confidence < 0.7)
+- **After import**: Use the `transaction-categorizer` skill to handle uncategorized transactions (empty category/subcategory) or low-confidence categorizations (confidence < 0.7). The categorizer always tries LLM categorization first with Claude Haiku 4.5 (cost-effective) for ALL uncategorized transactions, then falls back to interactive manual review only for leftovers. Patterns are learned automatically for future auto-categorization.
 - **To analyze imported data**: Use `spending-analyzer` skill to run reports on the newly imported transactions
 - **To query specific merchants or categories**: Use `ledger-query` skill for targeted lookups
 
 Next Steps for Agents
-- Ensure enriched CSVs include `account_key` and `fingerprint` before import.
-- Capture review notes for low-confidence rows; feed corrections back into prompt parameters when retrying.
-- Report recurring merchant/category gaps so the taxonomy can be extended via rules or prompt tweaks.
+- Ensure enriched CSVs include `account_key`, `fingerprint`, and `source` columns before import.
+- Use `--verbose` flag with postprocess.py to see pattern matching details and identify uncategorized transactions.
+- After import, transition to `transaction-categorizer` skill to handle uncategorized or low-confidence transactions:
+  - The categorizer will ALWAYS attempt LLM categorization (Haiku) first for ALL uncategorized transactions
+  - Only if leftovers remain after LLM categorization, the categorizer will use interactive manual review
+  - Merchant patterns are learned automatically to improve future imports
+- Review the `source` column in enriched CSVs to understand categorization provenance: `llm_extraction`, `pattern_match`, or empty (uncategorized).

@@ -48,6 +48,7 @@ class EnrichedTransaction:
     pattern_key: str | None = None
     pattern_display: str | None = None
     merchant_metadata: Mapping[str, object] | str | None = None
+    source: str = ""  # Track categorization source: llm_extraction, pattern_match, or empty
 
     def as_dict(self) -> dict[str, object]:
         metadata_value: str = ""
@@ -71,6 +72,7 @@ class EnrichedTransaction:
             "pattern_key": self.pattern_key or "",
             "pattern_display": self.pattern_display or "",
             "merchant_metadata": metadata_value,
+            "source": self.source,
         }
 
 
@@ -170,6 +172,7 @@ def enrich_rows(
     config: AppConfig | None = None,
     connection=None,
     apply_patterns: bool = False,
+    verbose: bool = False,
 ) -> list[EnrichedTransaction]:
     effective_config = config or load_config()
     connection_ctx = None
@@ -200,14 +203,27 @@ def enrich_rows(
             subcategory = _coerce_str(row, "subcategory", allow_empty=True)
             confidence = _parse_confidence(row.get("confidence"))
 
-            if _should_clear_category(
+            # Track source of categorization
+            source = ""
+            should_clear = _should_clear_category(
                 category=category,
                 subcategory=subcategory,
                 confidence=confidence,
                 config=effective_config,
-            ):
+            )
+
+            if should_clear:
+                if verbose and category:
+                    threshold = effective_config.categorization.confidence.auto_approve
+                    if confidence < threshold:
+                        click.echo(f"  ⚠ Clearing low-confidence LLM category: {merchant} → {category}/{subcategory} (confidence: {confidence:.2f} < {threshold:.2f})")
+                    elif category.lower() == "uncategorized":
+                        click.echo(f"  ⚠ Clearing generic 'Uncategorized' for: {merchant}")
                 category = ""
                 subcategory = ""
+            elif category:
+                # Category provided by LLM and not cleared
+                source = "llm_extraction"
 
             account_key = models.compute_account_key(account_name, institution, account_type)
             fingerprint = models.compute_transaction_fingerprint(
@@ -270,6 +286,7 @@ def enrich_rows(
                     category = cached["category"]
                     subcategory = cached["subcategory"]
                     confidence = float(cached["confidence"]) if cached["confidence"] is not None else confidence
+                    source = "pattern_match"
                     display_from_db = cached.get("pattern_display")  # type: ignore[index]
                     if display_from_db:
                         pattern_display = str(display_from_db)
@@ -277,6 +294,10 @@ def enrich_rows(
                         pattern_display = merchant
                     if merchant_metadata is None and cached.get("metadata") is not None:  # type: ignore[index]
                         merchant_metadata = cached["metadata"]  # type: ignore[index]
+                    if verbose:
+                        click.echo(f"  ✓ {merchant} → {category}/{subcategory} (pattern: {pattern_key}, confidence: {confidence:.2f})")
+                elif verbose:
+                    click.echo(f"  ○ No pattern match for: {merchant} (pattern_key: {pattern_key})")
 
             enriched.append(
                 EnrichedTransaction(
@@ -295,6 +316,7 @@ def enrich_rows(
                     pattern_key=pattern_key or None,
                     pattern_display=pattern_display or None,
                     merchant_metadata=merchant_metadata,
+                    source=source,
                 )
             )
     finally:
@@ -316,6 +338,7 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
         "pattern_key",
         "pattern_display",
         "merchant_metadata",
+        "source",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -343,6 +366,11 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
     is_flag=True,
     help="Use existing merchant_patterns to fill category/confidence before export.",
 )
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show detailed logging for pattern matches and categorization decisions.",
+)
 def cli(
     input_path: Path | None,
     output_path: Path | None,
@@ -350,6 +378,7 @@ def cli(
     stdout: bool,
     workdir: Path | None,
     apply_patterns: bool,
+    verbose: bool,
 ) -> None:
     """Enrich LLM CSV output with account_key and fingerprint columns."""
 
@@ -393,11 +422,14 @@ def cli(
     try:
         for candidate in inputs:
             rows = _read_csv(candidate)
+            if verbose:
+                click.echo(f"\nProcessing {candidate.name}...")
             enriched = enrich_rows(
                 rows,
                 config=config,
                 connection=connection,
                 apply_patterns=apply_patterns,
+                verbose=verbose,
             )
 
             effective_output_path = output_path
@@ -413,6 +445,7 @@ def cli(
                     "pattern_key",
                     "pattern_display",
                     "merchant_metadata",
+                    "source",
                 ]
                 writer = csv.DictWriter(click.get_text_stream("stdout"), fieldnames=stdout_fieldnames)
                 writer.writeheader()

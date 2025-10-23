@@ -38,6 +38,7 @@ _OPTIONAL_ENRICHED_COLUMNS = {
     "pattern_key",
     "pattern_display",
     "merchant_metadata",
+    "source",  # Categorization source tracking: llm_extraction, pattern_match, or empty
 }
 
 

@@ -70,33 +70,20 @@ Send each prompt chunk to the LLM and save the CSV responses as `$FIN_STATEMENT_
 ```bash
 python .claude/skills/statement-processor/scripts/postprocess.py \
   --workdir "$FIN_STATEMENT_WORKDIR" \
-  --apply-patterns
+  --apply-patterns \
+  --verbose
 ```
 
-This processes all CSV files in `$FIN_STATEMENT_LLM_DIR`, adds `account_key` and `fingerprint` columns, normalizes merchants and confidence values, and writes enriched files to `$FIN_STATEMENT_ENRICHED_DIR`.
+This processes all CSV files in `$FIN_STATEMENT_LLM_DIR`, adds `account_key`, `fingerprint`, and `source` columns, normalizes merchants and confidence values, applies known merchant patterns, and writes enriched files to `$FIN_STATEMENT_ENRICHED_DIR`. The `--verbose` flag shows which patterns matched and which transactions remain uncategorized.
 
-## 6. Review, Correct, and Capture Patterns
+## 6. Review the Enriched CSVs
 
-- Open each enriched CSV in `$FIN_STATEMENT_ENRICHED_DIR` and review low-confidence rows (`confidence < 0.7`).
-- For confirmed fixes, update the CSV now or stage CLI corrections:
-  ```bash
-  fin-edit set-category --fingerprint <fingerprint> \
-    --category "Auto & Transport" --subcategory "Parking"
-  ```
-- When the user asks to remember a merchant/category pairing, run `fin-edit add-merchant-pattern` (dry-run first) with the normalized pattern key (see below) so future statements skip the LLM.
-- Optionally concatenate enriched CSVs after review: `tail -n +2 "$FIN_STATEMENT_ENRICHED_DIR/batch-2-enriched.csv" >> "$FIN_STATEMENT_ENRICHED_DIR/batch-1-enriched.csv"` (keep one header).
-- Build a prompt for the remaining blanks (if any):
-  ```bash
-  python .claude/skills/statement-processor/scripts/categorize_leftovers.py \
-    --workdir "$FIN_STATEMENT_WORKDIR" \
-    --output "$FIN_STATEMENT_WORKDIR/prompt-leftovers.txt"
-  ```
-  If the script reports leftovers, send the prompt to **Claude Haiku 4.5** and merge the resulting CSV before import.
-
-Tip: derive the normalized key before calling `add-merchant-pattern`:
-```bash
-python -c "from fin_cli.shared.merchants import merchant_pattern_key; print(merchant_pattern_key('STARBUCKS #1234'))"
-```
+- Open each enriched CSV in `$FIN_STATEMENT_ENRICHED_DIR` and review:
+  - Check the `source` column: `llm_extraction` (from initial LLM), `pattern_match` (from merchant patterns DB), or empty (uncategorized)
+  - Review transactions with `confidence < 0.7` or empty category/subcategory
+- The `--verbose` output from step 5 shows which patterns matched and which merchants have no patterns yet
+- Optionally concatenate enriched CSVs before import: `tail -n +2 "$FIN_STATEMENT_ENRICHED_DIR/batch-2-enriched.csv" >> "$FIN_STATEMENT_ENRICHED_DIR/batch-1-enriched.csv"` (keep one header)
+- Uncategorized transactions (empty category/subcategory) will be imported successfully in the next step
 
 ## 7. Import Transactions
 
@@ -108,9 +95,25 @@ for enriched in "$FIN_STATEMENT_ENRICHED_DIR"/batch-*-enriched.csv; do
 done
 ```
 
-## 8. Validate Imports
+## 8. Categorize Remaining Transactions
 
-After importing all batches, verify the results:
+After importing all batches, use the `transaction-categorizer` skill to handle uncategorized or low-confidence transactions:
+
+```bash
+# Check for uncategorized transactions across all imports
+fin-query saved uncategorized --limit 20
+
+# Switch to transaction-categorizer skill
+# The skill ALWAYS tries LLM categorization first (Haiku) for ALL uncategorized transactions
+# Only if leftovers remain, it will use interactive manual review
+# Merchant patterns are learned automatically for future auto-categorization
+```
+
+The categorizer uses an LLM-first approach for cost efficiency: always attempts bulk categorization with Claude Haiku 4.5 for all uncategorized transactions, then falls back to interactive review only for leftovers. Patterns are learned automatically to improve future imports.
+
+## 9. Validate Imports
+
+After importing and categorizing all batches, verify the results:
 ```bash
 # Check recent imports across all batches
 fin-query saved recent_imports --limit 20
@@ -118,14 +121,14 @@ fin-query saved recent_imports --limit 20
 # Verify transaction count for the month
 fin-query saved transactions_month --param month=YYYY-MM --format table
 
-# Check for uncategorized transactions
+# Check for any remaining uncategorized transactions
 fin-query saved uncategorized --limit 10
 
 # Verify total count matches expectations
 fin-query sql "SELECT COUNT(*) as total FROM transactions WHERE date >= 'YYYY-MM-01' AND date < 'YYYY-MM+1-01'"
 ```
 
-## 9. Preserve Artifacts
+## 10. Preserve Artifacts
 
 Retain scrubbed text, prompts, LLM outputs, and enriched CSVs for audit and debugging.
 The CLI harness resets CWD between commands, so rely on the exported variables instead of `cd`.
