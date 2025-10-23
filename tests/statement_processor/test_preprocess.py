@@ -118,9 +118,10 @@ def test_build_prompt_single_statement(tmp_path: Path) -> None:
     )
 
     assert "date,merchant,amount" in prompt
-    assert "Known Merchants" in prompt
+    assert "Known Merchants" not in prompt
+    assert "Category Taxonomy" not in prompt
+    assert "# Statement Text" in prompt
     assert "Chase_2025-09" in prompt
-    assert "Amazon" in prompt
 
 
 def test_cli_rejects_multiple_inputs(tmp_path: Path) -> None:

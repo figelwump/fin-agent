@@ -32,19 +32,5 @@ Examples:
 
 The post-processing step converts these fields into a stable `account_key` and computes fingerprints, so you do not need to generate them.
 
-{% if categories %}
-# Category Taxonomy
-List of known categories and subcategories you should prefer when assigning classifications:
-{% for item in categories %}- {{ item.category }} > {{ item.subcategory }}{% if item.transaction_count is not none %} ({{ item.transaction_count }} tx){% endif %}
-{% endfor %}
-{% endif %}
-
-{% if merchants %}
-# Known Merchants
-Here are high-frequency merchants from the existing database:
-{% for item in merchants %}- {{ item.merchant }} ({{ item.count }} tx)
-{% endfor %}
-{% endif %}
-
 # Statement Text
 {{ statement_text }}
