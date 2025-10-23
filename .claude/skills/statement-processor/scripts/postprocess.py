@@ -189,114 +189,114 @@ def enrich_rows(
                     raise KeyError(f"Missing required column '{column}' in LLM output")
 
             date_text = _coerce_str(row, "date")
-        date_obj = datetime.strptime(date_text, "%Y-%m-%d").date()
-        merchant = _normalise_merchant(_coerce_str(row, "merchant"))
-        original_description = _normalise_description(_coerce_str(row, "original_description"))
-        amount = _parse_amount(row.get("amount"))
-        account_name = _coerce_str(row, "account_name")
-        institution = _coerce_str(row, "institution")
-        account_type = _coerce_str(row, "account_type").lower()
-        category = _coerce_str(row, "category", allow_empty=True)
-        subcategory = _coerce_str(row, "subcategory", allow_empty=True)
-        confidence = _parse_confidence(row.get("confidence"))
+            date_obj = datetime.strptime(date_text, "%Y-%m-%d").date()
+            merchant = _normalise_merchant(_coerce_str(row, "merchant"))
+            original_description = _normalise_description(_coerce_str(row, "original_description"))
+            amount = _parse_amount(row.get("amount"))
+            account_name = _coerce_str(row, "account_name")
+            institution = _coerce_str(row, "institution")
+            account_type = _coerce_str(row, "account_type").lower()
+            category = _coerce_str(row, "category", allow_empty=True)
+            subcategory = _coerce_str(row, "subcategory", allow_empty=True)
+            confidence = _parse_confidence(row.get("confidence"))
 
-        if _should_clear_category(
-            category=category,
-            subcategory=subcategory,
-            confidence=confidence,
-            config=effective_config,
-        ):
-            category = ""
-            subcategory = ""
-
-        account_key = models.compute_account_key(account_name, institution, account_type)
-        fingerprint = models.compute_transaction_fingerprint(
-            date_obj,
-            amount,
-            merchant,
-            None,
-            account_key,
-        )
-        pattern_key = str(row.get("pattern_key") or "").strip()
-        if not pattern_key:
-            pattern_key = merchant_pattern_key(merchant) or ""
-        pattern_display = str(row.get("pattern_display") or "").strip()
-        if not pattern_display and pattern_key:
-            pattern_display = merchant
-
-        merchant_metadata: Mapping[str, object] | str | None = None
-        raw_metadata = row.get("merchant_metadata")
-        if raw_metadata is not None:
-            metadata_text = str(raw_metadata).strip()
-            if metadata_text:
-                try:
-                    merchant_metadata = json.loads(metadata_text)
-                except json.JSONDecodeError:
-                    merchant_metadata = metadata_text
-
-        if apply_patterns and connection is not None and pattern_key:
-            cached = pattern_cache.get(pattern_key)
-            if pattern_key not in pattern_cache:
-                db_row = connection.execute(
-                    """
-                    SELECT mp.confidence, mp.pattern_display, mp.metadata,
-                           c.category, c.subcategory
-                    FROM merchant_patterns mp
-                    JOIN categories c ON c.id = mp.category_id
-                    WHERE mp.pattern = ?
-                    ORDER BY mp.confidence DESC
-                    LIMIT 1
-                    """,
-                    (pattern_key,),
-                ).fetchone()
-                if db_row:
-                    metadata_value: Any = db_row["metadata"]
-                    if metadata_value:
-                        try:
-                            metadata_value = json.loads(metadata_value)
-                        except json.JSONDecodeError:
-                            pass
-                    pattern_cache[pattern_key] = {
-                        "category": db_row["category"],
-                        "subcategory": db_row["subcategory"],
-                        "confidence": float(db_row["confidence"]) if db_row["confidence"] is not None else 1.0,
-                        "pattern_display": db_row["pattern_display"],
-                        "metadata": metadata_value,
-                    }
-                else:
-                    pattern_cache[pattern_key] = None
-                cached = pattern_cache[pattern_key]
-            if cached:
-                category = cached["category"]
-                subcategory = cached["subcategory"]
-                confidence = float(cached["confidence"]) if cached["confidence"] is not None else confidence
-                display_from_db = cached.get("pattern_display")  # type: ignore[index]
-                if display_from_db:
-                    pattern_display = str(display_from_db)
-                elif not pattern_display:
-                    pattern_display = merchant
-                if merchant_metadata is None and cached.get("metadata") is not None:  # type: ignore[index]
-                    merchant_metadata = cached["metadata"]  # type: ignore[index]
-
-        enriched.append(
-            EnrichedTransaction(
-                date=date_text,
-                merchant=merchant,
-                amount=amount,
-                original_description=original_description,
-                account_name=account_name,
-                institution=institution,
-                account_type=account_type,
+            if _should_clear_category(
                 category=category,
                 subcategory=subcategory,
                 confidence=confidence,
-                account_key=account_key,
-                fingerprint=fingerprint,
-                pattern_key=pattern_key or None,
-                pattern_display=pattern_display or None,
-                merchant_metadata=merchant_metadata,
+                config=effective_config,
+            ):
+                category = ""
+                subcategory = ""
+
+            account_key = models.compute_account_key(account_name, institution, account_type)
+            fingerprint = models.compute_transaction_fingerprint(
+                date_obj,
+                amount,
+                merchant,
+                None,
+                account_key,
             )
-        )
+            pattern_key = str(row.get("pattern_key") or "").strip()
+            if not pattern_key:
+                pattern_key = merchant_pattern_key(merchant) or ""
+            pattern_display = str(row.get("pattern_display") or "").strip()
+            if not pattern_display and pattern_key:
+                pattern_display = merchant
+
+            merchant_metadata: Mapping[str, object] | str | None = None
+            raw_metadata = row.get("merchant_metadata")
+            if raw_metadata is not None:
+                metadata_text = str(raw_metadata).strip()
+                if metadata_text:
+                    try:
+                        merchant_metadata = json.loads(metadata_text)
+                    except json.JSONDecodeError:
+                        merchant_metadata = metadata_text
+
+            if apply_patterns and connection is not None and pattern_key:
+                cached = pattern_cache.get(pattern_key)
+                if pattern_key not in pattern_cache:
+                    db_row = connection.execute(
+                        """
+                        SELECT mp.confidence, mp.pattern_display, mp.metadata,
+                               c.category, c.subcategory
+                        FROM merchant_patterns mp
+                        JOIN categories c ON c.id = mp.category_id
+                        WHERE mp.pattern = ?
+                        ORDER BY mp.confidence DESC
+                        LIMIT 1
+                        """,
+                        (pattern_key,),
+                    ).fetchone()
+                    if db_row:
+                        metadata_value: Any = db_row["metadata"]
+                        if metadata_value:
+                            try:
+                                metadata_value = json.loads(metadata_value)
+                            except json.JSONDecodeError:
+                                pass
+                        pattern_cache[pattern_key] = {
+                            "category": db_row["category"],
+                            "subcategory": db_row["subcategory"],
+                            "confidence": float(db_row["confidence"]) if db_row["confidence"] is not None else 1.0,
+                            "pattern_display": db_row["pattern_display"],
+                            "metadata": metadata_value,
+                        }
+                    else:
+                        pattern_cache[pattern_key] = None
+                    cached = pattern_cache[pattern_key]
+                if cached:
+                    category = cached["category"]
+                    subcategory = cached["subcategory"]
+                    confidence = float(cached["confidence"]) if cached["confidence"] is not None else confidence
+                    display_from_db = cached.get("pattern_display")  # type: ignore[index]
+                    if display_from_db:
+                        pattern_display = str(display_from_db)
+                    elif not pattern_display:
+                        pattern_display = merchant
+                    if merchant_metadata is None and cached.get("metadata") is not None:  # type: ignore[index]
+                        merchant_metadata = cached["metadata"]  # type: ignore[index]
+
+            enriched.append(
+                EnrichedTransaction(
+                    date=date_text,
+                    merchant=merchant,
+                    amount=amount,
+                    original_description=original_description,
+                    account_name=account_name,
+                    institution=institution,
+                    account_type=account_type,
+                    category=category,
+                    subcategory=subcategory,
+                    confidence=confidence,
+                    account_key=account_key,
+                    fingerprint=fingerprint,
+                    pattern_key=pattern_key or None,
+                    pattern_display=pattern_display or None,
+                    merchant_metadata=merchant_metadata,
+                )
+            )
     finally:
         if connection_ctx is not None:
             connection_ctx.__exit__(None, None, None)
