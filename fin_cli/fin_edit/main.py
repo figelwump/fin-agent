@@ -262,6 +262,7 @@ class ImportSummary:
     total_rows: int
     inserted: int = 0
     duplicates: int = 0
+    uncategorized: int = 0
     categories_created: set[tuple[str, str]] = field(default_factory=set)
     categories_missing: set[tuple[str, str]] = field(default_factory=set)
     accounts_created: set[tuple[str, str, str]] = field(default_factory=set)
@@ -285,6 +286,11 @@ def _log_import_summary(logger, summary: ImportSummary, preview: bool) -> None:
         f"{prefix}Processed {summary.total_rows} transaction row(s): "
         f"inserted {summary.inserted}, duplicates {summary.duplicates}."
     )
+    if summary.uncategorized > 0:
+        logger.warning(
+            f"{prefix}Found {summary.uncategorized} uncategorized transaction{'s' if summary.uncategorized != 1 else ''}. "
+            "Use fin-query to review or the transaction-categorizer skill to categorize them."
+        )
     if summary.categories_created:
         action = "Would create" if preview else "Created"
         formatted = ", ".join(
@@ -386,16 +392,21 @@ def _import_enriched_transactions(
     ) as connection:
         # Pre-flight: cache existing categories and accounts
         for row in rows:
-            category_key = (row.category, row.subcategory)
-            if category_key not in category_cache:
-                cat_id = models.find_category_id(
-                    connection,
-                    category=row.category,
-                    subcategory=row.subcategory,
-                )
-                if cat_id is None:
-                    summary.categories_missing.add(category_key)
-                category_cache[category_key] = cat_id
+            # Skip category lookup if both are empty (uncategorized transaction)
+            if row.category or row.subcategory:
+                category_key = (row.category, row.subcategory)
+                if category_key not in category_cache:
+                    cat_id = models.find_category_id(
+                        connection,
+                        category=row.category,
+                        subcategory=row.subcategory,
+                    )
+                    if cat_id is None:
+                        summary.categories_missing.add(category_key)
+                    category_cache[category_key] = cat_id
+            else:
+                # Track uncategorized transactions
+                summary.uncategorized += 1
 
             if row.account_id is None:
                 account_key = (row.account_name, row.institution, row.account_type)
@@ -419,9 +430,11 @@ def _import_enriched_transactions(
 
         if preview:
             for row in rows:
-                category_key = (row.category, row.subcategory)
-                if category_cache[category_key] is None:
-                    summary.categories_created.add(category_key)
+                # Handle category lookups only if categorized
+                if row.category or row.subcategory:
+                    category_key = (row.category, row.subcategory)
+                    if category_cache.get(category_key) is None:
+                        summary.categories_created.add(category_key)
 
                 if row.account_id is None:
                     account_key = (row.account_name, row.institution, row.account_type)
@@ -437,7 +450,7 @@ def _import_enriched_transactions(
                     summary.duplicates += 1
                 else:
                     summary.inserted += 1
-                if learn_patterns:
+                if learn_patterns and (row.category and row.subcategory):
                     pattern_key, _, _ = _resolve_pattern(row)
                     if pattern_key:
                         if row.confidence >= learn_threshold:
@@ -450,18 +463,21 @@ def _import_enriched_transactions(
 
         # Apply mode: perform mutations
         for row in rows:
-            category_key = (row.category, row.subcategory)
-            cat_id = category_cache[category_key]
-            if cat_id is None:
-                cat_id = models.get_or_create_category(
-                    connection,
-                    category=row.category,
-                    subcategory=row.subcategory,
-                    auto_generated=False,
-                    user_approved=True,
-                )
-                category_cache[category_key] = cat_id
-                summary.categories_created.add(category_key)
+            # Handle category creation only if categorized
+            cat_id = None
+            if row.category or row.subcategory:
+                category_key = (row.category, row.subcategory)
+                cat_id = category_cache.get(category_key)
+                if cat_id is None:
+                    cat_id = models.get_or_create_category(
+                        connection,
+                        category=row.category,
+                        subcategory=row.subcategory,
+                        auto_generated=False,
+                        user_approved=True,
+                    )
+                    category_cache[category_key] = cat_id
+                    summary.categories_created.add(category_key)
 
             account_id = row.account_id
             account_key = (row.account_name, row.institution, row.account_type)
@@ -517,8 +533,9 @@ def _import_enriched_transactions(
                     models.increment_category_usage(connection, cat_id)
             else:
                 summary.duplicates += 1
-            if learn_patterns and pattern_key:
-                if row.confidence >= learn_threshold and cat_id is not None:
+            # Only learn patterns for categorized transactions
+            if learn_patterns and pattern_key and cat_id is not None and (row.category and row.subcategory):
+                if row.confidence >= learn_threshold:
                     cache_key = (pattern_key, cat_id)
                     if cache_key not in patterns_recorded:
                         models.record_merchant_pattern(

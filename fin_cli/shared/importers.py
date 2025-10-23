@@ -114,9 +114,10 @@ def _parse_enriched_row(
     category = (row.get("category") or "").strip()
     subcategory = (row.get("subcategory") or "").strip()
 
-    if not all([account_name, institution, account_type, category, subcategory]):
+    # Account fields are required, but category/subcategory can be empty (uncategorized transactions)
+    if not all([account_name, institution, account_type]):
         raise CSVImportError(
-            f"{source_name}: Missing account/category fields for merchant '{merchant}'"
+            f"{source_name}: Missing required account fields for merchant '{merchant}'"
         )
 
     raw_conf = (row.get("confidence") or "").strip()
