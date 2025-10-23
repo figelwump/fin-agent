@@ -123,66 +123,32 @@ def test_build_prompt_single_statement(tmp_path: Path) -> None:
     assert "Amazon" in prompt
 
 
-def test_build_prompt_batch(tmp_path: Path) -> None:
-    config, _ = _prepare_config(tmp_path)
-    categories = [
-        {"category": "Shopping", "subcategory": "Online", "transaction_count": 128},
-    ]
-    merchants: list[dict[str, object]] = []
-    texts = [
-        "Header A\n08/01 Merchant A 10.00",
-        "Header B\n08/02 Merchant B 20.00",
-    ]
-
-    prompt = preprocess.build_prompt(
-        texts,
-        labels=["Account-A", "Account-B"],
-        config=config,
-        categories_data=categories,
-        merchants_data=merchants,
-        categories_only=True,
-    )
-
-    assert "## Statement 1: Account-A" in prompt
-    assert "## Statement 2: Account-B" in prompt
-    assert "Known Merchants" not in prompt
-
-
-def test_cli_writes_chunked_prompts(tmp_path: Path) -> None:
+def test_cli_rejects_multiple_inputs(tmp_path: Path) -> None:
     config, env = _prepare_config(tmp_path)
     _seed_sample_data(config)
 
-    inputs = []
-    for idx in range(3):
+    paths = []
+    for idx in range(2):
         path = tmp_path / f"stmt_{idx + 1}.txt"
         path.write_text(f"Header {idx + 1}\n09/0{idx + 1} Example Merchant {idx}", encoding="utf-8")
-        inputs.append(path)
+        paths.append(path)
 
     runner = CliRunner()
-    output_path = tmp_path / "prompt.txt"
     result = runner.invoke(
         preprocess.cli,
         [
-            *(arg for path in inputs for arg in ("--input", str(path))),
-            "--batch",
-            "--max-statements-per-prompt",
-            "2",
+            "--input",
+            str(paths[0]),
+            "--input",
+            str(paths[1]),
             "--output",
-            str(output_path),
-            "--max-merchants",
-            "5",
+            str(tmp_path / "prompt.txt"),
         ],
         env=env,
     )
 
-    assert result.exit_code == 0, result.output
-    part1 = tmp_path / "prompt-part1.txt"
-    part2 = tmp_path / "prompt-part2.txt"
-    assert part1.exists()
-    assert part2.exists()
-    contents = part1.read_text(encoding="utf-8")
-    assert "Known Merchants" in contents
-    assert "Statement 1" in contents
+    assert result.exit_code != 0
+    assert "Process statements sequentially" in result.output
 
 
 def test_cli_writes_auto_named_prompt(tmp_path: Path) -> None:

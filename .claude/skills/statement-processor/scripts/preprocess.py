@@ -33,7 +33,6 @@ def _resolve_templates_dir() -> Path:
 
 TEMPLATES_DIR = _resolve_templates_dir()
 _SINGLE_TEMPLATE = "extraction_prompt.txt"
-_BATCH_TEMPLATE = "batch_extraction_prompt.txt"
 
 _JINJA_ENV = Environment(
     loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -201,26 +200,12 @@ def _render_prompt(
     categories: Sequence[dict[str, object]],
     merchants: Sequence[dict[str, object]],
 ) -> str:
-    template_name = _SINGLE_TEMPLATE if len(statements) == 1 else _BATCH_TEMPLATE
-    template = _JINJA_ENV.get_template(template_name)
-    if len(statements) == 1:
-        context = {
-            "categories": categories,
-            "merchants": merchants,
-            "statement_text": statements[0].text,
-        }
-    else:
-        context = {
-            "categories": categories,
-            "merchants": merchants,
-            "statements": [
-                {
-                    "label": chunk.label,
-                    "text": chunk.text,
-                }
-                for chunk in statements
-            ],
-        }
+    template = _JINJA_ENV.get_template(_SINGLE_TEMPLATE)
+    context = {
+        "categories": categories,
+        "merchants": merchants,
+        "statement_text": statements[0].text,
+    }
     return template.render(context)
 
 
@@ -269,26 +254,16 @@ def build_prompt(
         for idx, text in enumerate(scrubbed_texts)
     ]
 
-    if len(statements) == 1:
-        single = statements[0]
-        single_text = f"## {single.label}\n{single.text}"
-        return _render_prompt(
-            statements=[StatementChunk(label=single.label, text=single_text)],
-            categories=categories,
-            merchants=merchants,
-        )
+    if len(statements) != 1:
+        raise ValueError("Sequential workflow requires exactly one scrubbed statement per prompt.")
 
-    return _render_prompt(statements=statements, categories=categories, merchants=merchants)
-
-
-def _chunk_inputs(
-    items: Sequence[StatementChunk],
-    *,
-    max_per_chunk: int | None,
-) -> list[list[StatementChunk]]:
-    if max_per_chunk is None or max_per_chunk <= 0 or len(items) <= max_per_chunk:
-        return [list(items)]
-    return [list(items[idx : idx + max_per_chunk]) for idx in range(0, len(items), max_per_chunk)]
+    single = statements[0]
+    single_text = f"## {single.label}\n{single.text}"
+    return _render_prompt(
+        statements=[StatementChunk(label=single.label, text=single_text)],
+        categories=categories,
+        merchants=merchants,
+    )
 
 
 def _read_inputs(paths: Iterable[Path]) -> list[StatementChunk]:
@@ -319,15 +294,9 @@ def _write_output(prompt: str, output_path: Path) -> None:
     type=click.Path(path_type=Path),
     help="Directory where prompts should be written using auto-generated filenames.",
 )
-@click.option("--batch", is_flag=True, help="Treat multiple inputs as a batch (default when >1 file).")
 @click.option("--max-merchants", type=int, help="Limit the number of merchants included in the taxonomy block.")
 @click.option("--min-merchant-count", type=int, default=1, show_default=True, help="Ignore merchants with fewer than this many transactions.")
 @click.option("--categories-only", is_flag=True, help="Skip merchant taxonomy and include categories only.")
-@click.option(
-    "--max-statements-per-prompt",
-    type=int,
-    help="Auto-chunk batches larger than this many statements per prompt.",
-)
 @click.option(
     "--categories-limit",
     type=int,
@@ -344,11 +313,9 @@ def cli(
     input_paths: tuple[Path, ...],
     output: Path | None,
     output_dir: Path | None,
-    batch: bool,
     max_merchants: int | None,
     min_merchant_count: int,
     categories_only: bool,
-    max_statements_per_prompt: int | None,
     categories_limit: int | None,
     emit_json: bool,
     workdir: Path | None,
@@ -374,8 +341,12 @@ def cli(
         raise click.ClickException("At least one --input is required if --workdir is not specified.")
 
     statements = _read_inputs(input_paths)
-    if len(statements) > 1 and not batch:
-        batch = True
+    if len(statements) > 1:
+        raise click.ClickException(
+            "Multiple scrubbed statements detected. Process statements sequentially: "
+            "complete the extract→enhance→import→categorize loop for the current statement "
+            "before generating a prompt for the next."
+        )
 
     config = load_config()
     _ensure_database_ready(config)
@@ -392,58 +363,31 @@ def cli(
         click.echo(json.dumps(payload, indent=2))
         return
 
-    chunks = _chunk_inputs(statements, max_per_chunk=max_statements_per_prompt if batch else None)
-
-    prompts: list[tuple[str, list[str]]] = []
-    for chunk in chunks:
-        chunk_labels = [s.label for s in chunk]
-        chunk_texts = [s.text for s in chunk]
-        prompt = build_prompt(
-            chunk_texts,
-            labels=chunk_labels,
-            config=config,
-            max_merchants=max_merchants,
-            min_merchant_count=min_merchant_count,
-            categories_only=categories_only,
-            categories_limit=categories_limit,
-            categories_data=categories,
-            merchants_data=merchants,
-        )
-        prompts.append((prompt, chunk_labels))
+    prompt = build_prompt(
+        [statements[0].text],
+        labels=[statements[0].label],
+        config=config,
+        max_merchants=max_merchants,
+        min_merchant_count=min_merchant_count,
+        categories_only=categories_only,
+        categories_limit=categories_limit,
+        categories_data=categories,
+        merchants_data=merchants,
+    )
 
     if output:
-        if len(prompts) == 1:
-            _write_output(prompts[0][0], output)
-            click.echo(f"Wrote prompt to {output}")
-        else:
-            base = output
-            suffix = base.suffix
-            stem = base.stem
-            parent = base.parent
-            for idx, (prompt, _) in enumerate(prompts, start=1):
-                chunk_path = parent / f"{stem}-part{idx}{suffix or '.txt'}"
-                _write_output(prompt, chunk_path)
-                click.echo(f"Wrote prompt chunk {idx} to {chunk_path}")
+        _write_output(prompt, output)
+        click.echo(f"Wrote prompt to {output}")
     elif output_dir:
         target_dir = output_dir / "prompts"
         target_dir.mkdir(parents=True, exist_ok=True)
-        total = len(prompts)
-        for idx, (prompt, labels) in enumerate(prompts, start=1):
-            base_name = _derive_prompt_basename(labels)
-            if total > 1:
-                filename = f"{base_name}-prompt-part{idx}.txt"
-            else:
-                filename = f"{base_name}-prompt.txt"
-            path = target_dir / filename
-            _write_output(prompt, path)
-            click.echo(f"Wrote prompt to {path}")
+        base_name = _derive_prompt_basename([statements[0].label])
+        filename = f"{base_name}-prompt.txt"
+        path = target_dir / filename
+        _write_output(prompt, path)
+        click.echo(f"Wrote prompt to {path}")
     else:
-        for idx, (prompt, _) in enumerate(prompts, start=1):
-            if len(prompts) > 1:
-                click.echo(f"----- PROMPT {idx}/{len(prompts)} -----")
-            click.echo(prompt)
-            if len(prompts) > 1 and idx != len(prompts):
-                click.echo()
+        click.echo(prompt)
 
 
 if __name__ == "__main__":  # pragma: no cover
