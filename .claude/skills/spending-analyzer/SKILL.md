@@ -1,6 +1,7 @@
 ---
 name: spending-analyzer
 description: Analyze spending patterns and assemble custom reports using fin-analyze.
+allowed-tools: Bash, Read
 ---
 
 # Spending Analyzer Skill
@@ -47,14 +48,14 @@ fin-analyze category-timeline --period 6m --category "Food & Dining" --format js
 Common Errors
 - **Invalid date format**: Use `YYYY-MM` for `--month` (e.g., `2025-09`) and periods like `3m`, `6m`, `12m`, or `all` for `--period`
 - **No data for period**: Check if transactions exist in the specified time range with `fin-query saved transactions_month --param month=YYYY-MM`
-- **Unknown analyzer**: Run `fin-analyze --help` to see available analyzers or check `reference/all-analyzers.md`
+- **Unknown analyzer**: Run `fin-analyze --help` to see available analyzers or check `.claude/skills/spending-analyzer/reference/all-analyzers.md`
 - **Unknown category**: Verify category name with `fin-query saved categories`. Use exact spelling including ampersands (e.g., `"Food & Dining"`).
 - **Cannot use --compare with --period all**: The `--compare` flag requires a specific time window (month, quarter, year), not the entire history
 
 Examples
-- examples/custom-reports.md
-- examples/common-queries.md
-- examples/insights.md
+- .claude/skills/spending-analyzer/examples/custom-reports.md
+- .claude/skills/spending-analyzer/examples/common-queries.md
+- .claude/skills/spending-analyzer/examples/insights.md
 
 Reference
-- reference/all-analyzers.md
+- .claude/skills/spending-analyzer/reference/all-analyzers.md

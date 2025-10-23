@@ -1,6 +1,7 @@
 ---
 name: transaction-categorizer
 description: Categorize uncategorized transactions using LLM-first approach, then interactive review for leftovers.
+allowed-tools: Bash, Read, Grep, Glob
 ---
 
 # Transaction Categorizer Skill
@@ -19,7 +20,7 @@ Database Path
 - Only specify `--db <path>` when the user explicitly provides an alternate database
 
 Working Directory
-- Use `scripts/bootstrap.sh` to create a workspace for the categorization session (it reuses `SESSION_SLUG` exported by the statement-processor skill, or accept `--session` when starting standalone): `eval "$(scripts/bootstrap.sh)"`. This exports:
+- Use `.claude/skills/transaction-categorizer/scripts/bootstrap.sh` to create a workspace for the categorization session (it reuses `SESSION_SLUG` exported by the statement-processor skill, or accept `--session` when starting standalone): `eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"`. This exports:
   - `FIN_CATEGORIZER_WORKDIR` - root working directory
   - `FIN_CATEGORIZER_QUERIES_DIR` - for saved query results (uncategorized.json)
   - `FIN_CATEGORIZER_PROMPTS_DIR` - for generated LLM prompts
@@ -42,7 +43,7 @@ Principles
 Ensure `SESSION_SLUG` matches the value used by the statement-processor skill (it will already be exported when you ran the statement processor bootstrap). Then bootstrap this skill's workspace:
 
 ```bash
-eval "$(scripts/bootstrap.sh)"
+eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
 ```
 
 Using the shared `SESSION_SLUG` keeps this workspace aligned with the statement-processor artifacts and exports the environment variables you will reuse for the rest of the session.
@@ -59,7 +60,7 @@ If no uncategorized transactions found (count is 0), you're done!
 
 **Step 2: Generate LLM categorization prompt**
 ```bash
-python scripts/build_prompt.py \
+python .claude/skills/transaction-categorizer/scripts/build_prompt.py \
   --input "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json" \
   --output "$FIN_CATEGORIZER_PROMPTS_DIR/categorization-prompt.txt"
 
@@ -187,8 +188,8 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 
 ## Available Commands
 
-- `scripts/bootstrap.sh`: Initialize a categorization workspace and export environment variables (use via `eval "$(...)"`).
-- `python scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
+- `.claude/skills/transaction-categorizer/scripts/bootstrap.sh`: Initialize a categorization workspace and export environment variables (use via `eval "$(...)"`).
+- `python .claude/skills/transaction-categorizer/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
 - `fin-query saved uncategorized`: Query uncategorized transactions from the database.
 - `fin-query saved categories`: Query existing category taxonomy.
 - `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write).
@@ -240,6 +241,6 @@ When to Use This Skill vs Statement-Processor
 - **Use transaction-categorizer** after import to handle remaining uncategorized transactions (handles LLM bulk categorization for ALL uncategorized, then manual review for leftovers only)
 
 References
-- examples/interactive-review.md
-- examples/pattern-learning.md
-- reference/common-categories.md
+- .claude/skills/transaction-categorizer/examples/interactive-review.md
+- .claude/skills/transaction-categorizer/examples/pattern-learning.md
+- .claude/skills/transaction-categorizer/reference/common-categories.md

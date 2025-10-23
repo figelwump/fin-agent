@@ -1,6 +1,7 @@
 ---
 name: statement-processor
 description: Extract and import bank statements from PDF files into the local SQLite database.
+allowed-tools: Bash, Read, Grep, Glob
 ---
 
 # Statement Processor Skill
@@ -13,14 +14,14 @@ Environment
 
 Quick Start (Sequential Loop)
 0. Pick a session slug you can reuse across both skills (example): `SESSION_SLUG="bofa-visa0653-20251022t2105"`
-1. Initialise the statement workspace with that slug (no timestamp appended when `--session` is used):  
-   `eval "$(scripts/bootstrap.sh --session \\"$SESSION_SLUG\\")"`
+1. Initialise the statement workspace with that slug (no timestamp appended when `--session` is used):
+   `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh --session \\"$SESSION_SLUG\\")"`
    - Exports `SESSION_SLUG`, `FIN_STATEMENT_WORKDIR`, `FIN_STATEMENT_SCRUBBED_DIR`, `FIN_STATEMENT_PROMPTS_DIR`, `FIN_STATEMENT_LLM_DIR`, and `FIN_STATEMENT_ENRICHED_DIR` so companion skills discover the same run directory automatically.
 2. Process statements one at a time. For each PDF, run the full loop before touching the next file:
    a. Scrub sensitive data into the workspace: `fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"`.
-   b. Build the prompt (single statement per invocation): `python scripts/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --input "$FIN_STATEMENT_SCRUBBED_DIR/<file>-scrubbed.txt"`.
+   b. Build the prompt (single statement per invocation): `python .claude/skills/statement-processor/scripts/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --input "$FIN_STATEMENT_SCRUBBED_DIR/<file>-scrubbed.txt"`.
    c. Send the prompt to your LLM (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
-   d. Enrich and apply known patterns: `python scripts/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --apply-patterns --verbose`.
+   d. Enrich and apply known patterns: `python .claude/skills/statement-processor/scripts/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --apply-patterns --verbose`.
    e. Import validated rows (preview first, then apply with pattern learning):  
       `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv`  
       `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.9`
@@ -29,12 +30,12 @@ Quick Start (Sequential Loop)
       `fin-query saved merchant_patterns --limit 5 --format table` (should reflect new patterns).
    g. If any command fails or the sanity checks above are unexpected, stop the loop and resolve the issue before moving to the next statement.
 
-The prompt builder loads the live taxonomy from SQLite automatically. For debugging you can inspect the payload by running `python scripts/preprocess.py --input scrubbed.txt --emit-json`, or export the same data manually with:
+The prompt builder loads the live taxonomy from SQLite automatically. For debugging you can inspect the payload by running `python .claude/skills/statement-processor/scripts/preprocess.py --input scrubbed.txt --emit-json`, or export the same data manually with:
 - Categories: `fin-query saved categories --format json > categories.json`
 - Merchants: `fin-query saved merchants --min-count 2 --format json > merchants.json` (adjust `--min-count`/`--limit` as needed).
 
 Working Directory
-- Use `scripts/bootstrap.sh --session "$SESSION_SLUG"` to create a deterministic run directory that matches the categorizer workspace.
+- Use `.claude/skills/statement-processor/scripts/bootstrap.sh --session "$SESSION_SLUG"` to create a deterministic run directory that matches the categorizer workspace.
 - All helper CLIs accept `--workdir` so they can auto-discover `scrubbed/`, `prompts/`, `llm/`, and `enriched/` subdirectories.
 - The harness resets the shell’s CWD between commands; rely on the exported environment variables or absolute paths instead of `cd`.
 - Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside the workspace and clean up once the import is committed to the database.
@@ -58,10 +59,10 @@ Database Writes
 - Validate inserts with `fin-query saved recent_imports --limit 10` or `fin-query saved transactions_month --param month=YYYY-MM`.
 
 Available Commands
-- `scripts/bootstrap.sh`: initialise a run workspace (supports `--session` for shared slugs) and export helper environment variables (use via `eval "$(...)"`).
+- `.claude/skills/statement-processor/scripts/bootstrap.sh`: initialise a run workspace (supports `--session` for shared slugs) and export helper environment variables (use via `eval "$(...)"`).
 - `fin-scrub`: sanitize PDFs to redact PII.
-- `python scripts/preprocess.py`: build per-statement prompts with existing taxonomies; rejects multi-input usage.
-- `python scripts/postprocess.py`: append `account_key`/`fingerprint`/`source` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns. Use `--verbose` to see pattern matching details.
+- `python .claude/skills/statement-processor/scripts/preprocess.py`: build per-statement prompts with existing taxonomies; rejects multi-input usage.
+- `python .claude/skills/statement-processor/scripts/postprocess.py`: append `account_key`/`fingerprint`/`source` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns. Use `--verbose` to see pattern matching details.
 - `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep). Uncategorized transactions will be imported successfully.
 - `fin-edit set-category`: correct individual transactions after import (dry-run before `--apply`).
 - `fin-edit add-merchant-pattern`: remember high-confidence merchant/category mappings for future runs.
@@ -72,13 +73,13 @@ Common Errors
 - **Fingerprint collision on import**: Transaction already exists in database. This is expected behavior - duplicates are automatically skipped.
 - **Invalid confidence value**: Ensure confidence is between 0 and 1. Use `--default-confidence 0.9` to fill empty cells during import.
 - **Unknown category on import**: Either edit the CSV to use existing categories (check with `fin-query saved categories`) or allow creation by omitting `--no-create-categories` flag.
-- **Account identification unclear**: If the LLM cannot determine which account a statement belongs to, pause and ask the user before importing. Rerun postprocess.py after updating account metadata in the CSV.
+- **Account identification unclear**: If the LLM cannot determine which account a statement belongs to, pause and ask the user before importing. Rerun `.claude/skills/statement-processor/scripts/postprocess.py` after updating account metadata in the CSV.
 - **Low-confidence rows (<0.7)**: Review and correct in the enriched CSV before import, or use `fin-edit set-category` after import to fix individual transactions.
 - **Malformed amount**: Ensure amounts are positive decimals with two decimal places. Credits/refunds should be excluded upstream.
 
 Reference Material (to be refreshed)
-- `examples/llm-extraction.md` – end-to-end walkthrough for a single statement.
-- `reference/csv-format.md` – canonical schema for enriched CSVs.
+- `.claude/skills/statement-processor/examples/llm-extraction.md` – end-to-end walkthrough for a single statement.
+- `.claude/skills/statement-processor/reference/csv-format.md` – canonical schema for enriched CSVs.
 
 Validation After Import
 After successfully importing transactions, verify the results:
@@ -100,7 +101,7 @@ Cross-Skill Transitions
 
 Next Steps for Agents
 - Ensure enriched CSVs include `account_key`, `fingerprint`, and `source` columns before import.
-- Use `--verbose` flag with postprocess.py to see pattern matching details and identify uncategorized transactions.
+- Use `--verbose` flag with `.claude/skills/statement-processor/scripts/postprocess.py` to see pattern matching details and identify uncategorized transactions.
 - After import, transition to `transaction-categorizer` skill to handle uncategorized or low-confidence transactions:
   - The categorizer will ALWAYS attempt LLM categorization (Haiku) first for ALL uncategorized transactions
   - Only if leftovers remain after LLM categorization, the categorizer will use interactive manual review

@@ -1,6 +1,7 @@
 ---
 name: ledger-query
 description: Query the financial ledger with fin-query saved templates and ad-hoc SQL.
+allowed-tools: Bash, Read, Grep
 ---
 
 # Ledger Query Skill
@@ -34,7 +35,7 @@ Decision Tree: Saved Query vs SQL
    - Combining multiple conditions not supported by saved query parameters
    - Debugging or exploring schema structure
 
-3. **Always check** `reference/saved-queries.md` first before writing custom SQL
+3. **Always check** `.claude/skills/ledger-query/reference/saved-queries.md` first before writing custom SQL
 
 Workflow
 1. Clarify the time frame, category, or pattern the user cares about.
@@ -44,11 +45,11 @@ Workflow
 
 Common Errors
 - **Query returns no results**: Verify the time frame (e.g., `--param month=YYYY-MM`), check category spelling with `fin-query saved categories`, or try broadening the search (e.g., remove subcategory filter)
-- **Unknown saved query**: Run `fin-query saved --list` to see available templates or check `reference/saved-queries.md`
-- **Invalid parameter name**: Consult `reference/saved-queries.md` for the correct parameter names (e.g., `pattern` not `search`)
+- **Unknown saved query**: Run `fin-query saved --list` to see available templates or check `.claude/skills/ledger-query/reference/saved-queries.md`
+- **Invalid parameter name**: Consult `.claude/skills/ledger-query/reference/saved-queries.md` for the correct parameter names (e.g., `pattern` not `search`)
 - **LIKE pattern not matching**: Remember SQL LIKE syntax requires `%` wildcards (e.g., `%YouTube%` not `YouTube`)
 - **Database not found**: Verify `--db` path if using alternate database, otherwise check `~/.finagent/data.db` exists
 
 Reference
-- `examples/common-queries.md` – ready-to-run snippets for frequent questions.
-- `reference/saved-queries.md` – parameters for each saved template.
+- `.claude/skills/ledger-query/examples/common-queries.md` – ready-to-run snippets for frequent questions.
+- `.claude/skills/ledger-query/reference/saved-queries.md` – parameters for each saved template.
