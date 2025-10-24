@@ -6,6 +6,7 @@ You are an expert financial statement extraction assistant. Carefully read the s
 - `amount` must be a positive decimal number (two places). Debit/outflow transactions become positive numbers; ignore payments, transfers, or credits.
 - `merchant` should be a concise, human friendly name (e.g., "Starbucks" rather than "STARBUCKS #1234").
 - `original_description` must copy the raw line item exactly as seen in the statement text (including casing and punctuation).
+- Quote any field that contains commas or double quotes using standard CSV rules (wrap in double quotes and double any embedded quotes).
 - `account_name`, `institution`, and `account_type` come from the statement header. `account_type` must be one of: `credit`, `checking`, or `savings`.
 - `category` / `subcategory` should align with the provided taxonomy. If none fits with at least 0.80 confidence, leave both fields blank and set confidence ≤ 0.6. Do **not** emit placeholder values like "Uncategorized".
 - `confidence` is a float between 0 and 1 (inclusive). Use ≥0.9 when the categorization is very certain, otherwise scale accordingly.

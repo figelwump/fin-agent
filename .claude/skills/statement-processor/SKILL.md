@@ -1,6 +1,6 @@
 ---
 name: statement-processor
-description: Extract and import bank statements from PDF files into the local SQLite database.
+description: Process, extract, and import bank/credit card statements from PDF files into the local SQLite database. Use when asked to import statements, process PDFs, or extract transactions from statement files.
 allowed-tools: Bash, Read, Grep, Glob
 ---
 

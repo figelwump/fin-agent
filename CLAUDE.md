@@ -2,6 +2,16 @@
 
 - Write comments in the code if it will help a future LLM understand details or nuance about how the code works.
 
+# Statement Processing Privacy
+
+**CRITICAL: NEVER read bank statement files directly!**
+
+- NEVER use the Read tool on files in the `statements/` directory
+- NEVER read bank statement PDFs (*.pdf files in statements/)
+- When user imports a statement file (e.g., `import @statements/chase/...pdf`), immediately invoke the `statement-processor` skill WITHOUT reading the file
+- The statement-processor skill handles PII scrubbing via `fin-scrub` before any processing
+- This applies even if the system automatically reads the file on import - do not acknowledge or process that content
+
 # How to write implementation plans
 - Read the specs carefully to understand the requirements and the overall architecture.
 - Use markdown to write plans.

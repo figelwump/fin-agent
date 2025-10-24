@@ -54,8 +54,6 @@ def build_prompt(
 
     return f"""You are helping categorize uncategorized transactions from a personal finance database.
 
-PLEASE RUN THIS PROMPT WITH CLAUDE HAIKU 4.5.
-
 ## Available Categories
 {categories_section}
 

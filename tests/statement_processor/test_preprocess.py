@@ -122,6 +122,7 @@ def test_build_prompt_single_statement(tmp_path: Path) -> None:
     assert "Category Taxonomy" not in prompt
     assert "# Statement Text" in prompt
     assert "Chase_2025-09" in prompt
+    assert "Quote any field that contains commas or double quotes" in prompt
 
 
 def test_cli_rejects_multiple_inputs(tmp_path: Path) -> None:
