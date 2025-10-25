@@ -10,7 +10,7 @@ This workflow is used AFTER the LLM bulk categorization step, for transactions t
 fin-query saved categories --format json > "$FIN_CATEGORIZER_QUERIES_DIR/categories.json"
 
 # Low-confidence LLM suggestions are already saved from the main workflow
-# (in $FIN_CATEGORIZER_LLM_DIR/low-confidence-suggestions.csv)
+# (in $FIN_CATEGORIZER_LLM_DIR/low-confidence.csv)
 ```
 
 1) Get remaining uncategorized

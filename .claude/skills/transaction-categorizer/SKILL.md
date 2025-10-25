@@ -30,8 +30,9 @@ Working Directory
 Principles
 - Always load the existing taxonomy first to prevent bloat
 - Use `fin-edit` for writes (dry-run by default; add `--apply`)
-- Prefer existing categories; only create new ones if the user insists
+- Prefer existing categories when possible; however, feel free to create new ones as needed
 - **LLM-First Approach**: Always try LLM categorization first for ALL uncategorized transactions, then fall back to manual review only for leftovers
+- We want to minimize how many transactions a user has to manually review, so think hard to categorize as many transactions as you can.
 - **Confidence Threshold**:
   - ≥0.9: High confidence - apply categorization and learn merchant pattern
   - <0.9: Low confidence - save as suggestion for manual review, present to user with LLM's proposed category
@@ -208,11 +209,9 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 - After each batch, validate with `fin-query saved uncategorized` to see remaining count
 
 **Workspace cleanup:**
-- After successful categorization, the workspace (`$FIN_CATEGORIZER_WORKDIR`) can be deleted
 - Keep the workspace for debugging if categorizations need to be reviewed or reverted
 
 Common Errors
-- **Unknown category**: Category doesn't exist in taxonomy. Check spelling with `fin-query saved categories` or create it if the user insists on a new category.
 - **Transaction not found**: Verify the transaction ID is correct. Use `fin-query saved uncategorized` or `fin-query saved recent_transactions` to find the correct ID.
 - **Category already set**: Transaction is already categorized. Use `fin-edit set-category` to update it (overwrites existing category).
 - **Pattern already exists**: Merchant pattern is already learned. Use `fin-edit set-merchant-pattern` to update the existing pattern or choose a more specific pattern key.

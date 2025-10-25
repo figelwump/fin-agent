@@ -54,19 +54,17 @@ def build_prompt(
 
     return f"""You are helping categorize uncategorized transactions from a personal finance database.
 
-## Available Categories
-{categories_section}
-
-## Uncategorized Transactions
-{tx_section}
-
 ## Instructions
-- For each transaction, use the closest category > subcategory pair from the list above.
-- If nothing fits well, propose a sensible new category/subcategory (only create when truly needed).
+- For each transaction, categorize them into a category > subcategory pair
+- If possible, use the closest category > subcategory pair from the list of Existing Categories below.
+- **Creating New Categories**: When existing categories don't fit well, create new category/subcategory pairs. Common scenarios where you SHOULD create new categories:
+  - Obvious missing subcategories that would apply to multiple transactions
+  - Don't force transactions into loosely-related categories just to avoid creating new ones
+- **IMPORTANT**: We want to minimize how many transactions a user has to manually review, so think hard about how to categorize as many transactions as you can.
 - Normalize the merchant name into a clean, human-friendly canonical form (e.g., "AMZN MKTP US" → "Amazon", "STARBUCKS #1234" → "Starbucks").
 - Confidence must be between 0 and 1 (use two decimal places: 0.85, 0.95, etc.).
 - When you introduce a new category, explain why in the `notes` column.
-- Use high confidence (≥0.9) when you're certain about the categorization.
+- Use high confidence (≥0.9) when you're fairly certain about the categorization, including when creating appropriate new categories.
 - **IMPORTANT**: Include the transaction ID from the input for each row so we can match your categorization back to the correct transaction.
 
 ## Output Format
@@ -79,6 +77,12 @@ transaction_id,canonical_merchant,category,subcategory,confidence,notes
 124,Starbucks,Food & Dining,Coffee,0.98,
 125,Target,Shopping,General,0.90,
 126,Uber,Transportation,Rideshare,0.92,
+
+## Existing Categories
+{categories_section}
+
+## Uncategorized Transactions
+{tx_section}
 """.strip()
 
 

@@ -29,8 +29,9 @@ Teach the agent how to extract and import bank statements end-to-end.
    - These environment variables persist throughout the session and are used by all subsequent commands.
    - Companion skills (like `transaction-categorizer`) can discover the same run directory automatically.
 
-## Quick Start (Sequential Loop)
+## Workflow (Sequential Loop)
 Process statements one at a time. For each PDF, run the full loop before touching the next file:
+**IMPORTANT: Prepend "source .venv/bin/activate &&" before running any python script**
    a. Scrub sensitive data into the workspace: `fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"`.
    b. Build the prompt (single statement per invocation): `python .claude/skills/statement-processor/scripts/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --input "$FIN_STATEMENT_SCRUBBED_DIR/<file>-scrubbed.txt"`.
    c. Send the prompt to your LLM (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
