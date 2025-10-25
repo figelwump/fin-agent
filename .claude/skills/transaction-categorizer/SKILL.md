@@ -41,19 +41,39 @@ Principles
 
 **Step 0: Initialize workspace**
 
-Ensure `SESSION_SLUG` matches the value used by the statement-processor skill (it will already be exported when you ran the statement processor bootstrap). Then bootstrap this skill's workspace:
+**IMPORTANT**: Set `SESSION_SLUG` before bootstrapping to ensure all commands use the same workspace directory.
 
+**If running after statement-processor**: The `SESSION_SLUG` will already be exported - just run bootstrap:
 ```bash
 eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
 ```
 
-Using the shared `SESSION_SLUG` keeps this workspace aligned with the statement-processor artifacts and exports the environment variables you will reuse for the rest of the session.
+**If running standalone**: Export a session slug first, then bootstrap:
+```bash
+export SESSION_SLUG="categorize-$(date +%Y%m%d-%H%M%S)"
+eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
+```
+
+All subsequent commands in the session **must** maintain this `SESSION_SLUG` to use the same workspace. Either:
+- Run all commands in a single bash session (preferred), OR
+- Export `SESSION_SLUG` at the start of each command chain
 
 **Step 1: Query and save uncategorized transactions**
-```bash
-fin-query saved uncategorized --format json > "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json"
 
-# Check count
+**Best Practice**: Chain all commands together in a single bash invocation to maintain the workspace context:
+```bash
+source .venv/bin/activate && \
+export SESSION_SLUG="categorize-$(date +%Y%m%d-%H%M%S)" && \
+eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)" && \
+fin-query saved uncategorized --format json > "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json" && \
+jq 'length' "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json"
+```
+
+Alternatively, if running commands separately, ensure `SESSION_SLUG` is exported in each command:
+```bash
+export SESSION_SLUG="categorize-$(date +%Y%m%d-%H%M%S)"
+eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
+fin-query saved uncategorized --format json > "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json"
 jq 'length' "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json"
 ```
 
