@@ -1,7 +1,7 @@
 # Interactive Review Workflow
 
 This workflow is used AFTER the LLM bulk categorization step, for transactions that:
-- The LLM had low confidence on (<0.9)
+- The LLM had low confidence on (<0.75)
 - The LLM couldn't categorize at all
 
 0) Load taxonomy and LLM suggestions

@@ -38,7 +38,7 @@ Process statements one at a time. For each PDF, run the full loop before touchin
    d. Enrich and apply known patterns: `python .claude/skills/statement-processor/scripts/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --apply-patterns --verbose`.
    e. Import validated rows (preview first, then apply with pattern learning):  
       `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv`  
-      `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.9`
+      `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.75`
    f. Immediately hand the newly imported transactions to the `transaction-categorizer` skill (its bootstrap reuses `SESSION_SLUG`), apply categorizations, and confirm success:  
       `fin-query saved uncategorized --limit 5` (should shrink) and  
       `fin-query saved merchant_patterns --limit 5 --format table` (should reflect new patterns).
@@ -61,12 +61,12 @@ The prompt builder focuses purely on extraction guidance. Category taxonomy and 
   - Only if leftovers remain after LLM categorization, the categorizer will offer interactive manual review
   - Merchant patterns are learned automatically to improve future auto-categorization
 - If account metadata is unclear, pause and ask the user which account the statement belongs to; rerun post-processing once metadata is confirmed.
-- For bulk high-confidence learning during import, use `fin-edit --apply import-transactions … --learn-patterns --learn-threshold 0.9`; this will automatically create patterns for high-confidence transactions.
+- For bulk high-confidence learning during import, use `fin-edit --apply import-transactions … --learn-patterns --learn-threshold 0.75`; this will automatically create patterns for high-confidence transactions.
 - For manual pattern creation, use `fin-edit add-merchant-pattern` (preview, then `--apply`) with the deterministic pattern key (use `python -c "from fin_cli.shared.merchants import merchant_pattern_key; print(merchant_pattern_key('MERCHANT RAW'))"` if needed).
 
 ## Database Writes
 - Always preview imports: `fin-edit import-transactions enriched.csv`
-- Apply when satisfied: `fin-edit --apply import-transactions enriched.csv --learn-patterns --learn-threshold 0.9`
+- Apply when satisfied: `fin-edit --apply import-transactions enriched.csv --learn-patterns --learn-threshold 0.75`
 - Use `--default-confidence` to backfill blanks and `--no-create-categories` to enforce pre-created taxonomy entries.
 - Validate inserts with `fin-query saved recent_imports --limit 10` or `fin-query saved transactions_month --param month=YYYY-MM`.
 

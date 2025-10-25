@@ -64,7 +64,7 @@ def build_prompt(
 - Normalize the merchant name into a clean, human-friendly canonical form (e.g., "AMZN MKTP US" → "Amazon", "STARBUCKS #1234" → "Starbucks").
 - Confidence must be between 0 and 1 (use two decimal places: 0.85, 0.95, etc.).
 - When you introduce a new category, explain why in the `notes` column.
-- Use high confidence (≥0.9) when you're fairly certain about the categorization, including when creating appropriate new categories.
+- Use high confidence (≥0.75) when you're fairly certain about the categorization, including when creating appropriate new categories.
 - **IMPORTANT**: Include the transaction ID from the input for each row so we can match your categorization back to the correct transaction.
 
 ## Output Format

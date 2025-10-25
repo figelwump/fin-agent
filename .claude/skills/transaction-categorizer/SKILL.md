@@ -34,8 +34,8 @@ Principles
 - **LLM-First Approach**: Always try LLM categorization first for ALL uncategorized transactions, then fall back to manual review only for leftovers
 - We want to minimize how many transactions a user has to manually review, so think hard to categorize as many transactions as you can.
 - **Confidence Threshold**:
-  - ≥0.9: High confidence - apply categorization and learn merchant pattern
-  - <0.9: Low confidence - save as suggestion for manual review, present to user with LLM's proposed category
+  - ≥0.75: High confidence - apply categorization and learn merchant pattern
+  - <0.75: Low confidence - save as suggestion for manual review, present to user with LLM's proposed category
 
 ## Recommended Workflow
 
@@ -78,10 +78,10 @@ cat "$FIN_CATEGORIZER_PROMPTS_DIR/categorization-prompt.txt"
 Read the LLM's CSV response from `$FIN_CATEGORIZER_LLM_DIR/categorizations.csv`.
 
 a) **Separate high-confidence from low-confidence results:**
-   - High confidence: ≥0.9 - Apply these categorizations and learn patterns
-   - Low confidence: <0.9 - Save these as suggestions for manual review
+   - High confidence: ≥0.75 - Apply these categorizations and learn patterns
+   - Low confidence: <0.75 - Save these as suggestions for manual review
 
-b) **For high-confidence categorizations (≥0.9):**
+b) **For high-confidence categorizations (≥0.75):**
 
 Preview the categorization:
 ```bash
@@ -101,14 +101,14 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
   --category "<category>" --subcategory "<subcategory>" --confidence <confidence>
 ```
 
-c) **For low-confidence categorizations (<0.9):**
+c) **For low-confidence categorizations (<0.75):**
 
 Save these to a suggestions file for manual review:
 ```bash
-# Extract low-confidence rows (confidence < 0.9) from LLM CSV, keeping the header
+# Extract low-confidence rows (confidence < 0.75) from LLM CSV, keeping the header
 head -n1 "$FIN_CATEGORIZER_LLM_DIR/categorizations.csv" \
   > "$FIN_CATEGORIZER_LLM_DIR/low-confidence-suggestions.csv"
-awk -F',' 'NR>1 && $5 < 0.9 {print}' "$FIN_CATEGORIZER_LLM_DIR/categorizations.csv" \
+awk -F',' 'NR>1 && $5 < 0.75 {print}' "$FIN_CATEGORIZER_LLM_DIR/categorizations.csv" \
   >> "$FIN_CATEGORIZER_LLM_DIR/low-confidence-suggestions.csv"
 ```
 
@@ -127,14 +127,14 @@ If any remain after LLM categorization, proceed to Interactive Manual Review bel
 
 ## Interactive Manual Review (only for leftovers after LLM categorization)
 
-Use this workflow only for transactions that the LLM had low confidence on (<0.9) or couldn't categorize.
+Use this workflow only for transactions that the LLM had low confidence on (<0.75) or couldn't categorize.
 
 **1) Load existing taxonomy and LLM suggestions**
 ```bash
 # Load taxonomy
 fin-query saved categories --format json > "$FIN_CATEGORIZER_QUERIES_DIR/categories.json"
 
-# Low-confidence LLM suggestions (<0.9) are already saved from Step 4c
+# Low-confidence LLM suggestions (<0.75) are already saved from Step 4c
 # (in $FIN_CATEGORIZER_LLM_DIR/low-confidence-suggestions.csv)
 ```
 
@@ -146,7 +146,7 @@ cat "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized-remaining.json"
 
 **3) For each transaction:**
 - Show date, merchant, amount, description to the user
-- **Check if LLM provided a low-confidence suggestion** (<0.9) for this transaction_id (lookup in low-confidence-suggestions.csv)
+- **Check if LLM provided a low-confidence suggestion** (<0.75) for this transaction_id (lookup in low-confidence-suggestions.csv)
 - If yes, present it as: `Suggested: Category > Subcategory (confidence: 0.85, from LLM)`
 - If no LLM suggestion, suggest categories from existing taxonomy based on merchant similarity
 - Ask the user to confirm, modify, or choose a different category

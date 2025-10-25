@@ -70,9 +70,9 @@ This processes every CSV under `$FIN_STATEMENT_LLM_DIR`, adds `account_key`, `fi
 # Preview (dry-run)
 fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR/chase-september-enriched.csv"
 
-# Apply after confirming the preview output (auto-learn merchants ≥0.9)
+# Apply after confirming the preview output (auto-learn merchants ≥0.75)
 fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR/chase-september-enriched.csv" \
-  --learn-patterns --learn-threshold 0.9
+  --learn-patterns --learn-threshold 0.75
 ```
 
 Add `--default-confidence 0.9` if you want to fill empty confidence cells, or `--no-create-categories` to abort when a category is missing. The tool automatically de-duplicates using fingerprints and will import uncategorized transactions successfully. Use `fin-query saved recent_transactions --limit 10` to validate new records.
