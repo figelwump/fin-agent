@@ -325,8 +325,80 @@ def enrich_rows(
     return enriched
 
 
+def _repair_csv_formatting(path: Path) -> Path:
+    """Auto-repair common CSV formatting issues like unescaped commas.
+
+    Returns the path to the repaired CSV (creates a backup if repairs were needed).
+    """
+    import tempfile
+
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        lines = f.readlines()
+
+    if not lines:
+        return path
+
+    # Parse header to determine expected field count
+    header = lines[0].strip().split(',')
+    expected_fields = len(header)
+
+    repairs_needed = False
+    repaired_lines = [lines[0]]  # Keep header as-is
+
+    for line_num, line in enumerate(lines[1:], start=2):
+        raw_line = line.strip()
+        if not raw_line:
+            continue
+
+        # Quick check: count fields with simple split
+        fields = raw_line.split(',')
+
+        if len(fields) == expected_fields:
+            # No issue, keep as-is
+            repaired_lines.append(line)
+        elif len(fields) == expected_fields + 1:
+            # Likely one unescaped comma - merge fields 4 and 5 (original_description)
+            # This is the most common case: "SQ *K&J ORCHARDS, LLC" becomes two fields
+            click.echo(
+                f"  ⚠ Line {line_num}: Auto-repairing unescaped comma "
+                f"(merging fields 4-5 in original_description)",
+                err=True
+            )
+            repairs_needed = True
+
+            # Merge the split fields and re-quote
+            fixed_fields = fields[:3] + [f'"{fields[3]},{fields[4]}"'] + fields[5:]
+            repaired_lines.append(','.join(fixed_fields) + '\n')
+        else:
+            # Complex issue - log warning but keep original
+            click.echo(
+                f"  ⚠ Line {line_num}: Expected {expected_fields} fields, got {len(fields)}. "
+                f"Cannot auto-repair - please fix manually.",
+                err=True
+            )
+            repaired_lines.append(line)
+
+    if not repairs_needed:
+        return path
+
+    # Create backup and write repaired version
+    backup_path = path.with_suffix(path.suffix + '.backup')
+    import shutil
+    shutil.copy2(path, backup_path)
+    click.echo(f"  ℹ Created backup: {backup_path}", err=True)
+
+    with path.open("w", encoding="utf-8", newline="") as f:
+        f.writelines(repaired_lines)
+
+    click.echo(f"  ✓ Repaired CSV written to: {path}", err=True)
+    return path
+
+
 def _read_csv(path: Path) -> list[dict[str, object]]:
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+    # Auto-repair CSV formatting issues before parsing
+    repaired_path = _repair_csv_formatting(path)
+
+    with repaired_path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         return [dict(row) for row in reader]
 
