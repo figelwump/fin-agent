@@ -1,6 +1,6 @@
 ---
 name: spending-analyzer
-description: Analyze spending patterns and assemble custom reports using fin-analyze.
+description: Analyze spending patterns, trends, and anomalies to generate insights and reports. Use when user asks how much they're spending, wants spending breakdowns/summaries, needs to find subscriptions, analyze trends over time, or investigate unusual charges. Provides insights and aggregated analysis, not raw transaction lists.
 allowed-tools: Bash, Read
 ---
 

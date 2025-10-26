@@ -1,6 +1,6 @@
 ---
 name: ledger-query
-description: Query the financial ledger with fin-query saved templates and ad-hoc SQL.
+description: List, search, and filter transaction records from the financial database. Use when user asks to show/list/find specific transactions by category, merchant, date, or wants to view transaction details. Does NOT analyze or summarize - just retrieves raw transaction data.
 allowed-tools: Bash, Read, Grep
 ---
 
@@ -12,12 +12,31 @@ Teach the agent how to answer direct data questions (e.g., "When did YouTube TV 
 Environment
 - Activate the venv first: `source .venv/bin/activate`
 
+Database Schema Overview
+The financial database uses a normalized schema with foreign key relationships:
+
+**transactions** table (main table):
+- Stores: id, date, merchant, amount, original_description, fingerprint, metadata
+- Foreign keys: `category_id` → categories.id, `account_id` → accounts.id
+- ⚠️ Does NOT have category, subcategory, or account_name columns directly
+
+**categories** table:
+- Stores: id, category, subcategory
+- To get category/subcategory names, you MUST JOIN transactions with categories
+
+**accounts** table:
+- Stores: id, name, institution, account_type, is_active
+- To get account details, you MUST JOIN transactions with accounts
+
+**Important**: When writing custom SQL, always JOIN with categories/accounts tables. Don't assume denormalized columns exist in transactions.
+
 Guidelines
 - Prefer saved queries (see reference) before dropping to `fin-query sql`.
 - Request JSON output when the result will be parsed: add `--format json`.
 - Always cap result size (e.g., `--limit 25`) to keep responses concise.
 - Use `--db` only when the user explicitly points to an alternate database.
 - Need schema details? Run `fin-query schema --table transactions --format table` (or `--all`).
+- When writing custom SQL, remember the normalized schema - JOIN with categories/accounts tables as needed.
 
 Decision Tree: Saved Query vs SQL
 1. **Use saved query** when:
@@ -44,11 +63,40 @@ Workflow
 4. Summarise findings back to the user, citing totals, dates, or counts.
 
 Common Errors
+- **"no such column: category" or "no such column: subcategory"**: The transactions table uses `category_id` (FK), not denormalized text. JOIN with categories table: `FROM transactions t JOIN categories c ON t.category_id = c.id`, then use `c.category` and `c.subcategory`
+- **"no such column: account_name"**: The transactions table uses `account_id` (FK). JOIN with accounts: `FROM transactions t JOIN accounts a ON t.account_id = a.id`, then use `a.name`
 - **Query returns no results**: Verify the time frame (e.g., `--param month=YYYY-MM`), check category spelling with `fin-query saved categories`, or try broadening the search (e.g., remove subcategory filter)
 - **Unknown saved query**: Run `fin-query saved --list` to see available templates or check `.claude/skills/ledger-query/reference/saved-queries.md`
 - **Invalid parameter name**: Consult `.claude/skills/ledger-query/reference/saved-queries.md` for the correct parameter names (e.g., `pattern` not `search`)
 - **LIKE pattern not matching**: Remember SQL LIKE syntax requires `%` wildcards (e.g., `%YouTube%` not `YouTube`)
 - **Database not found**: Verify `--db` path if using alternate database, otherwise check `~/.finagent/data.db` exists
+
+SQL Examples for Custom Queries
+When saved queries don't cover your needs, use these JOIN patterns:
+
+```sql
+-- Get transactions with category/subcategory names
+SELECT t.date, t.merchant, t.amount, c.category, c.subcategory
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+WHERE c.category = 'Shopping'
+ORDER BY t.date DESC;
+
+-- Get transactions with account details
+SELECT t.date, t.merchant, t.amount, a.name as account, a.institution
+FROM transactions t
+JOIN accounts a ON t.account_id = a.id
+WHERE a.institution = 'Chase'
+ORDER BY t.date DESC;
+
+-- Group by subcategory (common pattern)
+SELECT c.subcategory, COUNT(*) as count, ROUND(SUM(t.amount), 2) as total
+FROM transactions t
+JOIN categories c ON t.category_id = c.id
+WHERE c.category = 'Shopping'
+GROUP BY c.subcategory
+ORDER BY total DESC;
+```
 
 Reference
 - `.claude/skills/ledger-query/examples/common-queries.md` – ready-to-run snippets for frequent questions.
