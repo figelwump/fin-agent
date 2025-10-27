@@ -1,0 +1,117 @@
+September 2025 statement
+September [NAME] 30 (30 days)
+All dates in UTC
+[NAME] and [NAME]
+Account details
+[NAME]
+[NAME] ••2550
+[NAME]
+[ADDRESS]
+[ADDRESS] Account number [ACCOUNT_NUMBER]
+Routing number [ROUTING_NUMBER]
+[EMAIL]
+Account activity
+Beginning balance $24,707.51
+Total withdrawals $-52,387.15
+Total deposits $68,319.99
+Monthly Interest [NAME] $177.88
+[NAME] $0.00
+Statement balance $40,640.35
+Preauthorized charges $0.00
+Available balance $40,640.35
+Interest rate overview
+[NAME] [NAME] 3.69%
+[NAME] [NAME] 3.90%
+[NAME] (YTD)³ $506.89
+[NAME] services provided by [NAME], [NAME]
+[NAME] | [EMAIL] | [ADDRESS], [ADDRESS]
+[NAME] /
+Date (UTC) [NAME] End of [NAME]
+Sep 01 Savings Interest Interest Payment $87.74 $24,795.25
+Sep 02 UBS FINSVC  ACH In $30,000.00
+Transfer to Cash Sending Apps Transfer Out –$330.00
+APPLECARD GSBANK  ACH Pull –$4,982.03
+BB TUITION MGMT  ACH Pull –$10,717.00 $38,766.22
+Sep 04 AngelList  ACH In $443.45
+CHASE CREDIT CRD  ACH Pull –$5,577.63 $33,632.04
+Sep 05 Transfer to Mercury Checking ••2701 Transfer Out –$300.00
+PGANDE  ACH Pull –$63.96 $33,268.08
+Sep 08 AngelList  ACH In $9,652.23
+Transfer to Cash Sending Apps Transfer Out –$470.00
+UBS  Check Deposit $16,006.22 $58,456.53
+Sep 09 AngelList  ACH In $2,075.02 $60,531.55
+Sep 10 Bank of America - Checking ••2736  Transfer In $5,000.00 $65,531.55
+Sep 12 Transfer to Cash Sending Apps Transfer Out –$80.00
+TJH  Check Deposit $4,144.00 $69,595.55
+Sep 15 CHASE CREDIT CRD  ACH Pull –$554.38 $69,041.17
+Sep 16 PGANDE  ACH Pull –$24.67 $69,016.50
+Sep 18 AngelList  ACH In $740.24 $69,756.74
+Sep 22 Transfer to Cash Sending Apps Transfer Out –$470.00
+BANK OF AMERICA  ACH Pull –$10,009.48 $59,277.26
+Sep 23 AngelList  ACH In $171.09 $59,448.35
+Sep 29 Transfer to Cash Sending Apps Transfer Out –$470.00 $58,978.35
+Sep 30 BB TUITION MGMT  ACH Pull –$18,338.00 $40,640.35
+Total $40,640.35
+Banking services provided by Choice Financial Group, Member FDIC
+Mercury | help@mercury.com | 333 Bush Street, San Francisco, CA 94104
+Interest Disclosure ¹Interest is calculated monthly based on the daily
+available balance held by applicable accounts.
+²This account accrues interest at a rate of 3.69%.
+³Interest will only be paid when it is greater than or
+equal to $0.01.
+APY Disclosure Interest accrues daily at the funds rate as described
+in your Consumer Savings Account Agreement (the
+“Customer Agreement”) and is paid on a monthly basis.
+The Annual Percentage Yield Earned, as shown on
+your statement, may reflect account adjustments from
+previous statement periods.
+Banking services provided by Choice Financial Group, Member FDIC
+Mercury | help@mercury.com | 333 Bush Street, San Francisco, CA 94104
+Deposit Agreement Upon opening your account, you were provided
+with the Consumer Savings Account Agreement (the
+“Customer Agreement”). This document outlined the
+terms and conditions that regulate your account. By
+agreeing to this document, you acknowledged that
+your account would be subject to it's provisions, which
+may be modified periodically.
+Sweep Disclosure Mercury currently offers up to $5M in FDIC insurance
+through our partner Choice Financial Group and its
+How your FDIC coverage works respective sweep network. To learn more about the
+banks where your deposits are held, you can review
+our partner banks' sweep network banks under Choice
+Documents (Personal) on our Legal page. Please keep
+in mind that the list of receiving banks may change
+periodically.
+Banking services provided by Choice Financial Group, Member FDIC
+Mercury | help@mercury.com | 333 Bush Street, San Francisco, CA 94104
+Error Resolution Procedures If you think your account statement or receipt is wrong,
+or if you need more information about a transaction,
+Getting support please call us at +1 (415) 523–9118 or email us at
+help@mercury.com as soon as you can.
+In your email, please include:
+• Your name of and account number;
+• A description of the an error and the dollar amount
+involved, or the transfer you are unsure about;
+• A clear explanation as to why you believe it is an error
+or why you need more information;
+• and approximately when the error took place.
+We will review the information submitted in a
+commercially reasonable manner. Note we must hear
+from you no later than sixty (60) days after we provided
+the FIRST statement on which the problem or error
+appeared.
+We will investigate your complaint and will correct any
+error promptly. If we take more than 10 business days
+to do this, we will credit your account for the amount
+you think is in error, so that you will have the use of
+the money during the time it takes us to complete our
+investigation.
+To learn more about our error resolution process, email
+help@mercury.com.
+Reporting Other Problems You are in the best position to discover errors and
+unauthorized transactions on your account statement.
+It is your duty to review your account statements
+promptly and carefully and immediately notify us of any
+errors or concerns.
+Banking services provided by Choice Financial Group, Member FDIC
+Mercury | help@mercury.com | 333 Bush Street, San Francisco, CA 94104

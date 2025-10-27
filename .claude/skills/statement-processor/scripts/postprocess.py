@@ -25,6 +25,7 @@ _REQUIRED_COLUMNS = (
     "account_name",
     "institution",
     "account_type",
+    "last_4_digits",
     "category",
     "subcategory",
     "confidence",
@@ -40,10 +41,11 @@ class EnrichedTransaction:
     account_name: str
     institution: str
     account_type: str
+    last_4_digits: str
     category: str
     subcategory: str
     confidence: float
-    account_key: str
+    account_key: str  # v2 when last_4_digits is present
     fingerprint: str
     pattern_key: str | None = None
     pattern_display: str | None = None
@@ -64,6 +66,7 @@ class EnrichedTransaction:
             "account_name": self.account_name,
             "institution": self.institution,
             "account_type": self.account_type,
+            "last_4_digits": self.last_4_digits,
             "category": self.category,
             "subcategory": self.subcategory,
             "confidence": f"{self.confidence:.4f}",
@@ -199,6 +202,9 @@ def enrich_rows(
             account_name = _coerce_str(row, "account_name")
             institution = _coerce_str(row, "institution")
             account_type = _coerce_str(row, "account_type").lower()
+            last_4_digits = _coerce_str(row, "last_4_digits")
+            if not last_4_digits.isdigit() or len(last_4_digits) != 4:
+                raise ValueError("last_4_digits must be exactly 4 digits")
             category = _coerce_str(row, "category", allow_empty=True)
             subcategory = _coerce_str(row, "subcategory", allow_empty=True)
             confidence = _parse_confidence(row.get("confidence"))
@@ -225,7 +231,20 @@ def enrich_rows(
                 # Category provided by LLM and not cleared
                 source = "llm_extraction"
 
-            account_key = models.compute_account_key(account_name, institution, account_type)
+            # Ensure account_name does not carry trailing last 4 digits
+            # Common patterns: "... 6033", "... - 6033". Keep simple trailing 4-digit strip for safety.
+            if account_name.endswith(last_4_digits):
+                # Remove the trailing 4 digits and any trailing spaces/dashes
+                stripped = account_name[: -4].rstrip(" -•#")
+                if stripped:
+                    account_name = stripped
+
+            # Prefer v2 key using last_4_digits
+            account_key = models.compute_account_key_v2(
+                institution=institution,
+                account_type=account_type,
+                last_4_digits=last_4_digits,
+            )
             fingerprint = models.compute_transaction_fingerprint(
                 date_obj,
                 amount,
@@ -308,6 +327,7 @@ def enrich_rows(
                     account_name=account_name,
                     institution=institution,
                     account_type=account_type,
+                    last_4_digits=last_4_digits,
                     category=category,
                     subcategory=subcategory,
                     confidence=confidence,

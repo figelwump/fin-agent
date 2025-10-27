@@ -26,6 +26,8 @@ class ImportedTransaction:
     account_type: str
     account_key: str
     account_id: int | None = None
+    # Optional; extractor may not always provide this yet. Included for forward-compat.
+    last_4_digits: str | None = None
 
 
 REQUIRED_HEADERS = {
@@ -41,6 +43,7 @@ REQUIRED_HEADERS = {
 OPTIONAL_HEADERS = {
     "account_key",
     "account_id",
+    "last_4_digits",
 }
 
 
@@ -129,6 +132,8 @@ def _parse_row(row: dict[str, str | None]) -> ImportedTransaction:
     account_raw = (row.get("account_id") or "").strip()
     account_id = int(account_raw) if account_raw else None
 
+    last_4_digits = (row.get("last_4_digits") or "").strip() or None
+
     return ImportedTransaction(
         date=dt,
         merchant=merchant,
@@ -139,4 +144,5 @@ def _parse_row(row: dict[str, str | None]) -> ImportedTransaction:
         account_type=account_type,
         account_key=account_key,
         account_id=account_id,
+        last_4_digits=last_4_digits,
     )

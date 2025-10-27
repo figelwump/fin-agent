@@ -13,14 +13,20 @@ Teach the agent how to categorize uncategorized transactions using a two-phase a
 The skill validates against the existing taxonomy and learns merchant patterns for future auto-categorization.
 
 Environment
-- `source .venv/bin/activate`
+- Activate the venv before running any python script:
+   ```bash
+   source .venv/bin/activate
+   ```
 
 Database Path
 - Omit `--db` to use the default location (`~/.finagent/data.db`)
 - Only specify `--db <path>` when the user explicitly provides an alternate database
 
 Working Directory
-- Use `.claude/skills/transaction-categorizer/scripts/bootstrap.sh` to create a workspace for the categorization session (it reuses `SESSION_SLUG` exported by the statement-processor skill, or accept `--session` when starting standalone): `eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"`. This exports:
+- Use `.claude/skills/transaction-categorizer/scripts/bootstrap.sh` to create a workspace for the categorization session. It reuses `SESSION_SLUG` exported by the statement-processor skill, or you can provide `--session` when starting standalone. Examples:
+  - After statement-processor: `eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"`
+  - Standalone: `eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh --session 'categorize-YYYYMMDD')"`
+  This exports:
   - `FIN_CATEGORIZER_WORKDIR` - root working directory
   - `FIN_CATEGORIZER_QUERIES_DIR` - for saved query results (uncategorized.json)
   - `FIN_CATEGORIZER_PROMPTS_DIR` - for generated LLM prompts
@@ -41,39 +47,24 @@ Principles
 
 **Step 0: Initialize workspace**
 
-**IMPORTANT**: Set `SESSION_SLUG` before bootstrapping to ensure all commands use the same workspace directory.
+**IMPORTANT**: Run bootstrap once per workflow run to set/reuse the session slug so all commands use the same workspace directory.
 
-**If running after statement-processor**: The `SESSION_SLUG` will already be exported - just run bootstrap:
+After statement-processor: the `SESSION_SLUG` is already exported — just run bootstrap:
 ```bash
 eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
 ```
 
-**If running standalone**: Export a session slug first, then bootstrap:
+Standalone: let bootstrap set the slug for you (no manual export needed):
 ```bash
-export SESSION_SLUG="categorize-$(date +%Y%m%d-%H%M%S)"
-eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
+eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh --session "categorize-$(date +%Y%m%d-%H%M%S)")"
 ```
 
-All subsequent commands in the session **must** maintain this `SESSION_SLUG` to use the same workspace. Either:
-- Run all commands in a single bash session (preferred), OR
-- Export `SESSION_SLUG` at the start of each command chain
+All subsequent commands in the session share this `SESSION_SLUG` because bootstrap prints exports and `eval` applies them to your current shell.
 
 **Step 1: Query and save uncategorized transactions**
 
-**Best Practice**: Chain all commands together in a single bash invocation to maintain the workspace context:
 ```bash
-source .venv/bin/activate && \
-export SESSION_SLUG="categorize-$(date +%Y%m%d-%H%M%S)" && \
-eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)" && \
 fin-query saved uncategorized --format json > "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json" && \
-jq 'length' "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json"
-```
-
-Alternatively, if running commands separately, ensure `SESSION_SLUG` is exported in each command:
-```bash
-export SESSION_SLUG="categorize-$(date +%Y%m%d-%H%M%S)"
-eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
-fin-query saved uncategorized --format json > "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json"
 jq 'length' "$FIN_CATEGORIZER_QUERIES_DIR/uncategorized.json"
 ```
 

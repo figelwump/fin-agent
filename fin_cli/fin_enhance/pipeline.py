@@ -268,6 +268,8 @@ class ImportPipeline:
                 name=txn.account_name,
                 institution=txn.institution,
                 account_type=txn.account_type,
+                # ImportedTransaction may not have last_4_digits (extractor path). If present, prefer it.
+                last_4_digits=getattr(txn, "last_4_digits", None),
             )
             self._account_cache[cache_key] = account_id
         txn.account_id = account_id

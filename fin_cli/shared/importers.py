@@ -24,6 +24,7 @@ _REQUIRED_ENRICHED_COLUMNS = {
     "account_name",
     "institution",
     "account_type",
+    "last_4_digits",
     "category",
     "subcategory",
 }
@@ -51,6 +52,7 @@ class EnrichedCSVTransaction:
     account_name: str
     institution: str
     account_type: str
+    last_4_digits: str
     category: str
     subcategory: str
     confidence: float
@@ -112,14 +114,17 @@ def _parse_enriched_row(
     account_name = (row.get("account_name") or "").strip()
     institution = (row.get("institution") or "").strip()
     account_type = (row.get("account_type") or "").strip().lower()
+    last_4_digits = (row.get("last_4_digits") or "").strip()
     category = (row.get("category") or "").strip()
     subcategory = (row.get("subcategory") or "").strip()
 
     # Account fields are required, but category/subcategory can be empty (uncategorized transactions)
-    if not all([account_name, institution, account_type]):
+    if not all([account_name, institution, account_type, last_4_digits]):
         raise CSVImportError(
             f"{source_name}: Missing required account fields for merchant '{merchant}'"
         )
+    if not last_4_digits.isdigit() or len(last_4_digits) != 4:
+        raise CSVImportError(f"{source_name}: last_4_digits must be exactly 4 digits")
 
     raw_conf = (row.get("confidence") or "").strip()
     confidence = (
@@ -128,9 +133,13 @@ def _parse_enriched_row(
         else max(0.0, min(1.0, default_confidence))
     )
 
-    account_key = (row.get("account_key") or "").strip()
-    if not account_key:
-        account_key = models.compute_account_key(account_name, institution, account_type)
+    # Always recompute v2 key from institution+type+last4; ignore supplied key for identity
+    recomputed_v2 = models.compute_account_key_v2(
+        institution=institution,
+        account_type=account_type,
+        last_4_digits=last_4_digits,
+    )
+    account_key = (row.get("account_key") or "").strip() or recomputed_v2
 
     fingerprint = (row.get("fingerprint") or "").strip()
     if not fingerprint:
@@ -139,7 +148,7 @@ def _parse_enriched_row(
             amount,
             merchant,
             None,
-            account_key,
+            recomputed_v2,
         )
 
     account_id_value = (row.get("account_id") or "").strip()
@@ -178,6 +187,7 @@ def _parse_enriched_row(
         pattern_key=pattern_key,
         pattern_display=pattern_display,
         merchant_metadata=merchant_metadata,
+        last_4_digits=last_4_digits,
     )
 
 

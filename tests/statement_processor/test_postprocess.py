@@ -39,6 +39,7 @@ def _sample_row() -> Dict[str, Any]:
         "account_name": "Chase Prime Visa",
         "institution": "Chase",
         "account_type": "Credit",
+        "last_4_digits": "6033",
         "category": "Shopping",
         "subcategory": "Online Retail",
         "confidence": "0.95",
@@ -50,7 +51,11 @@ def test_enrich_rows_computes_hashes(tmp_path: Path) -> None:
 
     assert len(enriched) == 1
     txn = enriched[0]
-    expected_account_key = models.compute_account_key("Chase Prime Visa", "Chase", "credit")
+    expected_account_key = models.compute_account_key_v2(
+        institution="Chase",
+        account_type="credit",
+        last_4_digits="6033",
+    )
     assert txn.account_key == expected_account_key
     assert txn.merchant == "AMAZON"
 
@@ -94,6 +99,7 @@ def test_cli_writes_enriched_csv(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert output_path.exists()
     contents = output_path.read_text(encoding="utf-8")
+    assert "last_4_digits" in contents
     assert "account_key" in contents
     assert "fingerprint" in contents
     assert "pattern_key" in contents
@@ -213,6 +219,7 @@ def test_cli_apply_patterns(tmp_path: Path) -> None:
                 "account_name": "Chase Prime Visa",
                 "institution": "Chase",
                 "account_type": "credit",
+                "last_4_digits": "6033",
                 "category": "",
                 "subcategory": "",
                 "confidence": "0.10",

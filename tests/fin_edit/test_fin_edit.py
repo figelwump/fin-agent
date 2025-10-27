@@ -38,6 +38,7 @@ def _write_enriched_csv(path: Path, rows: list[dict[str, str]]) -> None:
         "account_name",
         "institution",
         "account_type",
+        "last_4_digits",
         "category",
         "subcategory",
         "confidence",
@@ -70,8 +71,14 @@ def _make_enriched_row(
     pattern_key: str | None = None,
     pattern_display: str | None = None,
     merchant_metadata: dict[str, object] | None = None,
+    last_4_digits: str = "6033",
 ) -> dict[str, str]:
-    account_key = models.compute_account_key(account_name, institution, account_type)
+    # Prefer v2 key based on institution+type+last4
+    account_key = models.compute_account_key_v2(
+        institution=institution,
+        account_type=account_type,
+        last_4_digits=last_4_digits,
+    )
     fingerprint = models.compute_transaction_fingerprint(
         txn_date,
         amount,
@@ -87,6 +94,7 @@ def _make_enriched_row(
         "account_name": account_name,
         "institution": institution,
         "account_type": account_type,
+        "last_4_digits": last_4_digits,
         "category": category[0],
         "subcategory": category[1],
         "confidence": confidence,

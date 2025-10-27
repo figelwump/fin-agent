@@ -409,15 +409,24 @@ def _import_enriched_transactions(
                 summary.uncategorized += 1
 
             if row.account_id is None:
-                account_key = (row.account_name, row.institution, row.account_type)
+                # Prefer lookup by (institution, account_type, last_4_digits)
+                account_key = (row.account_name, row.institution, row.account_type, row.last_4_digits)
                 if account_key not in account_cache:
-                    result = connection.execute(
-                        "SELECT id FROM accounts WHERE name = ? AND institution = ? AND account_type = ?",
-                        account_key,
-                    ).fetchone()
+                    result = None
+                    if row.last_4_digits:
+                        result = connection.execute(
+                            "SELECT id FROM accounts WHERE institution = ? AND account_type = ? AND last_4_digits = ?",
+                            (row.institution, row.account_type, row.last_4_digits),
+                        ).fetchone()
+                    if not result:
+                        # Fallback to legacy triple including name
+                        result = connection.execute(
+                            "SELECT id FROM accounts WHERE name = ? AND institution = ? AND account_type = ?",
+                            (row.account_name, row.institution, row.account_type),
+                        ).fetchone()
                     account_cache[account_key] = int(result[0]) if result else None
             else:
-                account_cache[(row.account_name, row.institution, row.account_type)] = row.account_id
+                account_cache[(row.account_name, row.institution, row.account_type, row.last_4_digits)] = row.account_id
 
         if summary.categories_missing and not allow_category_creation:
             missing_formatted = ", ".join(
@@ -437,9 +446,9 @@ def _import_enriched_transactions(
                         summary.categories_created.add(category_key)
 
                 if row.account_id is None:
-                    account_key = (row.account_name, row.institution, row.account_type)
+                    account_key = (row.account_name, row.institution, row.account_type, row.last_4_digits)
                     if account_cache.get(account_key) is None:
-                        summary.accounts_created.add(account_key)
+                        summary.accounts_created.add((row.account_name, row.institution, row.account_type))
 
                 _check_fingerprint(cli_ctx, row, account_cache.get((row.account_name, row.institution, row.account_type)))
                 existing = connection.execute(
@@ -480,7 +489,7 @@ def _import_enriched_transactions(
                     summary.categories_created.add(category_key)
 
             account_id = row.account_id
-            account_key = (row.account_name, row.institution, row.account_type)
+            account_key = (row.account_name, row.institution, row.account_type, row.last_4_digits)
             if account_id is None:
                 account_id = account_cache.get(account_key)
                 if account_id is None:
@@ -489,10 +498,11 @@ def _import_enriched_transactions(
                         name=row.account_name,
                         institution=row.institution,
                         account_type=row.account_type,
+                        last_4_digits=row.last_4_digits,
                         auto_detected=False,
                     )
                     account_cache[account_key] = account_id
-                    summary.accounts_created.add(account_key)
+                    summary.accounts_created.add((row.account_name, row.institution, row.account_type))
             else:
                 account_cache[account_key] = account_id
 

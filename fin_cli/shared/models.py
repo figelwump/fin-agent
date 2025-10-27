@@ -20,6 +20,8 @@ class Account:
     institution: str
     account_type: str
     auto_detected: bool
+    # Optional last 4 digits for stable identification; may be null for legacy rows
+    last_4_digits: str | None = None
 
 
 @dataclass(slots=True)
@@ -61,7 +63,11 @@ def compute_transaction_fingerprint(
     account_id: int | None,
     account_key: str | None = None,
 ) -> str:
-    """Return a deterministic hash for deduplication."""
+    """Return a deterministic hash for deduplication.
+
+    Prefer a stable `account_key` (v2 when available); fall back to `account_id` only
+    as a defensive measure. This keeps fingerprints independent of DB row ids.
+    """
     if account_key:
         account_identifier = account_key
     elif account_id is not None:
@@ -80,7 +86,10 @@ def compute_transaction_fingerprint(
 
 
 def compute_account_key(name: str, institution: str, account_type: str) -> str:
-    """Stable hash representing an account by its descriptive fields."""
+    """Legacy v1 key: hash of name+institution+account_type.
+
+    Kept for compatibility with older CSVs and extractors that do not provide last4.
+    """
 
     normalized = "|".join(
         [
@@ -92,24 +101,56 @@ def compute_account_key(name: str, institution: str, account_type: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def compute_account_key_v2(*, institution: str, account_type: str, last_4_digits: str) -> str:
+    """Stable key based on institution + account_type + last_4_digits.
+
+    This excludes the display `name` to avoid formatting drift and is preferred
+    for fingerprints and matching when last4 is available.
+    """
+    normalized = "|".join(
+        [
+            institution.strip().lower(),
+            account_type.strip().lower(),
+            last_4_digits.strip(),
+        ]
+    )
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 def upsert_account(
     connection: sqlite3.Connection,
     *,
     name: str,
     institution: str,
     account_type: str,
+    last_4_digits: str | None = None,
     auto_detected: bool = True,
 ) -> int:
-    """Insert a new account if needed and return its ID."""
+    """Insert a new account if needed and return its ID.
+
+    Primary match by (institution, account_type, last_4_digits) when last4 is provided.
+    Fallback to exact name match for legacy scenarios.
+    """
+    if last_4_digits:
+        row = connection.execute(
+            """
+            SELECT id FROM accounts
+            WHERE institution = ? AND account_type = ? AND last_4_digits = ?
+            """,
+            (institution, account_type, last_4_digits),
+        ).fetchone()
+        if row:
+            return int(row[0])
+
     row = connection.execute("SELECT id FROM accounts WHERE name = ?", (name,)).fetchone()
     if row:
         return int(row[0])
     cursor = connection.execute(
         """
-        INSERT INTO accounts (name, institution, account_type, auto_detected)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO accounts (name, institution, account_type, last_4_digits, auto_detected)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (name, institution, account_type, auto_detected),
+        (name, institution, account_type, last_4_digits, auto_detected),
     )
     return int(cursor.lastrowid)
 

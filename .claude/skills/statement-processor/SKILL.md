@@ -15,19 +15,14 @@ Teach the agent how to extract and import bank statements end-to-end.
    ```
 
 ## Setup (Run Once Per Session)
-**IMPORTANT: These steps run ONCE at the start. The bash session persists, so environment variables remain available for all subsequent commands.**
-1. Pick a session slug you can reuse across both skills (example):
+**IMPORTANT: Run bootstrap ONCE at the start. It prints export lines; `eval` applies them so the variables persist for the rest of the session.**
+1. Initialise the statement workspace and let bootstrap set environment variables (no need to export manually):
    ```bash
-   SESSION_SLUG="bofa-visa0653-20251022t2105"
-   ```
-
-2. Initialise the statement workspace with that slug (no timestamp appended when `--session` is used):
-   ```bash
-   eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh --session \"$SESSION_SLUG\")"
+   eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh --session 'your-session-slug')"
    ```
    - This exports `SESSION_SLUG`, `FIN_STATEMENT_WORKDIR`, `FIN_STATEMENT_SCRUBBED_DIR`, `FIN_STATEMENT_PROMPTS_DIR`, `FIN_STATEMENT_LLM_DIR`, and `FIN_STATEMENT_ENRICHED_DIR`.
-   - These environment variables persist throughout the session and are used by all subsequent commands.
-   - Companion skills (like `transaction-categorizer`) can discover the same run directory automatically.
+   - Alternative (timestamped workspace): `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh your-label)"`.
+   - Companion skills (like `transaction-categorizer`) can reuse the same `SESSION_SLUG` automatically.
 
 ## Workflow (Sequential Loop)
 Process statements one at a time. For each PDF, run the full loop before touching the next file:
@@ -45,6 +40,12 @@ Process statements one at a time. For each PDF, run the full loop before touchin
    g. If any command fails or the sanity checks above are unexpected, stop the loop and resolve the issue before moving to the next statement.
 
 The prompt builder focuses purely on extraction guidance. Category taxonomy and merchant hints are fetched later by the transaction-categorizer skill. If you need to inspect taxonomy data separately for debugging, run `python .claude/skills/statement-processor/scripts/preprocess.py --input scrubbed.txt --emit-json` or query the catalog directly with `fin-query` (e.g., `fin-query saved categories --format json`).
+
+## CSV Requirements (LLM Output)
+- Required header (order fixed):
+  `date,merchant,amount,original_description,account_name,institution,account_type,last_4_digits,category,subcategory,confidence`
+- `last_4_digits` is REQUIRED and must be exactly 4 digits (e.g., `6033`). Do not include these digits in `account_name`.
+- Postprocess writes `account_key`, `fingerprint`, `pattern_key`, `pattern_display`, `merchant_metadata`, and `source` columns and preserves `last_4_digits`.
 
 ## Working Directory
 - Bootstrap creates a deterministic run directory (e.g., `~/.finagent/skills/statement-processor/chase-6033-20251023`) that matches the categorizer workspace.
@@ -81,7 +82,7 @@ The prompt builder focuses purely on extraction guidance. Category taxonomy and 
 - `fin-query saved merchants --format json --min-count N`: retrieve merchant taxonomy for debugging.
 
 ## Common Errors
-- **Missing CSV columns**: Verify LLM output has all required fields: `date,merchant,amount,original_description,account_name,institution,account_type,category,subcategory,confidence`. Run postprocess.py to add `account_key` and `fingerprint`.
+- **Missing CSV columns**: Verify LLM output has all required fields: `date,merchant,amount,original_description,account_name,institution,account_type,last_4_digits,category,subcategory,confidence`. Run postprocess.py to add `account_key`, `fingerprint`, and related columns.
 - **Fingerprint collision on import**: Transaction already exists in database. This is expected behavior - duplicates are automatically skipped.
 - **Invalid confidence value**: Ensure confidence is between 0 and 1. Use `--default-confidence 0.9` to fill empty cells during import.
 - **Unknown category on import**: Either edit the CSV to use existing categories (check with `fin-query saved categories`) or allow creation by omitting `--no-create-categories` flag.
@@ -90,7 +91,6 @@ The prompt builder focuses purely on extraction guidance. Category taxonomy and 
 - **Malformed amount**: Ensure amounts are positive decimals with two decimal places. Credits/refunds should be excluded upstream.
 
 ## Reference Material
-- `.claude/skills/statement-processor/examples/llm-extraction.md` – end-to-end walkthrough for a single statement.
 - `.claude/skills/statement-processor/reference/csv-format.md` – canonical schema for enriched CSVs.
 
 ## Validation After Import
