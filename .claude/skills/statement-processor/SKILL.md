@@ -25,21 +25,55 @@ Teach the agent how to extract and import bank statements end-to-end.
    - Companion skills (like `transaction-categorizer`) can reuse the same `SESSION_SLUG` automatically.
 
 ## Workflow (Sequential Loop)
-Process statements one at a time. For each PDF, run the full loop before touching the next file:
-**IMPORTANT: Prepend "source .venv/bin/activate &&" before running any python script**
-   a. Scrub sensitive data into the workspace: `fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"`.
-   b. Build the prompt (single statement per invocation): `python .claude/skills/statement-processor/scripts/preprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --input "$FIN_STATEMENT_SCRUBBED_DIR/<file>-scrubbed.txt"`.
-   c. Send the prompt to your LLM (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
-   d. Enrich and apply known patterns: `python .claude/skills/statement-processor/scripts/postprocess.py --workdir "$FIN_STATEMENT_WORKDIR" --apply-patterns --verbose`.
-   e. Import validated rows (preview first, then apply with pattern learning):  
-      `fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv`  
-      `fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv --learn-patterns --learn-threshold 0.75`
-   f. Immediately hand the newly imported transactions to the `transaction-categorizer` skill (its bootstrap reuses `SESSION_SLUG`), apply categorizations, and confirm success:  
-      `fin-query saved uncategorized --limit 5` (should shrink) and  
-      `fin-query saved merchant_patterns --limit 5 --format table` (should reflect new patterns).
-   g. If any command fails or the sanity checks above are unexpected, stop the loop and resolve the issue before moving to the next statement.
 
-The prompt builder focuses purely on extraction guidance. Category taxonomy and merchant hints are fetched later by the transaction-categorizer skill. If you need to inspect taxonomy data separately for debugging, run `python .claude/skills/statement-processor/scripts/preprocess.py --input scrubbed.txt --emit-json` or query the catalog directly with `fin-query` (e.g., `fin-query saved categories --format json`).
+Process statements one at a time. For each PDF, run the full loop before touching the next file.
+
+**IMPORTANT:** Prepend `source .venv/bin/activate &&` before running any python script.
+
+### Steps
+
+1. **Scrub sensitive data into the workspace:**
+   ```bash
+   fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"
+   ```
+
+2. **Build the prompt** (single statement per invocation):
+   ```bash
+   python .claude/skills/statement-processor/scripts/preprocess.py \
+     --workdir "$FIN_STATEMENT_WORKDIR" \
+     --input "$FIN_STATEMENT_SCRUBBED_DIR/<file>-scrubbed.txt"
+   ```
+
+3. **Send the prompt to your LLM** (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
+
+4. **Enrich and apply known patterns:**
+   ```bash
+   python .claude/skills/statement-processor/scripts/postprocess.py \
+     --workdir "$FIN_STATEMENT_WORKDIR" \
+     --apply-patterns --verbose
+   ```
+
+5. **Import validated rows** (preview first, then apply with pattern learning):
+   ```bash
+   # Preview
+   fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv
+
+   # Apply
+   fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv \
+     --learn-patterns --learn-threshold 0.75
+   ```
+
+6. **Hand off to transaction-categorizer skill** to handle remaining uncategorized transactions. The categorizer's bootstrap reuses `SESSION_SLUG`. Verify success with:
+   ```bash
+   fin-query saved uncategorized --limit 5  # Should shrink
+   fin-query saved merchant_patterns --limit 5 --format table  # Should reflect new patterns
+   ```
+
+7. **If any command fails** or the sanity checks above are unexpected, stop the loop and resolve the issue before moving to the next statement.
+
+---
+
+**Note:** The prompt builder focuses purely on extraction guidance. Category taxonomy and merchant hints are fetched later by the transaction-categorizer skill. If you need to inspect taxonomy data separately for debugging, run `python .claude/skills/statement-processor/scripts/preprocess.py --input scrubbed.txt --emit-json` or query the catalog directly with `fin-query` (e.g., `fin-query saved categories --format json`).
 
 ## CSV Requirements (LLM Output)
 - Required header (order fixed):
