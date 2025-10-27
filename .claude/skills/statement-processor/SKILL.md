@@ -21,8 +21,6 @@ Teach the agent how to extract and import bank statements end-to-end.
    eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh --session 'your-session-slug')"
    ```
    - This exports `SESSION_SLUG`, `FIN_STATEMENT_WORKDIR`, `FIN_STATEMENT_SCRUBBED_DIR`, `FIN_STATEMENT_PROMPTS_DIR`, `FIN_STATEMENT_LLM_DIR`, and `FIN_STATEMENT_ENRICHED_DIR`.
-   - Alternative (timestamped workspace): `eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh your-label)"`.
-   - Companion skills (like `transaction-categorizer`) can reuse the same `SESSION_SLUG` automatically.
 
 ## Workflow (Sequential Loop)
 
@@ -63,7 +61,7 @@ Process statements one at a time. For each PDF, run the full loop before touchin
      --learn-patterns --learn-threshold 0.75
    ```
 
-6. **Hand off to transaction-categorizer skill** to handle remaining uncategorized transactions. The categorizer's bootstrap reuses `SESSION_SLUG`. Verify success with:
+6. **Hand off to transaction-categorizer skill** to handle remaining uncategorized transactions. Verify success with:
    ```bash
    fin-query saved uncategorized --limit 5  # Should shrink
    fin-query saved merchant_patterns --limit 5 --format table  # Should reflect new patterns
@@ -82,7 +80,7 @@ Process statements one at a time. For each PDF, run the full loop before touchin
 - Postprocess writes `account_key`, `fingerprint`, `pattern_key`, `pattern_display`, `merchant_metadata`, and `source` columns and preserves `last_4_digits`.
 
 ## Working Directory
-- Bootstrap creates a deterministic run directory (e.g., `~/.finagent/skills/statement-processor/chase-6033-20251023`) that matches the categorizer workspace.
+- Bootstrap creates a deterministic run directory (e.g., `~/.finagent/skills/statement-processor/chase-6033-20251023`). Use a similar slug for downstream skills if you want easier cross-referencing, but each skill can bootstrap independently.
 - All helper CLIs accept `--workdir` so they can auto-discover `scrubbed/`, `prompts/`, `llm/`, and `enriched/` subdirectories.
 - The bash session persists between commands, so exported environment variables (like `$FIN_STATEMENT_WORKDIR`) remain available without re-running bootstrap.
 - Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside the workspace and clean up once the import is committed to the database.
@@ -106,7 +104,7 @@ Process statements one at a time. For each PDF, run the full loop before touchin
 - Validate inserts with `fin-query saved recent_imports --limit 10` or `fin-query saved transactions_month --param month=YYYY-MM`.
 
 ## Available Commands
-- `.claude/skills/statement-processor/scripts/bootstrap.sh`: initialise a run workspace ONCE per session (supports `--session` for shared slugs) and export helper environment variables (use via `eval "$(...)"`). Run this during Environment Setup only.
+- `.claude/skills/statement-processor/scripts/bootstrap.sh`: initialise a run workspace ONCE per session (supports `--session` to pick a specific slug) and export helper environment variables (use via `eval "$(...)"`). Run this during Environment Setup only.
 - `fin-scrub`: sanitize PDFs to redact PII.
 - `python .claude/skills/statement-processor/scripts/preprocess.py`: build per-statement prompts with existing taxonomies; rejects multi-input usage.
 - `python .claude/skills/statement-processor/scripts/postprocess.py`: append `account_key`/`fingerprint`/`source` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns. Use `--verbose` to see pattern matching details.
@@ -148,8 +146,4 @@ fin-query saved uncategorized --limit 10
 ## Next Steps for Agents
 - Ensure enriched CSVs include `account_key`, `fingerprint`, and `source` columns before import.
 - Use `--verbose` flag with `.claude/skills/statement-processor/scripts/postprocess.py` to see pattern matching details and identify uncategorized transactions.
-- After import, transition to `transaction-categorizer` skill to handle uncategorized or low-confidence transactions:
-  - The categorizer will ALWAYS attempt LLM categorization (Haiku) first for ALL uncategorized transactions
-  - Only if leftovers remain after LLM categorization, the categorizer will use interactive manual review
-  - Merchant patterns are learned automatically to improve future imports
 - Review the `source` column in enriched CSVs to understand categorization provenance: `llm_extraction`, `pattern_match`, or empty (uncategorized).

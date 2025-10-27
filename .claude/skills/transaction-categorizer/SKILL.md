@@ -23,9 +23,11 @@ Database Path
 - Only specify `--db <path>` when the user explicitly provides an alternate database
 
 Working Directory
-- Use `.claude/skills/transaction-categorizer/scripts/bootstrap.sh` to create a workspace for the categorization session. It reuses `SESSION_SLUG` exported by the statement-processor skill, or you can provide `--session` when starting standalone. Examples:
-  - After statement-processor: `eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"`
-  - Standalone: `eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh --session 'categorize-YYYYMMDD')"`
+- Use `.claude/skills/transaction-categorizer/scripts/bootstrap.sh --session '<slug>'` to create a workspace for the categorization session.
+  Example:
+  ```bash
+  eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh --session 'your-session-slug'"
+  ```
   This exports:
   - `FIN_CATEGORIZER_WORKDIR` - root working directory
   - `FIN_CATEGORIZER_QUERIES_DIR` - for saved query results (uncategorized.json)
@@ -47,19 +49,7 @@ Principles
 
 **Step 0: Initialize workspace**
 
-**IMPORTANT**: Run bootstrap once per workflow run to set/reuse the session slug so all commands use the same workspace directory.
-
-After statement-processor: the `SESSION_SLUG` is already exported — just run bootstrap:
-```bash
-eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh)"
-```
-
-Standalone: let bootstrap set the slug for you (no manual export needed):
-```bash
-eval "$(.claude/skills/transaction-categorizer/scripts/bootstrap.sh --session "categorize-$(date +%Y%m%d-%H%M%S)")"
-```
-
-All subsequent commands in the session share this `SESSION_SLUG` because bootstrap prints exports and `eval` applies them to your current shell.
+**IMPORTANT**: Run bootstrap once per workflow run (ideally chained with your next command) so the exports apply to the current shell instance when you launch categorizer commands.
 
 **Step 1: Query and save uncategorized transactions**
 
