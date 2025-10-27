@@ -36,7 +36,7 @@ Working Directory
 Principles
 - Always load the existing taxonomy first to prevent bloat
 - Use `fin-edit` for writes (dry-run by default; add `--apply`)
-- Prefer existing categories when possible; however, feel free to create new ones as needed
+- Prefer existing categories when possible; new categories will be created automatically when needed (using `--create-if-missing`)
 - **LLM-First Approach**: Always try LLM categorization first for ALL uncategorized transactions, then fall back to manual review only for leftovers
 - We want to minimize how many transactions a user has to manually review, so think hard to categorize as many transactions as you can.
 - **Confidence Threshold**:
@@ -98,14 +98,14 @@ Preview the categorization:
 ```bash
 fin-edit set-category --transaction-id <id> \
   --category "<category>" --subcategory "<subcategory>" \
-  --confidence <confidence> --method llm:auto
+  --confidence <confidence> --method llm:auto --create-if-missing
 ```
 
 After reviewing the preview, apply and learn the pattern:
 ```bash
 fin-edit --apply set-category --transaction-id <id> \
   --category "<category>" --subcategory "<subcategory>" \
-  --confidence <confidence> --method llm:auto
+  --confidence <confidence> --method llm:auto --create-if-missing
 
 # Learn the pattern for future auto-categorization
 fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
@@ -179,12 +179,12 @@ Use this category? [y/n or provide alternative]
 # Preview (no writes)
 fin-edit set-category --transaction-id <id> \
   --category "Food & Dining" --subcategory "Coffee" \
-  --confidence 1.0 --method claude:interactive
+  --confidence 1.0 --method claude:interactive --create-if-missing
 
 # Apply after user confirms
 fin-edit --apply set-category --transaction-id <id> \
   --category "Food & Dining" --subcategory "Coffee" \
-  --confidence 1.0 --method claude:interactive
+  --confidence 1.0 --method claude:interactive --create-if-missing
 ```
 
 **5) Learn the pattern**
@@ -204,7 +204,7 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 - `python .claude/skills/transaction-categorizer/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
 - `fin-query saved uncategorized`: Query uncategorized transactions from the database.
 - `fin-query saved categories`: Query existing category taxonomy.
-- `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write).
+- `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write). Always use `--create-if-missing` to auto-create new categories.
 - `fin-edit add-merchant-pattern`: Learn merchant patterns for future auto-categorization (dry-run by default; add `--apply` to write).
 
 ## Tips for Efficient Categorization
@@ -214,6 +214,12 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 - Prioritize high-frequency merchants first to maximize impact
 - After categorizing one transaction, immediately add a merchant pattern so future transactions auto-categorize
 - Use `fin-edit --apply add-merchant-pattern` aggressively to build up the pattern database
+
+**Merchant pattern best practices:**
+- Prefer normalized/robust patterns (e.g., `AMZN%`, `AMAZON%` over full descriptions)
+- Use confidence 0.9 as a good default for user-trained rules; 0.95 for very certain patterns
+- Always use `--create-if-missing` flag when applying categorizations - new categories will be created automatically
+- Use `--display` to set a friendly merchant name (e.g., `--display "Amazon"` for pattern `AMAZON%`)
 
 **Progress tracking:**
 - Process transactions in batches and show progress ("Categorized 45 of 120 remaining")
@@ -251,6 +257,4 @@ When to Use This Skill vs Statement-Processor
 - **Use transaction-categorizer** after import to handle remaining uncategorized transactions (handles LLM bulk categorization for ALL uncategorized, then manual review for leftovers only)
 
 References
-- .claude/skills/transaction-categorizer/examples/interactive-review.md
-- .claude/skills/transaction-categorizer/examples/pattern-learning.md
-- .claude/skills/transaction-categorizer/reference/common-categories.md
+- .claude/skills/transaction-categorizer/reference/common-categories.md - Fallback category taxonomy when user's database is empty
