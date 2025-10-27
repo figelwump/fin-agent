@@ -437,6 +437,34 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
             writer.writerow(txn.as_dict())
 
 
+def _validate_workdir(_: click.Context, __: click.Parameter, value: str | None) -> Path | None:
+    """Validate the --workdir argument before the main CLI logic runs.
+
+    The harness occasionally expands an unset shell variable to an empty string,
+    which Click would otherwise interpret as the current directory. Guarding here
+    prevents confusing lookups like <repo>/llm when FIN_STATEMENT_WORKDIR is
+    missing."""
+
+    if value is None:
+        return None
+
+    trimmed = value.strip()
+    if not trimmed:
+        raise click.ClickException(
+            "--workdir was provided but resolved to an empty string. "
+            "Did you forget to eval bootstrap.sh so FIN_STATEMENT_WORKDIR is exported?"
+        )
+
+    candidate = Path(trimmed).expanduser()
+    if not candidate.exists():
+        raise click.ClickException(f"Workspace {candidate.resolve()} does not exist. Run bootstrap.sh first.")
+
+    if not candidate.is_dir():
+        raise click.ClickException(f"Workspace {candidate.resolve()} is not a directory.")
+
+    return candidate.resolve()
+
+
 @click.command()
 @click.option("--input", "input_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), required=False)
 @click.option("--output", "output_path", type=click.Path(path_type=Path, dir_okay=False), help="Optional destination for enriched CSV.")
@@ -448,7 +476,8 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
 @click.option("--stdout", is_flag=True, help="Emit enriched CSV to stdout instead of writing a file.")
 @click.option(
     "--workdir",
-    type=click.Path(path_type=Path, file_okay=False),
+    type=str,
+    callback=_validate_workdir,
     help="Statement-processor workspace root (from bootstrap.sh). Processes all LLM CSVs when --input is omitted.",
 )
 @click.option(
@@ -480,9 +509,7 @@ def cli(
     resolved_workdir: Path | None = None
     inputs: list[Path]
     if workdir is not None:
-        resolved_workdir = workdir.expanduser().resolve()
-        if not resolved_workdir.exists():
-            raise click.ClickException(f"Workspace {resolved_workdir} does not exist. Run bootstrap.sh first.")
+        resolved_workdir = workdir
         if input_path is None:
             llm_dir = resolved_workdir / "llm"
             inputs = sorted(llm_dir.glob("*.csv"))
