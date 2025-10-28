@@ -14,13 +14,15 @@ The skill validates against the existing taxonomy and learns merchant patterns f
 
 ## Configuration
 
+**Base directory:** `$BASEDIR` = `.claude/skills/transaction-categorizer`
+
 **Workspace root:** `~/.finagent/skills/transaction-categorizer`
 
 **Choose a session slug once at the start** (e.g., `categorize-20251027`) and remember it throughout the workflow.
 
 Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/transaction-categorizer/<slug>`
 
-When executing commands, replace `$WORKDIR` with the full path using your chosen slug.
+When executing commands, replace `$WORKDIR` with the full path using your chosen slug, and replace `$BASEDIR` with the base directory path.
 
 **Before starting, create the workspace directory once:**
 ```bash
@@ -56,7 +58,7 @@ If no uncategorized transactions found (count is 0), you're done!
 **Step 2: Generate LLM categorization prompt**
 ```bash
 source .venv/bin/activate && \
-python .claude/skills/transaction-categorizer/scripts/build_prompt.py \
+python $BASEDIR/scripts/build_prompt.py \
   --input $WORKDIR/uncategorized.json \
   --output $WORKDIR/categorization-prompt.txt && \
 cat $WORKDIR/categorization-prompt.txt
@@ -178,7 +180,7 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 
 ## Available Commands
 
-- `python .claude/skills/transaction-categorizer/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
+- `python $BASEDIR/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
 - `fin-query saved uncategorized`: Query uncategorized transactions from the database.
 - `fin-query saved categories`: Query existing category taxonomy.
 - `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write). Always use `--create-if-missing` to auto-create new categories.
@@ -234,4 +236,4 @@ When to Use This Skill vs Statement-Processor
 - **Use transaction-categorizer** after import to handle remaining uncategorized transactions (handles LLM bulk categorization for ALL uncategorized, then manual review for leftovers only)
 
 References
-- .claude/skills/transaction-categorizer/reference/common-categories.md - Fallback category taxonomy when user's database is empty
+- $BASEDIR/reference/common-categories.md - Fallback category taxonomy when user's database is empty

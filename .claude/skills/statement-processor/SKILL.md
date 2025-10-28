@@ -10,13 +10,15 @@ Teach the agent how to extract and import bank statements end-to-end.
 
 ## Configuration
 
+**Base directory:** `$BASEDIR` = `.claude/skills/statement-processor`
+
 **Workspace root:** `~/.finagent/skills/statement-processor`
 
 **Choose a session slug once at the start** (e.g., `chase-6033-20251027`) and remember it throughout the workflow.
 
 Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/statement-processor/<slug>`
 
-When executing commands, replace `$WORKDIR` with the full path using your chosen slug.
+When executing commands, replace `$WORKDIR` with the full path using your chosen slug, and replace `$BASEDIR` with the base directory path.
 
 ## Workflow (Sequential Loop)
 
@@ -38,7 +40,7 @@ mkdir -p $WORKDIR
 2. **Build the prompt** (single statement per invocation):
    ```bash
    source .venv/bin/activate && \
-   python .claude/skills/statement-processor/scripts/preprocess.py \
+   python $BASEDIR/scripts/preprocess.py \
      --workdir $WORKDIR \
      --input $WORKDIR/<file>-scrubbed.txt
    ```
@@ -48,7 +50,7 @@ mkdir -p $WORKDIR
 4. **Enrich and apply known patterns:**
    ```bash
    source .venv/bin/activate && \
-   python .claude/skills/statement-processor/scripts/postprocess.py \
+   python $BASEDIR/scripts/postprocess.py \
      --workdir $WORKDIR \
      --apply-patterns --verbose
    ```
@@ -78,7 +80,7 @@ mkdir -p $WORKDIR
 
 ---
 
-**Note:** The prompt builder focuses purely on extraction guidance. Category taxonomy and merchant hints are fetched later by the transaction-categorizer skill. If you need to inspect taxonomy data separately for debugging, run `python .claude/skills/statement-processor/scripts/preprocess.py --input scrubbed.txt --emit-json` or query the catalog directly with `fin-query` (e.g., `fin-query saved categories --format json`).
+**Note:** The prompt builder focuses purely on extraction guidance. Category taxonomy and merchant hints are fetched later by the transaction-categorizer skill. If you need to inspect taxonomy data separately for debugging, run `python $BASEDIR/scripts/preprocess.py --input scrubbed.txt --emit-json` or query the catalog directly with `fin-query` (e.g., `fin-query saved categories --format json`).
 
 ## CSV Requirements (LLM Output)
 - Required header (order fixed):
@@ -112,8 +114,8 @@ mkdir -p $WORKDIR
 
 ## Available Commands
 - `fin-scrub`: sanitize PDFs to redact PII.
-- `python .claude/skills/statement-processor/scripts/preprocess.py`: build per-statement prompts with existing taxonomies; rejects multi-input usage.
-- `python .claude/skills/statement-processor/scripts/postprocess.py`: append `account_key`/`fingerprint`/`source` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns. Use `--verbose` to see pattern matching details.
+- `python $BASEDIR/scripts/preprocess.py`: build per-statement prompts with existing taxonomies; rejects multi-input usage.
+- `python $BASEDIR/scripts/postprocess.py`: append `account_key`/`fingerprint`/`source` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns. Use `--verbose` to see pattern matching details.
 - `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep). Uncategorized transactions will be imported successfully.
 - `fin-edit set-category`: correct individual transactions after import (dry-run before `--apply`).
 - `fin-edit add-merchant-pattern`: remember high-confidence merchant/category mappings for future runs.
@@ -124,12 +126,12 @@ mkdir -p $WORKDIR
 - **Fingerprint collision on import**: Transaction already exists in database. This is expected behavior - duplicates are automatically skipped.
 - **Invalid confidence value**: Ensure confidence is between 0 and 1. Use `--default-confidence 0.9` to fill empty cells during import.
 - **Unknown category on import**: Either edit the CSV to use existing categories (check with `fin-query saved categories`) or allow creation by omitting `--no-create-categories` flag.
-- **Account identification unclear**: If the LLM cannot determine which account a statement belongs to, pause and ask the user before importing. Rerun `.claude/skills/statement-processor/scripts/postprocess.py` after updating account metadata in the CSV.
+- **Account identification unclear**: If the LLM cannot determine which account a statement belongs to, pause and ask the user before importing. Rerun `$BASEDIR/scripts/postprocess.py` after updating account metadata in the CSV.
 - **Low-confidence rows (<0.7)**: Review and correct in the enriched CSV before import, or use `fin-edit set-category` after import to fix individual transactions.
 - **Malformed amount**: Ensure amounts are positive decimals with two decimal places. Credits/refunds should be excluded upstream.
 
 ## Reference Material
-- `.claude/skills/statement-processor/reference/csv-format.md` – canonical schema for enriched CSVs.
+- `$BASEDIR/reference/csv-format.md` – canonical schema for enriched CSVs.
 
 ## Validation After Import
 After successfully importing transactions, verify the results:
@@ -151,5 +153,5 @@ fin-query saved uncategorized --limit 10
 
 ## Next Steps for Agents
 - Ensure enriched CSVs include `account_key`, `fingerprint`, and `source` columns before import.
-- Use `--verbose` flag with `.claude/skills/statement-processor/scripts/postprocess.py` to see pattern matching details and identify uncategorized transactions.
+- Use `--verbose` flag with `$BASEDIR/scripts/postprocess.py` to see pattern matching details and identify uncategorized transactions.
 - Review the `source` column in enriched CSVs to understand categorization provenance: `llm_extraction`, `pattern_match`, or empty (uncategorized).

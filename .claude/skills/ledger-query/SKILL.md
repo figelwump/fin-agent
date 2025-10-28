@@ -9,6 +9,12 @@ allowed-tools: Bash, Read, Grep
 Teach the agent how to answer direct data questions (e.g., "When did YouTube TV start?",
 "Show Entertainment > Comedy transactions") using `fin-query`.
 
+## Configuration
+
+**Base directory:** `$BASEDIR` = `.claude/skills/ledger-query`
+
+When executing commands or referencing paths, replace `$BASEDIR` with the base directory path.
+
 Environment
 - Activate the venv first: `source .venv/bin/activate`
 
@@ -54,7 +60,7 @@ Decision Tree: Saved Query vs SQL
    - Combining multiple conditions not supported by saved query parameters
    - Debugging or exploring schema structure
 
-3. **Always check** `.claude/skills/ledger-query/reference/saved-queries.md` first before writing custom SQL
+3. **Always check** `$BASEDIR/reference/saved-queries.md` first before writing custom SQL
 
 Workflow
 1. Clarify the time frame, category, or pattern the user cares about.
@@ -66,8 +72,8 @@ Common Errors
 - **"no such column: category" or "no such column: subcategory"**: The transactions table uses `category_id` (FK), not denormalized text. JOIN with categories table: `FROM transactions t JOIN categories c ON t.category_id = c.id`, then use `c.category` and `c.subcategory`
 - **"no such column: account_name"**: The transactions table uses `account_id` (FK). JOIN with accounts: `FROM transactions t JOIN accounts a ON t.account_id = a.id`, then use `a.name`
 - **Query returns no results**: Verify the time frame (e.g., `--param month=YYYY-MM`), check category spelling with `fin-query saved categories`, or try broadening the search (e.g., remove subcategory filter)
-- **Unknown saved query**: Run `fin-query saved --list` to see available templates or check `.claude/skills/ledger-query/reference/saved-queries.md`
-- **Invalid parameter name**: Consult `.claude/skills/ledger-query/reference/saved-queries.md` for the correct parameter names (e.g., `pattern` not `search`)
+- **Unknown saved query**: Run `fin-query saved --list` to see available templates or check `$BASEDIR/reference/saved-queries.md`
+- **Invalid parameter name**: Consult `$BASEDIR/reference/saved-queries.md` for the correct parameter names (e.g., `pattern` not `search`)
 - **LIKE pattern not matching**: Remember SQL LIKE syntax requires `%` wildcards (e.g., `%YouTube%` not `YouTube`)
 - **Database not found**: Verify `--db` path if using alternate database, otherwise check `~/.finagent/data.db` exists
 
@@ -99,5 +105,5 @@ ORDER BY total DESC;
 ```
 
 Reference
-- `.claude/skills/ledger-query/examples/common-queries.md` – ready-to-run snippets for frequent questions.
-- `.claude/skills/ledger-query/reference/saved-queries.md` – parameters for each saved template.
+- `$BASEDIR/examples/common-queries.md` – ready-to-run snippets for frequent questions.
+- `$BASEDIR/reference/saved-queries.md` – parameters for each saved template.
