@@ -10,9 +10,9 @@ Teach the agent how to run analyzers and assemble narrative reports.
 
 ## Configuration
 
-**Base directory:** `$BASEDIR` = `.claude/skills/spending-analyzer`
+**Resource root (do not `cd` here):** `$SKILL_ROOT` = `.claude/skills/spending-analyzer`
 
-When executing commands or referencing paths, replace `$BASEDIR` with the base directory path.
+When executing commands or referencing paths, use `$SKILL_ROOT` only to build absolute paths to helper resources and keep the shell working directory at the repository root.
 
 Environment
 - `source .venv/bin/activate`
@@ -54,14 +54,14 @@ fin-analyze category-timeline --period 6m --category "Food & Dining" --format js
 Common Errors
 - **Invalid date format**: Use `YYYY-MM` for `--month` (e.g., `2025-09`) and periods like `3m`, `6m`, `12m`, or `all` for `--period`
 - **No data for period**: Check if transactions exist in the specified time range with `fin-query saved transactions_month --param month=YYYY-MM`
-- **Unknown analyzer**: Run `fin-analyze --help` to see available analyzers or check `$BASEDIR/reference/all-analyzers.md`
+- **Unknown analyzer**: Run `fin-analyze --help` to see available analyzers or check `$SKILL_ROOT/reference/all-analyzers.md`
 - **Unknown category**: Verify category name with `fin-query saved categories`. Use exact spelling including ampersands (e.g., `"Food & Dining"`).
 - **Cannot use --compare with --period all**: The `--compare` flag requires a specific time window (month, quarter, year), not the entire history
 
 Examples
-- $BASEDIR/examples/custom-reports.md
-- $BASEDIR/examples/common-queries.md
-- $BASEDIR/examples/insights.md
+- $SKILL_ROOT/examples/custom-reports.md
+- $SKILL_ROOT/examples/common-queries.md
+- $SKILL_ROOT/examples/insights.md
 
 Reference
-- $BASEDIR/reference/all-analyzers.md
+- $SKILL_ROOT/reference/all-analyzers.md

@@ -14,7 +14,7 @@ The skill validates against the existing taxonomy and learns merchant patterns f
 
 ## Configuration
 
-**Base directory:** `$BASEDIR` = `.claude/skills/transaction-categorizer`
+**Resource root (do not `cd` here):** `$SKILL_ROOT` = `.claude/skills/transaction-categorizer`
 
 **Workspace root:** `~/.finagent/skills/transaction-categorizer`
 
@@ -22,7 +22,7 @@ The skill validates against the existing taxonomy and learns merchant patterns f
 
 Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/transaction-categorizer/<slug>`
 
-When executing commands, replace `$WORKDIR` with the full path using your chosen slug, and replace `$BASEDIR` with the base directory path.
+When executing commands, replace `$WORKDIR` with the full path using your chosen slug. Use `$SKILL_ROOT` only when you need an absolute path to a helper script or reference file and keep the shell working directory at the repository root.
 
 **Before starting, create the workspace directory once:**
 ```bash
@@ -58,7 +58,7 @@ If no uncategorized transactions found (count is 0), you're done!
 **Step 2: Generate LLM categorization prompt**
 ```bash
 source .venv/bin/activate && \
-python $BASEDIR/scripts/build_prompt.py \
+python $SKILL_ROOT/scripts/build_prompt.py \
   --input $WORKDIR/uncategorized.json \
   --output $WORKDIR/categorization-prompt.txt && \
 cat $WORKDIR/categorization-prompt.txt
@@ -180,7 +180,7 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 
 ## Available Commands
 
-- `python $BASEDIR/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
+- `python $SKILL_ROOT/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
 - `fin-query saved uncategorized`: Query uncategorized transactions from the database.
 - `fin-query saved categories`: Query existing category taxonomy.
 - `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write). Always use `--create-if-missing` to auto-create new categories.
@@ -236,4 +236,4 @@ When to Use This Skill vs Statement-Processor
 - **Use transaction-categorizer** after import to handle remaining uncategorized transactions (handles LLM bulk categorization for ALL uncategorized, then manual review for leftovers only)
 
 References
-- $BASEDIR/reference/common-categories.md - Fallback category taxonomy when user's database is empty
+- $SKILL_ROOT/reference/common-categories.md - Fallback category taxonomy when user's database is empty
