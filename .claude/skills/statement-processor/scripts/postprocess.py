@@ -442,8 +442,7 @@ def _validate_workdir(_: click.Context, __: click.Parameter, value: str | None) 
 
     The harness occasionally expands an unset shell variable to an empty string,
     which Click would otherwise interpret as the current directory. Guarding here
-    prevents confusing lookups like <repo>/llm when FIN_STATEMENT_WORKDIR is
-    missing."""
+    prevents confusing lookups like <repo>/llm when the workdir is invalid."""
 
     if value is None:
         return None
@@ -452,12 +451,12 @@ def _validate_workdir(_: click.Context, __: click.Parameter, value: str | None) 
     if not trimmed:
         raise click.ClickException(
             "--workdir was provided but resolved to an empty string. "
-            "Did you forget to eval bootstrap.sh so FIN_STATEMENT_WORKDIR is exported?"
+            "Provide an explicit path like ~/.finagent/skills/statement-processor/<slug>"
         )
 
     candidate = Path(trimmed).expanduser()
     if not candidate.exists():
-        raise click.ClickException(f"Workspace {candidate.resolve()} does not exist. Run bootstrap.sh first.")
+        raise click.ClickException(f"Workspace {candidate.resolve()} does not exist. Create it first with mkdir -p.")
 
     if not candidate.is_dir():
         raise click.ClickException(f"Workspace {candidate.resolve()} is not a directory.")

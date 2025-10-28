@@ -8,62 +8,68 @@ allowed-tools: Bash, Read, Grep, Glob
 
 Teach the agent how to extract and import bank statements end-to-end.
 
-## Environment
-1. Activate the venv before running any python script:
-   ```bash
-   source .venv/bin/activate
-   ```
+## Workspace Setup
 
-## Setup (Run Once Per Session)
-**IMPORTANT: Run bootstrap ONCE at the start. It prints export lines; `eval` applies them so the variables persist for the rest of the session.**
-1. Initialise the statement workspace and let bootstrap set environment variables (no need to export manually):
-   ```bash
-   eval "$(.claude/skills/statement-processor/scripts/bootstrap.sh --session 'your-session-slug')"
-   ```
-   - This exports `SESSION_SLUG`, `FIN_STATEMENT_WORKDIR`, `FIN_STATEMENT_SCRUBBED_DIR`, `FIN_STATEMENT_PROMPTS_DIR`, `FIN_STATEMENT_LLM_DIR`, and `FIN_STATEMENT_ENRICHED_DIR`.
+**Choose a session slug once at the start** (e.g., `chase-6033-20251027`) and remember it throughout the workflow.
+
+The workspace will be: `~/.finagent/skills/statement-processor/<slug>/`
 
 ## Workflow (Sequential Loop)
 
 Process statements one at a time. For each PDF, run the full loop before touching the next file.
 
-**IMPORTANT:** Prepend `source .venv/bin/activate &&` before running any python script.
+**Before starting, create the workspace directories once:**
+```bash
+source .venv/bin/activate && \
+mkdir -p ~/.finagent/skills/statement-processor/<slug>/{scrubbed,prompts,llm,enriched}
+```
 
 ### Steps
 
+Replace `<slug>` with your chosen session identifier in all commands below.
+
 1. **Scrub sensitive data into the workspace:**
    ```bash
-   fin-scrub statement.pdf --output-dir "$FIN_STATEMENT_WORKDIR"
+   source .venv/bin/activate && \
+   fin-scrub statement.pdf --output-dir ~/.finagent/skills/statement-processor/<slug>
    ```
 
 2. **Build the prompt** (single statement per invocation):
    ```bash
+   source .venv/bin/activate && \
    python .claude/skills/statement-processor/scripts/preprocess.py \
-     --workdir "$FIN_STATEMENT_WORKDIR" \
-     --input "$FIN_STATEMENT_SCRUBBED_DIR/<file>-scrubbed.txt"
+     --workdir ~/.finagent/skills/statement-processor/<slug> \
+     --input ~/.finagent/skills/statement-processor/<slug>/scrubbed/<file>-scrubbed.txt
    ```
 
-3. **Send the prompt to your LLM** (Claude, etc.) and save the CSV response into `$FIN_STATEMENT_LLM_DIR`.
+3. **Send the prompt to your LLM** (Claude, etc.) and save the CSV response to `~/.finagent/skills/statement-processor/<slug>/llm/<filename>.csv`.
 
 4. **Enrich and apply known patterns:**
    ```bash
+   source .venv/bin/activate && \
    python .claude/skills/statement-processor/scripts/postprocess.py \
-     --workdir "$FIN_STATEMENT_WORKDIR" \
+     --workdir ~/.finagent/skills/statement-processor/<slug> \
      --apply-patterns --verbose
    ```
 
 5. **Import validated rows** (preview first, then apply with pattern learning):
    ```bash
    # Preview
-   fin-edit import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv
+   source .venv/bin/activate && \
+   fin-edit import-transactions ~/.finagent/skills/statement-processor/<slug>/enriched/file.csv
 
    # Apply
-   fin-edit --apply import-transactions "$FIN_STATEMENT_ENRICHED_DIR"/file.csv \
+   source .venv/bin/activate && \
+   fin-edit --apply import-transactions ~/.finagent/skills/statement-processor/<slug>/enriched/file.csv \
      --learn-patterns --learn-threshold 0.75
    ```
 
 6. **Hand off to transaction-categorizer skill** to handle remaining uncategorized transactions. Verify success with:
    ```bash
+   source .venv/bin/activate && \
    fin-query saved uncategorized --limit 5  # Should shrink
+
+   source .venv/bin/activate && \
    fin-query saved merchant_patterns --limit 5 --format table  # Should reflect new patterns
    ```
 
@@ -80,9 +86,8 @@ Process statements one at a time. For each PDF, run the full loop before touchin
 - Postprocess writes `account_key`, `fingerprint`, `pattern_key`, `pattern_display`, `merchant_metadata`, and `source` columns and preserves `last_4_digits`.
 
 ## Working Directory
-- Bootstrap creates a deterministic run directory (e.g., `~/.finagent/skills/statement-processor/chase-6033-20251023`). Use a similar slug for downstream skills if you want easier cross-referencing, but each skill can bootstrap independently.
+- Bootstrap creates a deterministic run directory (e.g., `~/.finagent/skills/statement-processor/chase-6033-20251023`).
 - All helper CLIs accept `--workdir` so they can auto-discover `scrubbed/`, `prompts/`, `llm/`, and `enriched/` subdirectories.
-- The bash session persists between commands, so exported environment variables (like `$FIN_STATEMENT_WORKDIR`) remain available without re-running bootstrap.
 - Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside the workspace and clean up once the import is committed to the database.
 
 ## Handling Low Confidence and Uncategorized Transactions
@@ -104,7 +109,6 @@ Process statements one at a time. For each PDF, run the full loop before touchin
 - Validate inserts with `fin-query saved recent_imports --limit 10` or `fin-query saved transactions_month --param month=YYYY-MM`.
 
 ## Available Commands
-- `.claude/skills/statement-processor/scripts/bootstrap.sh`: initialise a run workspace ONCE per session (supports `--session` to pick a specific slug) and export helper environment variables (use via `eval "$(...)"`). Run this during Environment Setup only.
 - `fin-scrub`: sanitize PDFs to redact PII.
 - `python .claude/skills/statement-processor/scripts/preprocess.py`: build per-statement prompts with existing taxonomies; rejects multi-input usage.
 - `python .claude/skills/statement-processor/scripts/postprocess.py`: append `account_key`/`fingerprint`/`source` to LLM CSV output and, with `--apply-patterns`, pull categories/confidence from existing merchant patterns. Use `--verbose` to see pattern matching details.
