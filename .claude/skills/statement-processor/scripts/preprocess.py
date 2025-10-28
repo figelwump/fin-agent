@@ -327,12 +327,11 @@ def cli(
     if workdir is not None:
         workdir = workdir.expanduser().resolve()
         if not workdir.exists():
-            raise click.ClickException(f"Workspace {workdir} does not exist. Run bootstrap.sh first.")
+            raise click.ClickException(f"Workspace {workdir} does not exist. Create it first with mkdir -p.")
         if not input_paths:
-            scrubbed_dir = workdir / "scrubbed"
-            candidates = sorted(scrubbed_dir.glob("*-scrubbed.txt"))
+            candidates = sorted(workdir.glob("*-scrubbed.txt"))
             if not candidates:
-                raise click.ClickException(f"No scrubbed statements found under {scrubbed_dir}.")
+                raise click.ClickException(f"No scrubbed statements found in {workdir}.")
             input_paths = tuple(candidates)
         if output is None and output_dir is None:
             output_dir = workdir
@@ -379,11 +378,9 @@ def cli(
         _write_output(prompt, output)
         click.echo(f"Wrote prompt to {output}")
     elif output_dir:
-        target_dir = output_dir / "prompts"
-        target_dir.mkdir(parents=True, exist_ok=True)
         base_name = _derive_prompt_basename([statements[0].label])
         filename = f"{base_name}-prompt.txt"
-        path = target_dir / filename
+        path = output_dir / filename
         _write_output(prompt, path)
         click.echo(f"Wrote prompt to {path}")
     else:

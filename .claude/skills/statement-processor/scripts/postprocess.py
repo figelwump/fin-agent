@@ -510,10 +510,9 @@ def cli(
     if workdir is not None:
         resolved_workdir = workdir
         if input_path is None:
-            llm_dir = resolved_workdir / "llm"
-            inputs = sorted(llm_dir.glob("*.csv"))
+            inputs = sorted(resolved_workdir.glob("*.csv"))
             if not inputs:
-                raise click.ClickException(f"No LLM CSV files found under {llm_dir}.")
+                raise click.ClickException(f"No LLM CSV files found in {resolved_workdir}.")
         else:
             inputs = [input_path]
         if output_path is None and output_dir is None and not stdout:
@@ -550,9 +549,7 @@ def cli(
 
             effective_output_path = output_path
             if output_dir is not None:
-                target_dir = output_dir / "enriched"
-                target_dir.mkdir(parents=True, exist_ok=True)
-                effective_output_path = target_dir / _derive_enriched_filename(candidate)
+                effective_output_path = output_dir / _derive_enriched_filename(candidate)
 
             if stdout:
                 stdout_fieldnames = list(_REQUIRED_COLUMNS) + [

@@ -8,47 +8,49 @@ allowed-tools: Bash, Read, Grep, Glob
 
 Teach the agent how to extract and import bank statements end-to-end.
 
-## Workspace Setup
+## Configuration
+
+**Workspace root:** `~/.finagent/skills/statement-processor`
 
 **Choose a session slug once at the start** (e.g., `chase-6033-20251027`) and remember it throughout the workflow.
 
-The workspace will be: `~/.finagent/skills/statement-processor/<slug>/`
+Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/statement-processor/<slug>`
+
+When executing commands, replace `$WORKDIR` with the full path using your chosen slug.
 
 ## Workflow (Sequential Loop)
 
 Process statements one at a time. For each PDF, run the full loop before touching the next file.
 
-**Before starting, create the workspace directories once:**
+**Before starting, create the workspace directory once:**
 ```bash
 source .venv/bin/activate && \
-mkdir -p ~/.finagent/skills/statement-processor/<slug>/{scrubbed,prompts,llm,enriched}
+mkdir -p $WORKDIR
 ```
 
 ### Steps
 
-Replace `<slug>` with your chosen session identifier in all commands below.
-
 1. **Scrub sensitive data into the workspace:**
    ```bash
    source .venv/bin/activate && \
-   fin-scrub statement.pdf --output-dir ~/.finagent/skills/statement-processor/<slug>
+   fin-scrub statement.pdf --output-dir $WORKDIR
    ```
 
 2. **Build the prompt** (single statement per invocation):
    ```bash
    source .venv/bin/activate && \
    python .claude/skills/statement-processor/scripts/preprocess.py \
-     --workdir ~/.finagent/skills/statement-processor/<slug> \
-     --input ~/.finagent/skills/statement-processor/<slug>/scrubbed/<file>-scrubbed.txt
+     --workdir $WORKDIR \
+     --input $WORKDIR/<file>-scrubbed.txt
    ```
 
-3. **Send the prompt to your LLM** (Claude, etc.) and save the CSV response to `~/.finagent/skills/statement-processor/<slug>/llm/<filename>.csv`.
+3. **Send the prompt to your LLM** (Claude, etc.) and save the CSV response to `$WORKDIR/<filename>.csv`.
 
 4. **Enrich and apply known patterns:**
    ```bash
    source .venv/bin/activate && \
    python .claude/skills/statement-processor/scripts/postprocess.py \
-     --workdir ~/.finagent/skills/statement-processor/<slug> \
+     --workdir $WORKDIR \
      --apply-patterns --verbose
    ```
 
@@ -56,11 +58,11 @@ Replace `<slug>` with your chosen session identifier in all commands below.
    ```bash
    # Preview
    source .venv/bin/activate && \
-   fin-edit import-transactions ~/.finagent/skills/statement-processor/<slug>/enriched/file.csv
+   fin-edit import-transactions $WORKDIR/<file>-enriched.csv
 
    # Apply
    source .venv/bin/activate && \
-   fin-edit --apply import-transactions ~/.finagent/skills/statement-processor/<slug>/enriched/file.csv \
+   fin-edit --apply import-transactions $WORKDIR/<file>-enriched.csv \
      --learn-patterns --learn-threshold 0.75
    ```
 
@@ -86,9 +88,10 @@ Replace `<slug>` with your chosen session identifier in all commands below.
 - Postprocess writes `account_key`, `fingerprint`, `pattern_key`, `pattern_display`, `merchant_metadata`, and `source` columns and preserves `last_4_digits`.
 
 ## Working Directory
-- Bootstrap creates a deterministic run directory (e.g., `~/.finagent/skills/statement-processor/chase-6033-20251023`).
-- All helper CLIs accept `--workdir` so they can auto-discover `scrubbed/`, `prompts/`, `llm/`, and `enriched/` subdirectories.
-- Store scrubbed statements, prompts, raw LLM CSVs, and enriched CSVs inside the workspace and clean up once the import is committed to the database.
+- The workspace directory is created once at the start (e.g., `~/.finagent/skills/statement-processor/chase-6033-20251023`).
+- All helper CLIs accept `--workdir` to locate files within the workspace.
+- All files (scrubbed statements, prompts, raw LLM CSVs, enriched CSVs) are stored flat in the workspace directory.
+- Clean up the workspace once the import is committed to the database.
 
 ## Handling Low Confidence and Uncategorized Transactions
 - The prompt instructs the LLM to lower `confidence` (<0.7) whenever unsure.

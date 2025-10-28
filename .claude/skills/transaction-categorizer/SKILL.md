@@ -12,16 +12,20 @@ Teach the agent how to categorize uncategorized transactions using a two-phase a
 
 The skill validates against the existing taxonomy and learns merchant patterns for future auto-categorization.
 
-## Workspace Setup
+## Configuration
+
+**Workspace root:** `~/.finagent/skills/transaction-categorizer`
 
 **Choose a session slug once at the start** (e.g., `categorize-20251027`) and remember it throughout the workflow.
 
-The workspace will be: `~/.finagent/skills/transaction-categorizer/<slug>/`
+Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/transaction-categorizer/<slug>`
 
-**Before starting, create the workspace directories once:**
+When executing commands, replace `$WORKDIR` with the full path using your chosen slug.
+
+**Before starting, create the workspace directory once:**
 ```bash
 source .venv/bin/activate && \
-mkdir -p ~/.finagent/skills/transaction-categorizer/<slug>/{queries,prompts,llm}
+mkdir -p $WORKDIR
 ```
 
 Database Path
@@ -40,14 +44,12 @@ Principles
 
 ## Recommended Workflow
 
-Replace `<slug>` with your chosen session identifier in all commands below.
-
 **Step 1: Query and save uncategorized transactions**
 
 ```bash
 source .venv/bin/activate && \
-fin-query saved uncategorized --format json > ~/.finagent/skills/transaction-categorizer/<slug>/queries/uncategorized.json && \
-jq 'length' ~/.finagent/skills/transaction-categorizer/<slug>/queries/uncategorized.json
+fin-query saved uncategorized --format json > $WORKDIR/uncategorized.json && \
+jq 'length' $WORKDIR/uncategorized.json
 ```
 
 If no uncategorized transactions found (count is 0), you're done!
@@ -56,19 +58,19 @@ If no uncategorized transactions found (count is 0), you're done!
 ```bash
 source .venv/bin/activate && \
 python .claude/skills/transaction-categorizer/scripts/build_prompt.py \
-  --input ~/.finagent/skills/transaction-categorizer/<slug>/queries/uncategorized.json \
-  --output ~/.finagent/skills/transaction-categorizer/<slug>/prompts/categorization-prompt.txt && \
-cat ~/.finagent/skills/transaction-categorizer/<slug>/prompts/categorization-prompt.txt
+  --input $WORKDIR/uncategorized.json \
+  --output $WORKDIR/categorization-prompt.txt && \
+cat $WORKDIR/categorization-prompt.txt
 ```
 
 **Step 3: Send prompt to your categorization LLM**
 - Copy the generated prompt and send it to your configured categorization model
 - The LLM will return a CSV with columns: `transaction_id,canonical_merchant,category,subcategory,confidence,notes`
-- Save the LLM's CSV response to `~/.finagent/skills/transaction-categorizer/<slug>/llm/categorizations.csv`
+- Save the LLM's CSV response to `$WORKDIR/categorizations.csv`
 
 **Step 4: Review and apply LLM categorization results**
 
-Read the LLM's CSV response from `~/.finagent/skills/transaction-categorizer/<slug>/llm/categorizations.csv`.
+Read the LLM's CSV response from `$WORKDIR/categorizations.csv`.
 
 a) **Separate high-confidence from low-confidence results:**
    - High confidence: ≥0.75 - Apply these categorizations and learn patterns
@@ -99,10 +101,8 @@ c) **For low-confidence categorizations (<0.75):**
 Save these to a suggestions file for manual review:
 ```bash
 source .venv/bin/activate && \
-head -n1 ~/.finagent/skills/transaction-categorizer/<slug>/llm/categorizations.csv \
-  > ~/.finagent/skills/transaction-categorizer/<slug>/llm/low-confidence-suggestions.csv && \
-awk -F',' 'NR>1 && $5 < 0.75 {print}' ~/.finagent/skills/transaction-categorizer/<slug>/llm/categorizations.csv \
-  >> ~/.finagent/skills/transaction-categorizer/<slug>/llm/low-confidence-suggestions.csv
+head -n1 $WORKDIR/categorizations.csv > $WORKDIR/low-confidence-suggestions.csv && \
+awk -F',' 'NR>1 && $5 < 0.75 {print}' $WORKDIR/categorizations.csv >> $WORKDIR/low-confidence-suggestions.csv
 ```
 
 These low-confidence suggestions will be presented to the user during interactive review as starting points.
@@ -110,8 +110,8 @@ These low-confidence suggestions will be presented to the user during interactiv
 **Step 5: Check for remaining uncategorized**
 ```bash
 source .venv/bin/activate && \
-fin-query saved uncategorized --format json > ~/.finagent/skills/transaction-categorizer/<slug>/queries/uncategorized-remaining.json && \
-jq 'length' ~/.finagent/skills/transaction-categorizer/<slug>/queries/uncategorized-remaining.json
+fin-query saved uncategorized --format json > $WORKDIR/uncategorized-remaining.json && \
+jq 'length' $WORKDIR/uncategorized-remaining.json
 ```
 
 If any remain after LLM categorization, proceed to Interactive Manual Review below.
@@ -123,16 +123,16 @@ Use this workflow only for transactions that the LLM had low confidence on (<0.7
 **1) Load existing taxonomy and LLM suggestions**
 ```bash
 source .venv/bin/activate && \
-fin-query saved categories --format json > ~/.finagent/skills/transaction-categorizer/<slug>/queries/categories.json
+fin-query saved categories --format json > $WORKDIR/categories.json
 
 # Low-confidence LLM suggestions (<0.75) are already saved from Step 4c
-# (in ~/.finagent/skills/transaction-categorizer/<slug>/llm/low-confidence-suggestions.csv)
+# (in $WORKDIR/low-confidence-suggestions.csv)
 ```
 
 **2) Review remaining uncategorized**
 ```bash
 source .venv/bin/activate && \
-cat ~/.finagent/skills/transaction-categorizer/<slug>/queries/uncategorized-remaining.json
+cat $WORKDIR/uncategorized-remaining.json
 ```
 
 **3) For each transaction:**
