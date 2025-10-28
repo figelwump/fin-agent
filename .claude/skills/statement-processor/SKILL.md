@@ -24,7 +24,6 @@ Process statements one at a time. For each PDF, run the full loop before touchin
 
 **Before starting, create the workspace directory once:**
 ```bash
-source .venv/bin/activate && \
 mkdir -p $WORKDIR
 ```
 

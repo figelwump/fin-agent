@@ -24,7 +24,6 @@ When executing commands, replace `$WORKDIR` with the full path using your chosen
 
 **Before starting, create the workspace directory once:**
 ```bash
-source .venv/bin/activate && \
 mkdir -p $WORKDIR
 ```
 
@@ -100,7 +99,6 @@ c) **For low-confidence categorizations (<0.75):**
 
 Save these to a suggestions file for manual review:
 ```bash
-source .venv/bin/activate && \
 head -n1 $WORKDIR/categorizations.csv > $WORKDIR/low-confidence-suggestions.csv && \
 awk -F',' 'NR>1 && $5 < 0.75 {print}' $WORKDIR/categorizations.csv >> $WORKDIR/low-confidence-suggestions.csv
 ```
