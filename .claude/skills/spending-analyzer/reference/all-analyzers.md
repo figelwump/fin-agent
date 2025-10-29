@@ -13,26 +13,17 @@ merchant-frequency
 - Example: `fin-analyze merchant-frequency --month 2025-09 --format json`
 
 category-timeline
-- Category spend over time (month/quarter/year)
+- Category spend over time (month/quarter/year) with evolution summary (new/dormant/significant changes)
 - Example: `fin-analyze category-timeline --period 6m --category "Food & Dining" --interval month --format json`
 
 subscription-detect
-- Identify recurring charges (active/inactive)
-- Example: `fin-analyze subscription-detect --period 12m --all --format json`
+- Heuristic recurring-charge detector (active/inactive); follow with $SKILL_ROOT/workflows/subscription-detection.md
+- Example: `fin-analyze subscription-detect --period 12m --format json`
 
 unusual-spending
-- Detect anomalies
+- Heuristic anomaly detector; follow with $SKILL_ROOT/workflows/unusual-spending-detection.md
 - Example: `fin-analyze unusual-spending --month 2025-09 --sensitivity 3 --format json`
 
 spending-patterns
 - Analyze by day/week/date patterns
 - Example: `fin-analyze spending-patterns --period 3m --by day --format json`
-
-category-suggestions
-- Suggest category consolidations
-- Example: `fin-analyze category-suggestions --period 6m --format json`
-
-category-evolution
-- Track category usage changes
-- Example: `fin-analyze category-evolution --period 12m --compare --format json`
-

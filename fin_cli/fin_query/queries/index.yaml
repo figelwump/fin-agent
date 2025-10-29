@@ -11,6 +11,22 @@ queries:
       type: string
       default: null
       description: Optional YYYY-MM filter applied to transaction date.
+- name: transactions_range
+  file: transactions_range.sql
+  description: Transactions filtered by inclusive start / exclusive end dates.
+  parameters:
+    limit:
+      type: integer
+      default: 100
+      description: Maximum rows to return (0 for no limit).
+    start_date:
+      type: string
+      default: null
+      description: Optional inclusive start date (YYYY-MM-DD).
+    end_date:
+      type: string
+      default: null
+      description: Optional exclusive end date (YYYY-MM-DD).
 - name: category_summary
   file: category_summary.sql
   description: Total amount per category for the selected month.

@@ -430,11 +430,20 @@ def _write_csv(path: Path, rows: Sequence[EnrichedTransaction]) -> None:
         "merchant_metadata",
         "source",
     ]
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for txn in rows:
             writer.writerow(txn.as_dict())
+
+
+def _prepare_output_directory(base: Path) -> Path:
+    """Ensure enriched CSVs land under an 'enriched' subdirectory."""
+
+    target = base if base.name == "enriched" else base / "enriched"
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 def _validate_workdir(_: click.Context, __: click.Parameter, value: str | None) -> Path | None:
@@ -512,7 +521,12 @@ def cli(
         if input_path is None:
             inputs = sorted(resolved_workdir.glob("*.csv"))
             if not inputs:
-                raise click.ClickException(f"No LLM CSV files found in {resolved_workdir}.")
+                llm_dir = resolved_workdir / "llm"
+                if llm_dir.exists():
+                    inputs = sorted(llm_dir.glob("*.csv"))
+            if not inputs:
+                llm_dir = resolved_workdir / "llm"
+                raise click.ClickException(f"No LLM CSV files found in {resolved_workdir} or {llm_dir}.")
         else:
             inputs = [input_path]
         if output_path is None and output_dir is None and not stdout:
@@ -521,6 +535,12 @@ def cli(
         if input_path is None:
             raise click.UsageError("--input is required unless --workdir is provided.")
         inputs = [input_path]
+
+    if output_dir is not None:
+        output_dir = _prepare_output_directory(output_dir)
+
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if stdout and len(inputs) > 1:
         raise click.UsageError("--stdout can only be used with a single input file.")

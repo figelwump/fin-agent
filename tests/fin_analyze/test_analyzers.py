@@ -4,9 +4,7 @@ import pytest
 
 from fin_cli.fin_analyze.analyzers import (
     category_breakdown,
-    category_evolution,
     category_timeline,
-    category_suggestions,
     merchant_frequency,
     spending_patterns,
     spending_trends,
@@ -153,23 +151,6 @@ def test_spending_patterns_day_group(
     assert patterns["Tuesday"]["spend"] > patterns["Sunday"]["spend"]
 
 
-def test_category_suggestions_overlap(
-    load_analysis_dataset,
-    analysis_context,
-    window_factory,
-) -> None:
-    load_analysis_dataset("category_overlap")
-    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
-    context = analysis_context(window, None, {"min_overlap": 0.8}, compare=False, threshold=0.10)
-
-    result = category_suggestions.analyze(context)
-    suggestions = result.json_payload["suggestions"]
-    assert any(
-        suggestion["from"] == "Coffee > General" and suggestion["to"] == "Coffee Shops > Specialty"
-        for suggestion in suggestions
-    )
-
-
 def test_merchant_frequency_with_category_filter(
     load_analysis_dataset,
     analysis_context,
@@ -247,26 +228,6 @@ def test_category_breakdown_min_amount_and_change(
     assert all(entry["spend"] >= 50 for entry in payload["categories"])
 
 
-def test_category_evolution_new_and_dormant(
-    load_analysis_dataset,
-    analysis_context,
-    window_factory,
-) -> None:
-    load_analysis_dataset("spending_multi_year")
-    window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
-    comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
-    context = analysis_context(window, comparison, compare=True, threshold=0.10)
-
-    result = category_evolution.analyze(context)
-    payload = result.json_payload
-
-    new_categories = {(entry["category"], entry["subcategory"]) for entry in payload["new_categories"]}
-    dormant_categories = {(entry["category"], entry["subcategory"]) for entry in payload["dormant_categories"]}
-
-    assert ("Travel", "Ridehail") in new_categories
-    assert ("Home Improvement", "Hardware") in dormant_categories
-
-
 def test_category_timeline_month_interval_with_merchants(
     load_analysis_dataset,
     analysis_context,
@@ -296,6 +257,11 @@ def test_category_timeline_month_interval_with_merchants(
     assert payload["intervals"][-1]["interval"].startswith("2025-08")
     assert payload["totals"]["intervals"] >= 12
     assert "merchants" in payload and "AMAZON" in payload["merchants"]["canonical"]
+    assert "evolution" in payload
+    evolution_payload = payload["evolution"]
+    assert {"new_categories", "dormant_categories", "changes", "significant_changes", "threshold"} <= set(
+        evolution_payload.keys()
+    )
 
 
 def test_category_timeline_raises_when_no_matches(
@@ -366,13 +332,20 @@ def test_json_payload_keys_remain_stable(
         "comparison",
     }
 
-    evolution_context = analysis_context(window, comparison, compare=True, threshold=0.10)
-    evolution_payload = category_evolution.analyze(evolution_context).json_payload
-    assert set(evolution_payload.keys()) == {
-        "window",
+    timeline_context = analysis_context(
+        window,
+        comparison,
+        {"interval": "month"},
+        compare=True,
+        threshold=0.10,
+    )
+    timeline_payload = category_timeline.analyze(timeline_context).json_payload
+    assert "evolution" in timeline_payload
+    assert set(timeline_payload["evolution"].keys()) >= {
         "new_categories",
         "dormant_categories",
         "changes",
+        "significant_changes",
         "threshold",
     }
 
@@ -381,7 +354,7 @@ def test_json_payload_keys_remain_stable(
     subs_comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
     subs_context = analysis_context(subs_window, subs_comparison, {"include_inactive": True}, compare=True)
     subs_payload = subscription_detect.analyze(subs_context).json_payload
-    assert set(subs_payload.keys()) == {
+    expected_keys = {
         "window",
         "subscriptions",
         "price_increases",
@@ -389,17 +362,16 @@ def test_json_payload_keys_remain_stable(
         "cancelled",
         "threshold",
     }
+    actual_keys = set(subs_payload.keys())
+    assert expected_keys.issubset(actual_keys)
+    assert {"diagnostics", "fallback_recommended"}.issubset(actual_keys)
 
     load_analysis_dataset("spending_multi_year")
     unusual_context = analysis_context(window, comparison, {"sensitivity": 3}, compare=True, threshold=0.10)
     unusual_payload = unusual_spending.analyze(unusual_context).json_payload
-    assert set(unusual_payload.keys()) == {
-        "window",
-        "threshold_pct",
-        "sensitivity",
-        "anomalies",
-        "new_merchants",
-    }
+    expected_unusual_keys = {"window", "threshold_pct", "sensitivity", "anomalies", "new_merchants"}
+    assert expected_unusual_keys.issubset(unusual_payload.keys())
+    assert {"baseline", "fallback_recommended"}.issubset(unusual_payload.keys())
 
     timeline_context = analysis_context(
         window,

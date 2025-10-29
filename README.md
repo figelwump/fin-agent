@@ -198,8 +198,7 @@ and analyzer-specific options.
 
 - `spending-trends` – add `--show-categories` for top-category breakdowns.
 - `category-breakdown` – `--min-amount FLOAT` to ignore small totals.
-- `category-evolution` – tracks category churn and significance.
-- `category-timeline` *(new)* – interval rollups per category. Flags:
+- `category-timeline` – interval rollups per category with evolution summaries (new/dormant/significant shifts). Flags:
   - `--interval month|quarter|year` (default `month`)
   - `--category NAME`, `--subcategory NAME`
   - `--top-n INT` (limit table rows to most recent N intervals)
@@ -208,7 +207,6 @@ and analyzer-specific options.
 - `spending-patterns` – `--by day|week|date`.
 - `subscription-detect` – `--all` (include inactive), `--min-confidence`; skips incidental parking/toll charges and domain-registration renewals via category + metadata-aware filters.
 - `unusual-spending` – `--sensitivity 1-5`.
-- `category-suggestions` – `--min-overlap FLOAT`.
 
 Run `fin-analyze <type> --help` to see analyzer-specific usage.
 

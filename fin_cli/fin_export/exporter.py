@@ -110,8 +110,8 @@ DEFAULT_SECTION_ORDER: list[SectionSpec] = [
     SectionSpec(
         slug="evolution",
         title="Category Evolution",
-        analyzer_slug="category-evolution",
-        analyzer_options={},
+        analyzer_slug="category-timeline",
+        analyzer_options={"interval": "month"},
     ),
 ]
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, Sequence
 
 try:
@@ -11,8 +12,8 @@ except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
 from ..metrics import percentage_change, safe_float
-from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
-from ...shared.dataframe import build_window_frames
+from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries, TimeWindow
+from ...shared.dataframe import build_window_frames, load_transactions_frame
 from ...shared.merchants import friendly_display_name
 
 
@@ -38,6 +39,22 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     if current.empty:
         raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet.")
 
+    baseline_frame = frames.comparison_frame
+    baseline_window = frames.comparison_window
+    baseline_source = "provided"
+    if baseline_frame is None or frames.comparison_empty():
+        fallback_window = _fallback_baseline_window(context.window)
+        fallback_frame = load_transactions_frame(context, window=fallback_window)
+        if fallback_frame is not None and not fallback_frame.empty:
+            baseline_frame = fallback_frame
+            baseline_window = fallback_window
+            baseline_source = "fallback"
+        else:
+            baseline_frame = None
+            if baseline_window is None:
+                baseline_window = fallback_window
+            baseline_source = "missing"
+
     sensitivity = int(context.options.get("sensitivity", 3) or 3)
     sensitivity = min(max(sensitivity, 1), 5)
     base_threshold = context.threshold if context.threshold is not None else 0.10
@@ -45,7 +62,8 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     threshold_pct = base_threshold * multiplier
 
     current_totals = _merchant_metrics(current)
-    comparison_totals = _merchant_metrics(frames.comparison_frame) if frames.comparison_frame is not None else {}
+    comparison_totals = _merchant_metrics(baseline_frame)
+    baseline_available = bool(comparison_totals)
 
     anomalies: list[AnomalyRecord] = []
     new_merchants: list[str] = []
@@ -53,6 +71,12 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     increased_frequency: set[str] = set()
 
     for canonical, metrics in current_totals.items():
+        if not baseline_available:
+            if canonical not in seen_new_merchants:
+                seen_new_merchants.add(canonical)
+                new_merchants.append(metrics.display_name)
+            continue
+
         baseline = comparison_totals.get(canonical)
         spend_change = percentage_change(metrics.spend, baseline.spend if baseline else None) if baseline else None
         visit_change = percentage_change(metrics.visits, baseline.visits if baseline else None) if baseline else None
@@ -106,13 +130,35 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
                 )
             )
 
-    if not anomalies and not new_merchants:
-        raise AnalysisError("No unusual spending patterns detected with the current sensitivity.")
-
     anomalies.sort(key=lambda record: record.spend_change_pct or 0, reverse=True)
 
     table = _build_table(anomalies)
     summary_lines = _build_summary(anomalies, new_merchants, sorted(increased_frequency))
+
+    fallback_recommended = False
+    if not baseline_available:
+        summary_lines.append("Baseline window lacked transactions; heuristics limited to listing new merchants.")
+        fallback_recommended = True
+    elif not anomalies:
+        summary_lines.append("No spending anomalies met heuristic thresholds; LLM review recommended.")
+        fallback_recommended = True
+
+    if fallback_recommended:
+        context.cli_ctx.logger.info(
+            f"unusual_spending: limited heuristic insight (baseline_source={baseline_source})."
+        )
+
+    baseline_payload: dict[str, Any] = {
+        "source": baseline_source,
+        "has_data": baseline_available,
+        "row_count": 0 if baseline_frame is None else int(len(baseline_frame)),
+    }
+    if baseline_window is not None:
+        baseline_payload["window"] = {
+            "label": baseline_window.label,
+            "start": baseline_window.start.isoformat(),
+            "end": baseline_window.end.isoformat(),
+        }
 
     json_payload = {
         "window": {
@@ -122,6 +168,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         },
         "threshold_pct": round(threshold_pct, 4),
         "sensitivity": sensitivity,
+        "baseline": baseline_payload,
         "anomalies": [
             {
                 "merchant": record.merchant,
@@ -141,6 +188,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
             for record in anomalies
         ],
         "new_merchants": new_merchants,
+        "fallback_recommended": fallback_recommended,
     }
 
     return AnalysisResult(
@@ -243,3 +291,10 @@ def _build_summary(
     if not lines:
         lines.append("No unusual spending patterns detected.")
     return lines
+
+
+def _fallback_baseline_window(window: TimeWindow) -> TimeWindow:
+    span_days = max(window.days, 30)
+    start = window.start - timedelta(days=span_days)
+    label = f"{window.label}_baseline_fallback"
+    return TimeWindow(label=label, start=start, end=window.start)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Mapping, Sequence
@@ -14,6 +15,20 @@ except ImportError:  # pragma: no cover - optional dependency
 from ..metrics import percentage_change, safe_float
 from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 from ...shared.dataframe import load_recurring_candidates
+
+
+CADENCE_MIN_DAYS = 20
+CADENCE_MAX_DAYS = 365
+VARIANCE_LIMIT_DEFAULT = 0.3
+VARIANCE_LIMIT_RELAXED = 0.6
+SMALL_AMOUNT_VARIANCE_LIMIT = 0.5
+SMALL_AMOUNT_THRESHOLD = 60.0
+RELAXED_CATEGORY_HINTS = {
+    "bills & utilities",
+    "insurance",
+    "security & services",
+}
+DIAGNOSTIC_LIMIT = 25
 
 
 @dataclass(frozen=True)
@@ -63,11 +78,38 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     records: list[SubscriptionRecord] = []
     new_merchants: list[dict[str, Any]] = []
     price_increases: list[dict[str, Any]] = []
+    skipped_counter: Counter[str] = Counter()
+    skipped_samples: list[dict[str, Any]] = []
 
     window_end = pd.Timestamp(context.window.end)
+
+    def record_skip(
+        reasons: Sequence[str],
+        *,
+        stats: _MerchantStats,
+        combined: _CombinedStats | None,
+    ) -> None:
+        if not reasons:
+            return
+        skipped_counter.update(reasons)
+        if len(skipped_samples) < DIAGNOSTIC_LIMIT:
+            skipped_samples.append(
+                {
+                    "merchant": stats.display_name,
+                    "canonical": stats.canonical,
+                    "reasons": list(reasons),
+                    "occurrences": stats.occurrences,
+                    "cadence_days": None if combined is None else combined.cadence_days,
+                    "average_amount": round(stats.average_amount, 2),
+                    "category": stats.category,
+                    "subcategory": stats.subcategory,
+                }
+            )
+
     for canonical, stats in current_stats.items():
         combined = combined_stats.get(canonical)
         if combined is None:
+            record_skip(("missing_combined_stats",), stats=stats, combined=None)
             continue
 
         baseline = comparison_stats.get(canonical)
@@ -75,28 +117,43 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         cadence = combined.cadence_days
 
         if total_occurrences < 2:
+            record_skip(("occurrences_lt_2",), stats=stats, combined=combined)
             continue
 
-        if cadence is None or cadence <= 0 or cadence < 20 or cadence > 40:
+        if cadence is None or cadence <= 0:
+            record_skip(("cadence_missing",), stats=stats, combined=combined)
+            continue
+
+        if cadence < CADENCE_MIN_DAYS:
+            record_skip(("cadence_below_min",), stats=stats, combined=combined)
+            continue
+
+        if cadence > CADENCE_MAX_DAYS:
+            record_skip(("cadence_above_max",), stats=stats, combined=combined)
             continue
 
         if _is_incidental_charge(stats):
             context.cli_ctx.logger.debug(
                 f"Skipping incidental recurring charge for merchant '{stats.display_name}'"
             )
+            record_skip(("incidental_category",), stats=stats, combined=combined)
             continue
 
         if _looks_like_domain_service(stats):
             context.cli_ctx.logger.debug(
                 f"Skipping domain/registration pattern for merchant '{stats.display_name}'"
             )
+            record_skip(("domain_pattern",), stats=stats, combined=combined)
             continue
 
         if combined.average_amount == 0:
+            record_skip(("zero_average_amount",), stats=stats, combined=combined)
             continue
 
+        variance_limit = _variance_limit(stats)
         rel_std = combined.amount_std / combined.average_amount if combined.average_amount else 0.0
-        if rel_std > 0.3:
+        if rel_std > variance_limit:
+            record_skip(("high_amount_variance",), stats=stats, combined=combined)
             continue
 
         change_pct = None
@@ -125,6 +182,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
         status = _resolve_status(stats.last_charge, window_end)
         if status != "active" and not include_inactive:
+            record_skip(("inactive_status",), stats=stats, combined=combined)
             continue
 
         confidence = _estimate_confidence(total_occurrences=total_occurrences, cadence=cadence)
@@ -134,6 +192,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
             cadence_jitter=combined.cadence_jitter,
         )
         if confidence < min_confidence:
+            record_skip(("below_confidence_threshold",), stats=stats, combined=combined)
             continue
 
         records.append(
@@ -165,11 +224,37 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
                 }
             )
 
-    if not records and not cancelled:
-        raise AnalysisError("No subscriptions matched the configured filters.")
+    fallback_recommended = len(records) == 0
+    if fallback_recommended:
+        context.cli_ctx.logger.info(
+            "subscription_detect: heuristics produced no matches; recommend LLM fallback."
+        )
 
     table = _build_table(records)
     summary_lines = _build_summary(records, new_merchants, price_increases)
+    if fallback_recommended:
+        summary_lines.append("No subscriptions met heuristic filters; LLM fallback recommended.")
+
+    diagnostics = {
+        "evaluated_merchants": len(current_stats),
+        "selected_merchants": len(records),
+        "skipped_total": sum(skipped_counter.values()),
+        "skipped_summary": [
+            {"reason": reason, "count": count}
+            for reason, count in skipped_counter.most_common()
+        ],
+        "skipped_samples": skipped_samples,
+        "filters": {
+            "cadence_min_days": CADENCE_MIN_DAYS,
+            "cadence_max_days": CADENCE_MAX_DAYS,
+            "variance_limit_default": VARIANCE_LIMIT_DEFAULT,
+            "variance_limit_relaxed": VARIANCE_LIMIT_RELAXED,
+            "small_amount_threshold": SMALL_AMOUNT_THRESHOLD,
+            "min_confidence": min_confidence,
+            "include_inactive": include_inactive,
+        },
+        "fallback_recommended": fallback_recommended,
+    }
 
     json_payload = {
         "window": {
@@ -195,6 +280,8 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         "new_merchants": new_merchants,
         "price_increases": price_increases,
         "cancelled": cancelled,
+        "diagnostics": diagnostics,
+        "fallback_recommended": fallback_recommended,
     }
 
     return AnalysisResult(
@@ -367,6 +454,16 @@ def _apply_confidence_penalties(
 
     adjusted = confidence - (variance_penalty + jitter_penalty)
     return round(max(0.0, adjusted), 3)
+
+
+def _variance_limit(stats: _MerchantStats) -> float:
+    category = (stats.category or "").casefold()
+    amount_ceiling = stats.amount_max
+    if amount_ceiling <= SMALL_AMOUNT_THRESHOLD:
+        return SMALL_AMOUNT_VARIANCE_LIMIT
+    if category in RELAXED_CATEGORY_HINTS:
+        return VARIANCE_LIMIT_RELAXED
+    return VARIANCE_LIMIT_DEFAULT
 
 
 def _build_table(records: Sequence[SubscriptionRecord]) -> TableSeries:

@@ -279,6 +279,12 @@ def _write_output(prompt: str, output_path: Path) -> None:
     output_path.write_text(prompt, encoding="utf-8")
 
 
+def _prepare_prompt_output_dir(base: Path) -> Path:
+    target = base if base.name == "prompts" else base / "prompts"
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
 @click.command()
 @click.option(
     "--input",
@@ -331,6 +337,10 @@ def cli(
         if not input_paths:
             candidates = sorted(workdir.glob("*-scrubbed.txt"))
             if not candidates:
+                scrubbed_dir = workdir / "scrubbed"
+                if scrubbed_dir.exists():
+                    candidates = sorted(scrubbed_dir.glob("*-scrubbed.txt"))
+            if not candidates:
                 raise click.ClickException(f"No scrubbed statements found in {workdir}.")
             input_paths = tuple(candidates)
         if output is None and output_dir is None:
@@ -378,6 +388,7 @@ def cli(
         _write_output(prompt, output)
         click.echo(f"Wrote prompt to {output}")
     elif output_dir:
+        output_dir = _prepare_prompt_output_dir(output_dir)
         base_name = _derive_prompt_basename([statements[0].label])
         filename = f"{base_name}-prompt.txt"
         path = output_dir / filename

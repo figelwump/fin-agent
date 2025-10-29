@@ -8,8 +8,10 @@ Example: Monthly Summary Report for September 2025
 fin-analyze spending-trends --month 2025-09 --compare --format json
 fin-analyze category-breakdown --month 2025-09 --compare --format json
 fin-analyze merchant-frequency --month 2025-09 --min-visits 2 --format json
-fin-analyze unusual-spending --month 2025-09 --sensitivity 3 --format json
-fin-analyze subscription-detect --month 2025-09 --format json
+fin-analyze category-timeline --month 2025-09 --compare --category "Food & Dining" --format json
+# For subscriptions and anomalies, follow the hybrid workflows:
+#   $SKILL_ROOT/workflows/subscription-detection.md
+#   $SKILL_ROOT/workflows/unusual-spending-detection.md
 ```
 
 ## Step 2: Interpret JSON Output
@@ -82,51 +84,7 @@ fin-analyze subscription-detect --month 2025-09 --format json
 
 **Interpretation**: Most frequent merchants are Starbucks (12 visits) and Amazon (8 visits).
 
-### unusual-spending Output Example
-```json
-{
-  "period": "2025-09",
-  "anomalies": [
-    {
-      "date": "2025-09-15",
-      "merchant": "Best Buy",
-      "amount": 1249.99,
-      "category": "Shopping",
-      "z_score": 3.2,
-      "reason": "Amount significantly higher than typical for this category"
-    }
-  ]
-}
-```
-
-**Interpretation**: One unusual transaction detected: $1,249.99 at Best Buy (3.2 standard deviations above normal).
-
-### subscription-detect Output Example
-```json
-{
-  "active_subscriptions": [
-    {
-      "merchant": "Netflix",
-      "amount": 15.49,
-      "frequency": "monthly",
-      "last_charge": "2025-09-12",
-      "total_charges": 6,
-      "confidence": 0.95
-    },
-    {
-      "merchant": "YouTube Premium",
-      "amount": 11.99,
-      "frequency": "monthly",
-      "last_charge": "2025-09-01",
-      "total_charges": 12,
-      "confidence": 0.98
-    }
-  ],
-  "total_monthly_subscriptions": 27.48
-}
-```
-
-**Interpretation**: 2 active subscriptions detected totaling $27.48/month.
+See the workflow guides for interpreting subscription and anomaly outputs (they explain how to merge heuristic JSON with LLM reasoning and provide sample prompts/results).
 
 ## Step 3: Assemble Narrative Report
 
@@ -155,4 +113,3 @@ Transactions: 87 (↑5 vs August)
 Spending increased primarily due to higher restaurant spending (up 15%). The Best Buy purchase was a one-time electronics purchase. Subscriptions remain stable.
 
 ---
-

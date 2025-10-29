@@ -8,9 +8,7 @@ from typing import Iterable, Mapping, Sequence
 
 from .analyzers import (
     category_breakdown,
-    category_evolution,
     category_timeline,
-    category_suggestions,
     merchant_frequency,
     spending_patterns,
     spending_trends,
@@ -180,27 +178,6 @@ _ANALYZER_SPECS: Sequence[AnalyzerSpec] = (
                 help="Grouping strategy: day, week, or date.",
                 type=str,
                 choices=("day", "week", "date"),
-            ),
-        ),
-    ),
-    AnalyzerSpec(
-        slug="category-evolution",
-        title="Category Evolution",
-        summary="Track how categories change across the selected period.",
-        factory=category_evolution.analyze,
-        options=(),
-    ),
-    AnalyzerSpec(
-        slug="category-suggestions",
-        title="Category Suggestions",
-        summary="Recommend category merges or splits based on overlap.",
-        factory=category_suggestions.analyze,
-        options=(
-            AnalyzerOption(
-                name="min_overlap",
-                flags=("--min-overlap",),
-                help="Minimum transaction overlap ratio for suggestions.",
-                type=float,
             ),
         ),
     ),

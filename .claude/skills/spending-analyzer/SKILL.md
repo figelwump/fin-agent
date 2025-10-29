@@ -25,30 +25,25 @@ Guidelines
 
 Report Assembly Patterns
 
-**Monthly Summary Report**
-Combine: spending-trends, category-breakdown, merchant-frequency, unusual-spending, subscription-detect
-Use case: Regular monthly review of spending habits
+**Subscription Audit (Hybrid)**
+Combine: See $SKILL_ROOT/workflows/subscription-detection.md
+Use case: Surface recurring charges via `fin-analyze subscription-detect` + supporting queries, then let the LLM validate, expand, and explain the findings.
+
+**Unusual Spending Investigation (Hybrid)**
+Combine: See $SKILL_ROOT/workflows/unusual-spending-detection.md
+Use case: Run `fin-analyze unusual-spending` for heuristics, gather supporting slices, then have the LLM confirm anomalies and highlight context.
 
 **Category Deep-Dive**
-Combine: category-breakdown, category-timeline, merchant-frequency (filtered)
-Use case: Analyze spending in a specific category over time
-
-**Subscription Audit**
-Combine: subscription-detect, merchant-frequency
-Use case: Review all recurring charges and identify cancellation opportunities
-
-**Spending Anomaly Investigation**
-Combine: unusual-spending, category-breakdown, merchant-frequency
-Use case: Understand spikes or unusual patterns in spending
+Combine: category-breakdown, category-timeline (now includes evolution summaries), merchant-frequency (filtered)
+Use case: Analyze spending in a specific category over time and note new/dormant subcategories.
 
 Common Analyzers
 ```bash
 fin-analyze spending-trends --month 2025-09 --format json
 fin-analyze category-breakdown --month 2025-09 --format json
 fin-analyze merchant-frequency --month 2025-09 --min-visits 2 --format json
-fin-analyze subscription-detect --period 12m --format json
-fin-analyze unusual-spending --month 2025-09 --sensitivity 3 --format json
 fin-analyze category-timeline --period 6m --category "Food & Dining" --format json
+fin-query saved transactions_range --param start_date=2025-06-01 --param end_date=2025-10-01 --param limit=0
 ```
 
 Common Errors
@@ -58,10 +53,11 @@ Common Errors
 - **Unknown category**: Verify category name with `fin-query saved categories`. Use exact spelling including ampersands (e.g., `"Food & Dining"`).
 - **Cannot use --compare with --period all**: The `--compare` flag requires a specific time window (month, quarter, year), not the entire history
 
-Examples
+Examples & Workflows
 - $SKILL_ROOT/examples/custom-reports.md
 - $SKILL_ROOT/examples/common-queries.md
-- $SKILL_ROOT/examples/insights.md
+- $SKILL_ROOT/workflows/subscription-detection.md
+- $SKILL_ROOT/workflows/unusual-spending-detection.md
 
 Reference
 - $SKILL_ROOT/reference/all-analyzers.md

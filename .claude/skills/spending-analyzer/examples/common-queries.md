@@ -11,9 +11,7 @@ fin-analyze category-breakdown --month 2025-10 --format json
 ```
 
 Find all my subscriptions
-```bash
-fin-analyze subscription-detect --period 12m --all --format json
-```
+See `$SKILL_ROOT/workflows/subscription-detection.md` for the hybrid analyzer + LLM flow.
 
 What restaurants did I visit most in September?
 ```bash
@@ -37,6 +35,4 @@ fin-analyze category-breakdown --period all --format json
 > Note: `--period all` cannot be combined with `--compare`.
 
 Any unusual charges this month?
-```bash
-fin-analyze unusual-spending --month 2025-10 --sensitivity 3 --format json
-```
+See `$SKILL_ROOT/workflows/unusual-spending-detection.md` for the hybrid detection workflow.
