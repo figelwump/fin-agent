@@ -143,12 +143,3 @@ Recommended Actions:
 3. Investigate Apple subscription
 4. Continue monitoring PG&E for seasonal patterns
 ```
-
-## Cleanup
-
-After completing the analysis, the workspace can be cleaned up:
-```bash
-rm -rf $WORKDIR
-```
-
-Or keep for reference if you want to retain the data files.
