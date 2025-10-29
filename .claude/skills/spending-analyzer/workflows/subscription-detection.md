@@ -32,14 +32,16 @@ mkdir -p $WORKDIR
 
 3. Fetch detailed transactions for analysis (adjust date range as needed):
    ```bash
-   fin-query saved transactions_range --param start_date=2025-01-01 --param end_date=2025-10-29 --param limit=50000 --format json > $WORKDIR/transactions.json
+   fin-query saved transactions_range --param start_date=2025-01-01 --param end_date=2025-10-29 --param limit=50000 --format csv > $WORKDIR/transactions.csv
    ```
 
-   **If transactions.json is empty or sparse:**
-   - Expand the date range (try going back 2-3 years)
+   **Tips:**
+   - Use CSV format (not JSON) to save tokens - it's much more compact
+   - If transactions.csv is empty or sparse, expand the date range (try going back 2-3 years)
    - Check what data exists: `fin-query saved recent_imports --limit 10`
    - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM`
    - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands
+   - Large CSV files can be searched with grep or read in chunks using offset/limit
 
 4. Optionally, get category breakdown for context:
    ```bash
@@ -48,7 +50,7 @@ mkdir -p $WORKDIR
 
 ## Analysis Steps
 
-1. **Load transaction data**: Read `$WORKDIR/merchant_frequency.json` and `$WORKDIR/transactions.json`
+1. **Load transaction data**: Read `$WORKDIR/merchant_frequency.json` and `$WORKDIR/transactions.csv`
 
 2. **Identify recurring patterns**: The LLM should analyze:
    - Merchants with regular charge intervals (monthly, quarterly, annual)
@@ -63,7 +65,7 @@ mkdir -p $WORKDIR
    - Detect cancelled subscriptions (no recent charges)
    - Flag new subscriptions (started recently)
 
-4. **Cross-reference with transaction details**: Use `$WORKDIR/transactions.json` to:
+4. **Cross-reference with transaction details**: Use `$WORKDIR/transactions.csv` to:
    - Pull exemplar transactions showing charge amounts and dates
    - Verify consistency of amounts over time
    - Note any irregularities or skipped periods
