@@ -56,6 +56,7 @@ mkdir -p $WORKDIR
    - Expand the date range (try going back 2-3 years for better baseline)
    - Check what data exists: `fin-query saved recent_imports --limit 10`
    - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM`
+   - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands
 
 ## Analysis Steps
 

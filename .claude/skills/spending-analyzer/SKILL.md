@@ -56,6 +56,7 @@ Common Errors
   1. Try expanding the date range (go back further, e.g., 2+ years)
   2. Check what data exists with `fin-query saved recent_imports --limit 10` to see date ranges
   3. Use `fin-query saved transactions_month` to verify which months have data
+  4. If you need custom SQL queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands
 
 Examples & Workflows
 - $SKILL_ROOT/examples/custom-reports.md
