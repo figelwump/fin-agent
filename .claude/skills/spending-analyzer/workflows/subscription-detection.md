@@ -32,7 +32,7 @@ mkdir -p $WORKDIR
 
 3. Fetch detailed transactions for analysis (adjust date range as needed):
    ```bash
-   fin-query saved transactions_range --param start_date=2025-01-01 --param end_date=2025-10-29 --param limit=0 --format json > $WORKDIR/transactions.json
+   fin-query saved transactions_range --param start_date=2025-01-01 --param end_date=2025-10-29 --param limit=50000 --format json > $WORKDIR/transactions.json
    ```
 
    **If transactions.json is empty or sparse:**

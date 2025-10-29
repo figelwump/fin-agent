@@ -43,7 +43,7 @@ fin-analyze spending-trends --month 2025-09 --format json
 fin-analyze category-breakdown --month 2025-09 --format json
 fin-analyze merchant-frequency --month 2025-09 --min-visits 2 --format json
 fin-analyze category-timeline --period 6m --category "Food & Dining" --format json
-fin-query saved transactions_range --param start_date=2025-06-01 --param end_date=2025-10-01 --param limit=0
+fin-query saved transactions_range --param start_date=2025-06-01 --param end_date=2025-10-01 --param limit=50000
 ```
 
 Common Errors
