@@ -39,7 +39,6 @@ mkdir -p $WORKDIR
    - Expand the date range (try going back 2-3 years)
    - Check what data exists: `fin-query saved recent_imports --limit 10`
    - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM`
-   - NEVER fall back to direct sqlite3 queries - always use fin-query commands
 
 4. Optionally, get category breakdown for context:
    ```bash
