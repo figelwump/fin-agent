@@ -35,6 +35,12 @@ mkdir -p $WORKDIR
    fin-query saved transactions_range --param start_date=2025-01-01 --param end_date=2025-10-29 --param limit=0 --format json > $WORKDIR/transactions.json
    ```
 
+   **If transactions.json is empty or sparse:**
+   - Expand the date range (try going back 2-3 years)
+   - Check what data exists: `fin-query saved recent_imports --limit 10`
+   - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM`
+   - NEVER fall back to direct sqlite3 queries - always use fin-query commands
+
 4. Optionally, get category breakdown for context:
    ```bash
    fin-analyze category-breakdown --period 12m --format json > $WORKDIR/category_breakdown.json

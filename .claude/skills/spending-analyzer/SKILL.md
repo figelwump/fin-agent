@@ -52,6 +52,11 @@ Common Errors
 - **Unknown analyzer**: Run `fin-analyze --help` to see available analyzers or check `$SKILL_ROOT/reference/all-analyzers.md`
 - **Unknown category**: Verify category name with `fin-query saved categories`. Use exact spelling including ampersands (e.g., `"Food & Dining"`).
 - **Cannot use --compare with --period all**: The `--compare` flag requires a specific time window (month, quarter, year), not the entire history
+- **Empty or sparse transactions_range results**: If `fin-query saved transactions_range` returns empty/sparse data:
+  1. Try expanding the date range (go back further, e.g., 2+ years)
+  2. Check what data exists with `fin-query saved recent_imports --limit 10` to see date ranges
+  3. Use `fin-query saved transactions_month` to verify which months have data
+  4. NEVER fall back to direct sqlite3 queries - always use fin-query commands
 
 Examples & Workflows
 - $SKILL_ROOT/examples/custom-reports.md
