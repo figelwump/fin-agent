@@ -1,54 +1,127 @@
-# Subscription Detection (Hybrid Workflow)
+# Subscription Detection Workflow
 
 ## Purpose
-Identify recurring subscriptions by running the heuristic analyzer first, then asking the LLM to validate, explain, and extend the findings with supporting transaction slices.
+Identify recurring subscriptions and charges by analyzing transaction patterns using LLM reasoning over merchant frequency and transaction history.
+
+## Configuration
+
+**Workspace root:** `~/.finagent/skills/spending-analyzer`
+
+**Choose a session slug once at the start** (e.g., `subscription-audit-20251029`) and remember it throughout the workflow.
+
+Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/spending-analyzer/<slug>`
+
+When executing commands, replace `$WORKDIR` with the full path using your chosen slug.
+
+**Before starting, create the workspace directory once:**
+```bash
+mkdir -p $WORKDIR
+```
 
 ## Data Collection
-1. `source .venv/bin/activate`
-2. Run the heuristic analyzer (captures diagnostics + fallback flag):
+
+1. Activate the virtual environment:
    ```bash
-   fin-analyze subscription-detect --period 12m --format json > /tmp/subscriptions.json
+   source .venv/bin/activate
    ```
-3. Pull recurring merchant context for the same window:
+
+2. Pull recurring merchant context (adjust period as needed, typically 12m for annual subscriptions):
    ```bash
-   fin-analyze merchant-frequency --period 12m --min-visits 3 --format json > /tmp/merchant_frequency.json
+   fin-analyze merchant-frequency --period 12m --min-visits 3 --format json > $WORKDIR/merchant_frequency.json
    ```
-4. Fetch detailed transactions for the latest quarter (adjust dates as needed):
+
+3. Fetch detailed transactions for analysis (adjust date range as needed):
    ```bash
-   fin-query saved transactions_range --param start_date=2025-07-01 --param end_date=2025-10-01 --param limit=0 --format json > /tmp/transactions_range.json
+   fin-query saved transactions_range --param start_date=2025-01-01 --param end_date=2025-10-29 --param limit=0 --format json > $WORKDIR/transactions.json
+   ```
+
+4. Optionally, get category breakdown for context:
+   ```bash
+   fin-analyze category-breakdown --period 12m --format json > $WORKDIR/category_breakdown.json
    ```
 
 ## Analysis Steps
-1. Parse `/tmp/subscriptions.json`. Note `subscriptions`, `new_merchants`, `cancelled`, and `diagnostics.fallback_recommended`.
-2. If `fallback_recommended` is true or the list is sparse, flag for deeper review.
-3. Cross-reference merchants with `/tmp/merchant_frequency.json` to confirm cadence/visit counts.
-4. Use `/tmp/transactions_range.json` to pull exemplar transactions (amount, dates) for each candidate merchant.
-5. Prompt the LLM with:
-   - Heuristic output (including `diagnostics.skipped_summary` for reasoning gaps).
-   - Merchant frequency snapshot.
-   - Relevant slices from `transactions_range`.
-   Ask it to confirm true subscriptions, add any missing recurring charges it infers, and provide rationale (cadence, amounts, latest date, cancellation opportunities).
-6. Merge heuristic + LLM findings, deduplicate by canonical merchant, and present a final structured list.
+
+1. **Load transaction data**: Read `$WORKDIR/merchant_frequency.json` and `$WORKDIR/transactions.json`
+
+2. **Identify recurring patterns**: The LLM should analyze:
+   - Merchants with regular charge intervals (monthly, quarterly, annual)
+   - Consistent or predictable amounts
+   - Transaction dates that form patterns (e.g., same day each month)
+   - Common subscription categories (Entertainment, Utilities, Services, Software)
+
+3. **Validate and categorize**: For each potential subscription:
+   - Confirm the cadence (monthly, quarterly, annual)
+   - Calculate average amount and note any variance
+   - Identify latest charge date
+   - Detect cancelled subscriptions (no recent charges)
+   - Flag new subscriptions (started recently)
+
+4. **Cross-reference with transaction details**: Use `$WORKDIR/transactions.json` to:
+   - Pull exemplar transactions showing charge amounts and dates
+   - Verify consistency of amounts over time
+   - Note any irregularities or skipped periods
 
 ## Output Format
-- Table or bullet list grouped by category (e.g., Entertainment, Utilities, Services).
-- For each subscription: merchant name, cadence estimate, average amount, latest charge date, confidence/comments, cancellation watch items.
-- Summary totals (monthly and annualised).
-- Note whether heuristics were sufficient or if the LLM filled gaps due to data sparsity.
 
-## Example
+Present findings as a structured report:
+
+**Active Subscriptions:**
+- Merchant name
+- Cadence (monthly/quarterly/annual)
+- Average amount
+- Latest charge date
+- Category
+
+**Cancelled Subscriptions:**
+- Merchant name
+- Last charge date
+- Previous cadence
+
+**New Subscriptions:**
+- Merchant name
+- First charge date
+- Cadence (if established)
+
+**Summary:**
+- Total estimated monthly spend
+- Total estimated annual spend
+- Number of active subscriptions by category
+
+## Example Output
+
 ```
-Subscriptions detected (heuristic + LLM confirmation):
-- Netflix — ~$33.98/mo (last charge 2025-07-25). Heuristic skipped due to cadence gap; LLM confirmed via 2025-07 charge + earlier pattern.
-- AT&T — ~$228.00/mo (last charge 2025-09-14). Heuristic flagged inactive; LLM confirmed ongoing usage.
-- PG&E — $17–64/mo (variance high). Heuristic variance penalty triggered; LLM validated as utility with variable billing.
+Active Subscriptions:
 
-Additional recurring charges inferred by LLM:
-- Disney Plus — $19.32/mo (charges on 2024-12-24, 2025-01-25, 2025-07-25).
+Entertainment:
+- Netflix — $15.49/mo (last charge 2025-10-15)
+- Disney Plus — $19.32/mo (last charge 2025-10-24)
+- YouTube Premium — $11.99/mo (last charge 2025-10-20)
 
-Cancelled subscriptions:
-- Hulu — last seen 2025-04-20.
+Utilities:
+- PG&E — Variable $17–64/mo (utility bill, last charge 2025-10-14)
+- AT&T — $228.00/mo (last charge 2025-10-14)
 
-Total estimated monthly spend: ~$473.
-Diagnostics: Heuristic skipped 22 merchants for cadence outside 20–365 days; fallback recommended (true).
+Software & Services:
+- GitHub — $4.00/mo (last charge 2025-10-01)
+
+Cancelled Subscriptions:
+- Hulu — Last seen 2025-04-20 ($14.99/mo)
+
+New Subscriptions:
+- Crunchyroll — Started 2025-09-15 ($7.99/mo)
+
+Summary:
+- Active subscriptions: 6
+- Total monthly spend: ~$297
+- Total annual spend: ~$3,564
 ```
+
+## Cleanup
+
+After completing the analysis, the workspace can be cleaned up:
+```bash
+rm -rf $WORKDIR
+```
+
+Or keep for reference if you want to retain the data files.

@@ -9,7 +9,7 @@ fin-analyze spending-trends --month 2025-09 --compare --format json
 fin-analyze category-breakdown --month 2025-09 --compare --format json
 fin-analyze merchant-frequency --month 2025-09 --min-visits 2 --format json
 fin-analyze category-timeline --month 2025-09 --compare --category "Food & Dining" --format json
-# For subscriptions and anomalies, follow the hybrid workflows:
+# For subscriptions and unusual spending, follow the LLM-based workflows:
 #   $SKILL_ROOT/workflows/subscription-detection.md
 #   $SKILL_ROOT/workflows/unusual-spending-detection.md
 ```
@@ -84,7 +84,7 @@ fin-analyze category-timeline --month 2025-09 --compare --category "Food & Dinin
 
 **Interpretation**: Most frequent merchants are Starbucks (12 visits) and Amazon (8 visits).
 
-See the workflow guides for interpreting subscription and anomaly outputs (they explain how to merge heuristic JSON with LLM reasoning and provide sample prompts/results).
+See the workflow guides for subscription detection and unusual spending analysis (they provide step-by-step LLM-based analysis instructions and example outputs).
 
 ## Step 3: Assemble Narrative Report
 

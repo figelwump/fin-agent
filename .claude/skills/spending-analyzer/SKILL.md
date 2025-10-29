@@ -25,13 +25,13 @@ Guidelines
 
 Report Assembly Patterns
 
-**Subscription Audit (Hybrid)**
-Combine: See $SKILL_ROOT/workflows/subscription-detection.md
-Use case: Surface recurring charges via `fin-analyze subscription-detect` + supporting queries, then let the LLM validate, expand, and explain the findings.
+**Subscription Detection**
+Workflow: See $SKILL_ROOT/workflows/subscription-detection.md
+Use case: LLM analyzes transaction patterns from merchant-frequency and transaction history to identify recurring charges and subscriptions.
 
-**Unusual Spending Investigation (Hybrid)**
-Combine: See $SKILL_ROOT/workflows/unusual-spending-detection.md
-Use case: Run `fin-analyze unusual-spending` for heuristics, gather supporting slices, then have the LLM confirm anomalies and highlight context.
+**Unusual Spending Investigation**
+Workflow: See $SKILL_ROOT/workflows/unusual-spending-detection.md
+Use case: LLM compares spending patterns across time periods to identify anomalies, new merchants, and spending spikes.
 
 **Category Deep-Dive**
 Combine: category-breakdown, category-timeline (now includes evolution summaries), merchant-frequency (filtered)
