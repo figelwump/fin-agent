@@ -25,65 +25,45 @@ mkdir -p $WORKDIR
    source .venv/bin/activate
    ```
 
-2. Gather spending trends with comparison (analyze current vs previous period):
+2. Fetch all transactions for analysis (adjust date range as needed, or use a large range like 2-3 years if not specified):
    ```bash
-   fin-analyze spending-trends --month 2025-10 --compare --format json > $WORKDIR/spending_trends.json
+   fin-query saved transactions_range --param start_date=2023-01-01 --param end_date=2025-10-29 --param limit=0 --format json > $WORKDIR/transactions.json
    ```
 
-3. Get category breakdown with comparison:
-   ```bash
-   fin-analyze category-breakdown --month 2025-10 --compare --format json > $WORKDIR/category_breakdown.json
-   ```
-
-4. Pull merchant frequency for the analysis period:
-   ```bash
-   fin-analyze merchant-frequency --month 2025-10 --min-visits 1 --format json > $WORKDIR/merchant_frequency.json
-   ```
-
-5. Also get merchant frequency for the comparison period (previous month):
-   ```bash
-   fin-analyze merchant-frequency --month 2025-09 --min-visits 1 --format json > $WORKDIR/merchant_frequency_prev.json
-   ```
-
-6. Fetch detailed transactions for both periods:
-   ```bash
-   fin-query saved transactions_range --param start_date=2025-10-01 --param end_date=2025-11-01 --param limit=0 --format json > $WORKDIR/transactions_current.json
-
-   fin-query saved transactions_range --param start_date=2025-09-01 --param end_date=2025-10-01 --param limit=0 --format json > $WORKDIR/transactions_previous.json
-   ```
-
-   **If transaction files are empty or sparse:**
-   - Expand the date range (try going back 2-3 years for better baseline)
-   - Check what data exists: `fin-query saved recent_imports --limit 10`
+   **Tips:**
+   - For focused analysis, specify a narrower range (e.g., last 3-6 months)
+   - For comprehensive baseline, use 2+ years of data
+   - If the file is empty, check what data exists: `fin-query saved recent_imports --limit 10`
    - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM`
    - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands
 
 ## Analysis Steps
 
-1. **Load comparison data**: Read spending trends and category breakdowns from `$WORKDIR/spending_trends.json` and `$WORKDIR/category_breakdown.json`
+1. **Load transaction data**: Read all transactions from `$WORKDIR/transactions.json`
 
-2. **Identify anomalies**: The LLM should analyze:
-   - **Spending spikes**: Categories or merchants with significant increases vs previous period
-   - **New merchants**: First-time charges (appear in current but not previous period)
+2. **Analyze spending patterns**: The LLM should examine the transaction history to identify:
+   - **Recent spending spikes**: Merchants or categories with unusually high charges in recent periods
+   - **New merchants**: First-time charges that haven't appeared before
    - **Unusual amounts**: Merchants with charges significantly higher than their historical average
-   - **Missing merchants**: Regular merchants with no charges this period (potential cancellations)
-   - **Frequency changes**: Merchants with unusual visit count changes
+   - **Missing recurring charges**: Regular merchants (subscriptions, utilities) with no recent charges
+   - **Frequency anomalies**: Merchants with unusual changes in transaction frequency
+   - **Large one-time charges**: Significant transactions that stand out from normal patterns
 
-3. **Categorize findings**: Group anomalies by type:
-   - **High-priority**: Large dollar amounts, unknown merchants, suspicious patterns
-   - **Medium-priority**: Seasonal variations, expected spikes (utilities, annual fees)
-   - **Low-priority**: Small variances within normal ranges
+3. **Establish baselines**: For each merchant/category:
+   - Calculate historical average spend and transaction frequency
+   - Identify typical charge amounts and billing cycles
+   - Note seasonal patterns (e.g., utilities, holiday spending)
 
-4. **Provide context**: For each anomaly:
-   - Calculate the dollar and percentage change
-   - Show exemplar transactions from both periods
-   - Suggest likely explanations (one-time purchase, seasonal, billing cycle, error)
-   - Recommend actions (verify charge, dispute, budget adjustment, investigate)
+4. **Categorize findings**: Group anomalies by priority:
+   - **High-priority**: Large dollar amounts, unknown merchants, suspicious patterns, fraud indicators
+   - **Medium-priority**: Seasonal variations, expected spikes (utilities, annual fees), moderate increases
+   - **Low-priority**: Small variances within normal ranges, minor timing differences
 
-5. **Cross-reference merchants**: Compare `$WORKDIR/merchant_frequency.json` with `$WORKDIR/merchant_frequency_prev.json` to identify:
-   - New merchants (appear only in current)
-   - Disappeared merchants (appear only in previous)
-   - Frequency changes (visit count differences)
+5. **Provide context**: For each anomaly:
+   - Calculate dollar and percentage changes from historical baseline
+   - Show specific transaction examples with dates and amounts
+   - Suggest likely explanations (one-time purchase, seasonal, billing cycle change, error, fraud)
+   - Recommend actions (verify charge, dispute, budget adjustment, investigate further, cancel subscription)
 
 ## Output Format
 
@@ -118,14 +98,14 @@ Present findings as a structured report:
 ```
 High-Priority Anomalies:
 
-1. BB Tuition Management — $63,581
+1. Tuition Management — $63,581
    - New merchant (no previous charges)
    - Single transaction on 2025-10-15
    - Category: Education
    - Likely explanation: Annual tuition payment
    - Action: Verify charge is legitimate
 
-2. Altum PR — $12,631 (+100% vs avg $6,315)
+2. Accountant — $12,631 (+100% vs avg $6,315)
    - Previous: $6,315 (Sep), Current: $12,631 (Oct)
    - Increase: $6,316 (+100%)
    - Action: Confirm contract terms or invoice
@@ -158,8 +138,8 @@ Summary:
 - 2 regular merchants missing this month (Costco, Target)
 
 Recommended Actions:
-1. Verify BB Tuition Management charge
-2. Review Altum PR invoice
+1. Verify Tuition Management charge
+2. Review accountant invoice
 3. Investigate Apple subscription
 4. Continue monitoring PG&E for seasonal patterns
 ```
