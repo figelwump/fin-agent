@@ -1,6 +1,6 @@
 ---
 name: transaction-categorizer
-description: Categorize uncategorized transactions using LLM-first approach, then interactive review for leftovers.
+description: Categorize or recategorize transactions (bulk or single) using LLM-first workflow, then interactive review for leftovers.
 allowed-tools: Bash, Read, Grep, Glob
 ---
 
@@ -186,6 +186,12 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 - `fin-query saved merchant_patterns --limit 25 --format csv`: Inspect learned merchant rules; prefer this over raw `sqlite3` queries to avoid schema mismatches.
 - `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write). Always use `--create-if-missing` to auto-create new categories.
 - `fin-edit add-merchant-pattern`: Learn merchant patterns for future auto-categorization (dry-run by default; add `--apply` to write).
+
+**Quick Recategorization Checklist (existing transactions)**
+- Identify the relevant transaction ids (e.g., `fin-query saved merchant_search --param pattern=%GIORGI% --limit 10 --format csv`).
+- Preview the change: `fin-edit set-category --transaction-id <id> --category "Shopping" --subcategory "Furniture" --create-if-missing`.
+- Apply once confirmed: `fin-edit --apply set-category --transaction-id <id> --category "Shopping" --subcategory "Furniture" --create-if-missing`.
+- Remember `fin-edit` always requires a subcommand (`set-category`, `add-merchant-pattern`, etc.); top-level options like `fin-edit --merchant …` are invalid.
 
 ## Tips for Efficient Categorization
 
