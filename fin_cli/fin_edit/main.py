@@ -31,6 +31,29 @@ from fin_cli.shared.importers import (
 )
 
 
+def _format_transaction_summary(row: sqlite3.Row) -> str:
+    category = row["category"] if row["category"] else "(uncategorized)"
+    subcategory = row["subcategory"]
+    if subcategory:
+        category_display = f"{category} > {subcategory}"
+    else:
+        category_display = category
+
+    account_name = row["account_name"] or "(unknown account)"
+    institution = row["institution"]
+    account_display = (
+        f"{account_name} ({institution})"
+        if institution
+        else account_name
+    )
+
+    amount = float(row["amount"]) if row["amount"] is not None else 0.0
+    return (
+        f"id={row['id']}: {row['date']} {row['merchant']} "
+        f"${amount:,.2f} [{category_display}] @ {account_display}"
+    )
+
+
 def _effective_dry_run(cli_ctx: CLIContext, apply: bool) -> bool:
     """Return True when we should avoid writes.
 
@@ -255,6 +278,75 @@ def add_merchant_pattern(
         cli_ctx.logger.success(
             f"Upserted pattern '{pattern}' -> '{category} > {subcategory}' (confidence={confidence})."
         )
+
+
+@main.command("delete-transactions")
+@click.option(
+    "--id",
+    "transaction_ids",
+    type=int,
+    multiple=True,
+    help="Transaction id to delete (use multiple --id flags).",
+)
+@pass_cli_context
+def delete_transactions(
+    cli_ctx: CLIContext,
+    transaction_ids: Sequence[int],
+) -> None:
+    """Safely delete transactions by id."""
+
+    if not transaction_ids:
+        raise click.ClickException("Provide at least one --id value.")
+
+    unique_ids = sorted(set(int(txn_id) for txn_id in transaction_ids))
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        placeholders = ",".join("?" for _ in unique_ids)
+        cursor = connection.execute(
+            f"""
+            SELECT
+                t.id,
+                t.date,
+                t.merchant,
+                t.amount,
+                c.category,
+                c.subcategory,
+                a.name AS account_name,
+                a.institution
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN accounts a ON t.account_id = a.id
+            WHERE t.id IN ({placeholders})
+            ORDER BY t.date, t.id
+            """,
+            unique_ids,
+        )
+        rows = cursor.fetchall()
+
+        found_ids = {int(row["id"]) for row in rows}
+        missing = [str(txn_id) for txn_id in unique_ids if txn_id not in found_ids]
+        if missing:
+            raise click.ClickException(
+                "Transactions not found: " + ", ".join(missing)
+            )
+
+        for row in rows:
+            cli_ctx.logger.info(_format_transaction_summary(row))
+
+        if preview:
+            cli_ctx.logger.info(
+                f"[dry-run] {len(rows)} transaction(s) matched. Re-run with --apply after user confirmation to delete."
+            )
+            return
+
+        connection.execute(
+            f"DELETE FROM transactions WHERE id IN ({placeholders})",
+            unique_ids,
+        )
+        cli_ctx.logger.success(f"Deleted {len(rows)} transaction(s).")
 
 
 @dataclass(slots=True)

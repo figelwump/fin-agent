@@ -555,3 +555,117 @@ def test_import_transactions_missing_category_without_creation(tmp_path: Path) -
     with connect(config, read_only=True, apply_migrations=False) as connection:
         count = connection.execute("SELECT COUNT(*) AS c FROM transactions").fetchone()["c"]
         assert count == 0
+
+
+def test_delete_transactions_preview_then_apply(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    with connect(config) as connection:
+        account_id = models.upsert_account(
+            connection,
+            name="Mercury Checking",
+            institution="Mercury",
+            account_type="checking",
+            last_4_digits="2550",
+            auto_detected=False,
+        )
+        category_id = models.get_or_create_category(
+            connection,
+            category="Bills & Utilities",
+            subcategory="Credit Card Payment",
+            auto_generated=False,
+            user_approved=True,
+        )
+        for idx, merchant in enumerate(["Apple Card", "Chase"], start=1):
+            txn = models.Transaction(
+                date=date(2025, 9, 1 + idx),
+                merchant=merchant,
+                amount=5000.00 + idx,
+                account_id=account_id,
+                category_id=category_id,
+                original_description=f"{merchant} ACH Pull",
+                categorization_confidence=0.95,
+                categorization_method="pattern:auto",
+            )
+            inserted = models.insert_transaction(connection, txn, skip_dedupe=True)
+            assert inserted
+
+        rows = connection.execute(
+            "SELECT id FROM transactions WHERE merchant IN ('Apple Card', 'Chase') ORDER BY id"
+        ).fetchall()
+        txn_ids = [int(row["id"]) for row in rows]
+
+    runner = CliRunner()
+    # Preview (dry-run)
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "delete-transactions",
+            "--id",
+            str(txn_ids[0]),
+            "--id",
+            str(txn_ids[1]),
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+    assert "[dry-run]" in result.output
+    assert f"id={txn_ids[0]}" in result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        remaining = connection.execute(
+            "SELECT COUNT(*) AS count FROM transactions WHERE id IN (?, ?)",
+            txn_ids,
+        ).fetchone()
+        assert remaining["count"] == 2
+
+    # Apply deletion
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "delete-transactions",
+            "--id",
+            str(txn_ids[0]),
+            "--id",
+            str(txn_ids[1]),
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+    assert "Deleted 2 transaction(s)." in result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        remaining = connection.execute(
+            "SELECT COUNT(*) AS count FROM transactions WHERE id IN (?, ?)",
+            txn_ids,
+        ).fetchone()
+        assert remaining["count"] == 0
+
+
+def test_delete_transactions_missing_id(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "delete-transactions",
+            "--id",
+            "999",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    assert "Transactions not found" in result.output

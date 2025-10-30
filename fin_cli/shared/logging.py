@@ -37,20 +37,20 @@ class Logger:
         return _stdout_console
 
     def info(self, message: str) -> None:
-        _stderr_console.print(message, style="info")
+        _stderr_console.print(message, style="info", markup=False)
 
     def success(self, message: str) -> None:
-        _stderr_console.print(message, style="success")
+        _stderr_console.print(message, style="success", markup=False)
 
     def warning(self, message: str) -> None:
-        _stderr_console.print(message, style="warning")
+        _stderr_console.print(message, style="warning", markup=False)
 
     def error(self, message: str) -> None:
-        _stderr_console.print(message, style="error")
+        _stderr_console.print(message, style="error", markup=False)
 
     def debug(self, message: str) -> None:
         if self.verbose:
-            _verbose_console.print(message, style="debug")
+            _verbose_console.print(message, style="debug", markup=False)
 
 
 def get_logger(verbose: bool = False) -> Logger:

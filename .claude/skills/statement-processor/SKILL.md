@@ -114,6 +114,21 @@ mkdir -p $WORKDIR
 - Use `--default-confidence` to backfill blanks and `--no-create-categories` to enforce pre-created taxonomy entries.
 - Validate inserts with `fin-query saved recent_imports --limit 10 --format csv` or `fin-query saved transactions_month --param month=YYYY-MM --limit 200 --format csv`.
 
+## Cleanup & Database Safety
+- The SQLite schema is normalized: `transactions` only stores foreign keys (`category_id`, `account_id`). There is **no** `category`, `subcategory`, `account_name`, or `account_key` column in the table. Join to `categories` / `accounts` or use saved queries when you need human-readable fields.
+- Need a refresher? Run `source .venv/bin/activate && fin-query schema --table transactions --format table` (or `--all`) before composing ad-hoc SQL.
+- To remove bad rows after an import, run a dry-run preview and confirm the IDs with the user. Example:
+  ```bash
+  source .venv/bin/activate && \
+  fin-edit delete-transactions --id 338 --id 340 --id 342
+  ```
+  This prints every targeted row and exits without writing. Only rerun with `--apply` **after** the user approves the list:
+  ```bash
+  source .venv/bin/activate && \
+  fin-edit --apply delete-transactions --id 338 --id 340 --id 342
+  ```
+- Avoid raw `sqlite3` deletes unless a fin-cli command cannot perform the operation.
+
 ## Available Commands
 - `fin-scrub`: sanitize PDFs to redact PII.
 - `python $SKILL_ROOT/scripts/preprocess.py`: build per-statement prompts with existing taxonomies; rejects multi-input usage.
