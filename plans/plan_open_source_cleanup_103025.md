@@ -1,0 +1,64 @@
+---
+title: Open Source Readiness Cleanup
+owner: codex
+created: 2025-10-30
+status: pending
+---
+
+# plan_open_source_cleanup_103025
+
+## Phase 1 – Repository Hygiene & Sensitive Artifact Removal
+- [x] Audit and delete debug helpers (e.g., `debug_docling.py`, stray test harnesses in `tmp/`, unused scripts in `output/`)
+- [x] Remove committed/sample data containing real statements or PII (`statements/`, `output/`, `tmp/`, scrub temporary DBs)
+- [x] Replace environment templates with a safe `.env.example` (no keys; documents `FINAGENT_DATABASE_PATH`)
+- [x] Purge personal configs/secrets (`.env`, `.DS_Store`, stray `.venv*` folders) and ensure `.gitignore` covers them
+- [x] Double-check for other large or unused resources (images, JSON dumps) and replace with README placeholders where helpful
+
+Notes: Removed `debug_docling.py`, cleared `statements/`, `output/`, `tmp/` directories (now empty and ignored), deleted committed secrets, and reintroduced a sanitized `.env.example`.
+
+## Phase 2 – Documentation Restructure (Repository Root)
+- [x] Rewrite `README.md` around the skills-driven workflow (hero summary, skills catalog, quickstart, CSV formats)
+- [x] Move legacy CLI coverage (`fin-extract`, `fin-enhance`, `fin-export`) into a deprecated section with migration notes
+- [x] Expand documentation for active CLIs (`fin-scrub`, `fin-analyze`, `fin-edit`, `fin-query`) and highlight new usage patterns
+- [x] Add explicit mention of the web agent/ccsdk near the end as non-primary workflow
+
+Notes: README now leads with skills summary, refreshed quickstart, skill-usage examples, CLI reference updates (with format flags), and a deprecated commands section covering fin-extract/enhance/export. Web agent note moved near the end; CSV format details will shift to the fin-cli README in Phase 7.
+
+## Phase 3 – Skills Documentation Refresh
+- [ ] Update `.claude/skills/README.md` with a full catalog summary, capability matrix, and modern usage notes
+- [ ] Revise each skill `SKILL.md` to remove `source .venv` prerequisites, describe productionized CLI entry points, and add examples
+- [ ] Document how skills interoperate (handoffs, expected inputs/outputs) and cross-link CSV schema references
+
+## Phase 4 – Agent Prompt Updates
+- [ ] Review `AGENTS.md` for outdated schema hints or CLI syntax; align with new skills workflow and CSV columns
+- [ ] Update `CLAUDE.md` to match the current agent orchestration flow and tool expectations
+- [ ] Remove legacy sections such as the “fin-enhance review process” and replace with skills-first guidance
+- [ ] Ensure both docs point to the refreshed README, skills catalog, and any new developer workflows
+
+## Phase 5 – Fin-CLI Productionization
+- [ ] Ensure the Python package can be installed/executed without an activated repo venv (pip/pipx workflows, PATH-safe entry points)
+- [ ] Normalize CLI invocations in skills/docs to use installed entry points or `python -m` fallbacks that work cross-platform
+- [ ] Update packaging metadata (versioning, license switch, classifiers) and prepare for PyPI distribution
+- [ ] Add automated smoke tests (or fixtures) that exercise `fin-scrub`, `fin-analyze`, `fin-edit`, `fin-query` via the installed CLI
+- [ ] Provide guidance for reproducible builds (lockfiles, dependency pins, optional Dockerfile if needed for CI)
+
+## Phase 6 – Web UI Simplification
+- [ ] Remove Plaid-specific integrations and secrets from the web app, replacing them with neutral placeholders or optional plugins
+- [ ] Write/update a `client/README.md` (or similar) describing the remaining web agent capabilities and local setup
+- [ ] Audit `ccsdk/` and `server/` for additional cleanup opportunities or unused endpoints
+- [ ] Confirm the UI still builds/tests after dependencies are trimmed (`bun test`, `bun run server/server.ts`)
+
+## Phase 7 – Developer Experience & Fin-CLI Guidance
+- [ ] Author `fin_cli/README.md` capturing package layout, local development workflow, testing strategy, and release steps
+- [ ] Document a consistent “fin-cli development workflow” (tooling, testing, linting) and surface it from the root docs
+- [ ] Review ancillary docs (`AGENTS.md`, `CLAUDE.md`, `docs/**`) to align terminology and remove conflicting guidance
+
+## Phase 8 – Verification & Release Prep
+- [ ] Run `pytest` and any targeted tests (`bun test`, relevant integration checks) after refactors
+- [ ] Validate packaging metadata (`pyproject.toml`) for open-source license, extras, and sdist/wheel contents
+- [ ] Final pass to ensure no references remain to removed tooling, debug scripts, or internal-only processes
+
+### Notes & Risks
+- Removing large directories may require replacing them with minimal README placeholders so workflows remain discoverable.
+- Need to scrub saved keys (OpenAI, Plaid) from history; confirm removal and advise user on secret rotation if ever exposed.
+- Ensure documentation changes stay synchronized between root README and skills guides to avoid conflicting instructions.
