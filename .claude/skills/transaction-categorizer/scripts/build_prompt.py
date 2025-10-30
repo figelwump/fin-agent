@@ -27,6 +27,38 @@ def _load_categories() -> list[str]:
     ]
 
 
+def _load_merchant_patterns(limit: int = 200) -> list[tuple[str, str, str, str]]:
+    """Fetch existing merchant patterns (pattern, display, category, subcategory)."""
+    config = load_config()
+    query = """
+        SELECT
+            mp.pattern AS pattern,
+            COALESCE(mp.pattern_display, mp.pattern) AS display,
+            COALESCE(c.category, '') AS category,
+            COALESCE(c.subcategory, '') AS subcategory
+        FROM merchant_patterns AS mp
+        LEFT JOIN categories AS c ON c.id = mp.category_id
+        ORDER BY mp.usage_count DESC, mp.pattern
+    """
+    result = executor.execute_sql(config=config, query=query, params=None, limit=limit)
+    pattern_idx = result.columns.index("pattern")
+    display_idx = result.columns.index("display")
+    category_idx = result.columns.index("category")
+    subcategory_idx = result.columns.index("subcategory")
+
+    patterns: list[tuple[str, str, str, str]] = []
+    for row in result.rows:
+        patterns.append(
+            (
+                str(row[pattern_idx] or ""),
+                str(row[display_idx] or ""),
+                str(row[category_idx] or ""),
+                str(row[subcategory_idx] or ""),
+            )
+        )
+    return patterns
+
+
 def _coerce_amount(value: Any) -> float:
     """Convert the amount field to a float for prompt formatting."""
     if isinstance(value, (int, float)):
@@ -115,16 +147,30 @@ def build_prompt(
     *,
     transactions: Sequence[dict[str, Any]],
     categories: Sequence[str],
+    merchant_patterns: Sequence[tuple[str, str, str, str]],
 ) -> str:
     """Build the categorization prompt."""
     tx_section = _format_transactions(transactions)
     categories_section = "\n".join(f"- {item}" for item in categories)
+    if merchant_patterns:
+        pattern_lines: list[str] = []
+        for pattern, display, category, subcategory in merchant_patterns:
+            label = display or pattern
+            category_line = f"{category} > {subcategory}" if category and subcategory else ""
+            if category_line:
+                pattern_lines.append(f"- {label} (pattern: {pattern}) — {category_line}")
+            else:
+                pattern_lines.append(f"- {label} (pattern: {pattern})")
+        patterns_section = "\n".join(pattern_lines)
+    else:
+        patterns_section = "(no merchant patterns recorded yet)"
 
     return f"""You are helping categorize uncategorized transactions from a personal finance database.
 
 ## Instructions
 - For each transaction, categorize them into a category > subcategory pair
 - If possible, use the closest category > subcategory pair from the list of Existing Categories below.
+- Reuse existing merchant names whenever they already exist (see Existing Merchant Patterns). 
 - **Creating New Categories**: When existing categories don't fit well, create new category/subcategory pairs. Common scenarios where you SHOULD create new categories:
   - Obvious missing subcategories that would apply to multiple transactions
   - Don't force transactions into loosely-related categories just to avoid creating new ones
@@ -148,6 +194,9 @@ transaction_id,canonical_merchant,category,subcategory,confidence,notes
 
 ## Existing Categories
 {categories_section}
+
+## Existing Merchant Patterns
+{patterns_section}
 
 ## Uncategorized Transactions
 {tx_section}
@@ -190,11 +239,16 @@ def cli(
         click.echo("No uncategorized transactions found.", err=True)
         sys.exit(0)
 
-    # Load categories
+    # Load categories and merchant patterns for grounding
     categories = _load_categories()
+    merchant_patterns = _load_merchant_patterns()
 
     # Build prompt
-    prompt = build_prompt(transactions=transactions, categories=categories)
+    prompt = build_prompt(
+        transactions=transactions,
+        categories=categories,
+        merchant_patterns=merchant_patterns,
+    )
 
     # Output
     if output_path:

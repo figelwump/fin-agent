@@ -64,6 +64,8 @@ python $SKILL_ROOT/scripts/build_prompt.py \
 cat $WORKDIR/categorization-prompt.txt
 ```
 
+The prompt automatically embeds the current category taxonomy and merchant pattern catalog, so the LLM can reuse existing canonical merchant names instead of inventing new ones.
+
 **Step 3: Send prompt to your categorization LLM**
 - Copy the generated prompt and send it to your configured categorization model
 - The LLM will return a CSV with columns: `transaction_id,canonical_merchant,category,subcategory,confidence,notes`
@@ -217,9 +219,9 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 Common Errors
 - **Transaction not found**: Verify the transaction ID is correct. Use `fin-query saved uncategorized --limit 500 --format csv` or `fin-query saved recent_transactions --limit 25 --format csv` to find the correct ID.
 - **Category already set**: Transaction is already categorized. Use `fin-edit set-category` to update it (overwrites existing category).
-- **Pattern already exists**: Merchant pattern is already learned. Use `fin-edit set-merchant-pattern` to update the existing pattern or choose a more specific pattern key.
+- **Pattern already exists**: Merchant pattern is already learned. Use `fin-edit add-merchant-pattern` to update the existing pattern (it performs an upsert) or choose a more specific pattern key.
 - **Duplicate fingerprint**: Transaction may already exist in database from a previous import. Check with `fin-query saved recent_transactions --limit 25 --format csv`.
-- **SQLite column mismatch**: If you drop to `sqlite3`, remember `merchant_patterns` stores `category_id`/`subcategory_id` and requires joining to `categories` for `category`/`subcategory` text. Use `fin-query saved merchant_patterns` whenever possible to avoid these errors.
+- **SQLite column mismatch**: If you drop to `sqlite3`, remember both `transactions` and `merchant_patterns` tables store `category_id`/`subcategory_id` foreign keys and require joining to `categories` for `category`/`subcategory` text. Always prefer `fin-query` commands (e.g., `fin-query saved merchant_search`, `fin-query saved merchant_patterns`) over raw sqlite3 queries to avoid these schema errors.
 
 Validation After Categorization
 After categorizing transactions, verify the changes:
