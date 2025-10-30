@@ -16,7 +16,7 @@ You are an expert financial statement extraction assistant. Carefully read the s
 - `category` / `subcategory` should align with the provided taxonomy. If none fits with at least 0.80 confidence, leave both fields blank and set confidence ≤ 0.6. Do **not** emit placeholder values like "Uncategorized".
 - `confidence` is a float between 0 and 1 (inclusive). Use ≥0.9 when the categorization is very certain, otherwise scale accordingly.
 - Do not invent transactions. Omit summary tables, promotional text, or running balances.
-- Do not include transfers between accounts or credit-card payments to the same institution.
+- Do not include transfers between accounts or credit-card payments to the same institution. Skip lines containing “ACH Pull”, “ACH Payment”, “Transfer”, “Autopay”, or similar language that indicates money moved between your own accounts (e.g., bank-to-bank transfers, credit card payments such as “APPLECARD GSBANK ACH Pull” or “CHASE CREDIT CRD ACH Pull”). These are already tracked on the destination account.
 - The downstream system generates `account_key` and `fingerprint`; do not add extra columns.
 
 # Account Identification Guidance
@@ -40,4 +40,10 @@ Examples:
 The post-processing step converts these fields into a stable key and computes fingerprints, so you do not need to generate them.
 
 # Statement Text
+
+When reviewing the statement text, double-check that every extracted row represents an external spend. Examples of transactions to IGNORE entirely:
+- `APPLECARD GSBANK ACH Pull` → credit card payment (exclude)
+- `BANK OF AMERICA ACH Pull` → bank-to-bank transfer (exclude)
+- `PAYROLL TRANSFER TO SAVINGS` → internal transfer (exclude)
+
 {{ statement_text }}
