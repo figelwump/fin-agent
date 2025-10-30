@@ -42,6 +42,30 @@ def test_cli_outputs_json(load_analysis_dataset, app_config, runner) -> None:
     assert "AMAZON" in merchants
 
 
+def test_cli_outputs_csv(load_analysis_dataset, app_config, runner) -> None:
+    load_analysis_dataset("spending_multi_year")
+    exit_code, output = _invoke_cli(
+        runner,
+        [
+            "merchant-frequency",
+            "--month",
+            "2025-08",
+            "--format",
+            "csv",
+            "--db",
+            str(app_config.database.path),
+            "--min-visits",
+            "1",
+        ],
+    )
+    assert exit_code == 0, output
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    assert lines[0] == "title,Merchant Frequency"
+    assert any(line.startswith("summary,") for line in lines)
+    assert any(line == "table,merchant_frequency" for line in lines)
+    assert "Merchant,Visits,Spend,Avg / Visit,Prev Visits,Prev Spend,Change %" in lines
+
+
 def test_cli_renders_text(load_analysis_dataset, app_config, runner) -> None:
     load_analysis_dataset("spending_multi_year")
     exit_code, output = _invoke_cli(

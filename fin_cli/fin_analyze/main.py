@@ -44,7 +44,7 @@ HELP_TEXT = (
     "output_format",
     default="text",
     show_default=True,
-    type=click.Choice(["text", "json"]),
+    type=click.Choice(["text", "json", "csv"]),
 )
 @click.option("--compare", is_flag=True, help="Compare against the immediately preceding window.")
 @click.option("--threshold", type=float, help="Global minimum significance threshold.")

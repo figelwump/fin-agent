@@ -214,7 +214,7 @@ EXIT CODES:
 fin-analyze <analysis-type> [options]
   --month YYYY-MM       Analyze specific month
   --period <N>m|w|d|all Analyze period (3m = 3 months, 'all' = entire history)
-  --format text|json    Output format
+  --format text|json|csv Output format
   --compare             Compare to previous period (not supported with --period all)
   --help                Show detailed help
 ```
@@ -244,7 +244,7 @@ ANALYSIS TYPES:
 COMMON OPTIONS:
   --month YYYY-MM       Specific month (default: current)
   --period <N>m|w|d|all Time period: 3m=3 months, 2w=2 weeks, 30d=30 days, 'all' = entire history
-  --format text|json    Output format (default: text)
+  --format text|json|csv Output format (default: text)
   --compare             Compare to previous period (omit when using --period all)
   --threshold <n>       Min amount/frequency for inclusion
   --db <path>           Database path
@@ -316,6 +316,7 @@ EXAMPLES:
 OUTPUT FORMATS:
   text: Human-readable tables and summaries
   json: Structured data for programmatic use
+  csv: Title, summaries, and tables written as comma-separated sections
 
 EXIT CODES:
   0  Success

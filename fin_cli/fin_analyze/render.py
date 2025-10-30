@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import sys
-from typing import IO, Sequence
+from typing import IO
 
 from fin_cli.fin_analyze.types import AnalysisResult, TableSeries
 from fin_cli.shared.logging import Logger
@@ -30,6 +31,9 @@ def render_result(
     fmt = (output_format or "text").lower()
     if fmt == "json":
         _render_json(result, stream=stream)
+        return
+    if fmt == "csv":
+        _render_csv(result, stream=stream)
         return
     if fmt == "text":
         _render_text(result, logger=logger, stream=stream)
@@ -82,6 +86,45 @@ def _render_json(result: AnalysisResult, *, stream: IO[str]) -> None:
     stream.write("\n")
 
 
+def _render_csv(result: AnalysisResult, *, stream: IO[str]) -> None:
+    """Emit a CSV representation that stays agent- and script-friendly."""
+
+    writer = csv.writer(stream)
+
+    # Always include the title as the first row so parsers retain analysis context.
+    writer.writerow(["title", result.title])
+
+    if result.summary:
+        for line in result.summary:
+            writer.writerow(["summary", line])
+
+    if result.tables:
+        # Separate the narrative block from table sections with a blank row.
+        writer.writerow([])
+
+    for index, table in enumerate(result.tables):
+        if index > 0:
+            writer.writerow([])
+
+        writer.writerow(["table", table.name])
+
+        if table.metadata:
+            for key, value in sorted(table.metadata.items()):
+                writer.writerow([
+                    "metadata",
+                    key,
+                    json.dumps(value, sort_keys=True, default=str),
+                ])
+
+        if table.columns:
+            writer.writerow(list(table.columns))
+        else:
+            writer.writerow([])
+
+        for row in table.rows:
+            writer.writerow(["" if cell is None else cell for cell in row])
+
+
 def _build_rich_table(table_series: TableSeries) -> Table:
     rich_table = Table(
         title=table_series.name,
@@ -94,4 +137,3 @@ def _build_rich_table(table_series: TableSeries) -> Table:
     for row in table_series.rows:
         rich_table.add_row(*["" if cell is None else str(cell) for cell in row])
     return rich_table
-
