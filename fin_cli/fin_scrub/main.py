@@ -677,9 +677,10 @@ def main(
     scrubbed = _scrub_text(raw_text, stats)
 
     if output_dir is not None:
-        target_dir = output_dir / "scrubbed"
-        target_dir.mkdir(parents=True, exist_ok=True)
-        output_path = target_dir / _derive_scrubbed_filename(input_path if not use_stdin else None)
+        # Keep scrubbed outputs flat in the requested directory so downstream
+        # skills can glob for `*-scrubbed.txt` without remembering a subfolder.
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / _derive_scrubbed_filename(input_path if not use_stdin else None)
 
     if output_path:
         output_path.write_text(scrubbed)

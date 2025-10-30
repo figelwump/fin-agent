@@ -178,9 +178,8 @@ def test_cli_writes_auto_named_prompt(tmp_path: Path) -> None:
 def test_cli_workdir_discovers_inputs(tmp_path: Path) -> None:
     _, env = _prepare_config(tmp_path)
     workdir = tmp_path / "workspace"
-    scrubbed_dir = workdir / "scrubbed"
-    scrubbed_dir.mkdir(parents=True, exist_ok=True)
-    (scrubbed_dir / "demo-scrubbed.txt").write_text("Header\n09/01 Sample 10.00", encoding="utf-8")
+    workdir.mkdir(parents=True, exist_ok=True)
+    (workdir / "demo-scrubbed.txt").write_text("Header\n09/01 Sample 10.00", encoding="utf-8")
 
     runner = CliRunner()
     result = runner.invoke(
