@@ -20,6 +20,8 @@ mkdir -p $WORKDIR
 
 ## Data Collection
 
+Before running analyzers, confirm the time window with the user. If they do not specify one, ask for the desired coverage (e.g., “Which months should I review for subscriptions?”) instead of guessing.
+
 1. Activate the virtual environment:
    ```bash
    source .venv/bin/activate
@@ -27,30 +29,30 @@ mkdir -p $WORKDIR
 
 2. Pull recurring merchant context (adjust period as needed, typically 12m for annual subscriptions):
    ```bash
-   fin-analyze merchant-frequency --period 12m --min-visits 3 --format json > $WORKDIR/merchant_frequency.json
+   fin-analyze merchant-frequency --period 12m --min-visits 3 --format csv > $WORKDIR/merchant_frequency.csv
    ```
 
-3. Fetch detailed transactions for analysis (adjust date range as needed):
+3. Fetch detailed transactions for analysis (replace the dates with the user-approved range):
    ```bash
-   fin-query saved transactions_range --param start_date=2025-01-01 --param end_date=2025-10-29 --param limit=50000 --format csv > $WORKDIR/transactions.csv
+   fin-query saved transactions_range --param start_date=<START_DATE> --param end_date=<END_DATE> --param limit=50000 --limit 50000 --format csv > $WORKDIR/transactions.csv
    ```
 
    **Tips:**
    - Use CSV format (not JSON) to save tokens - it's much more compact
    - If transactions.csv is empty or sparse, expand the date range (try going back 2-3 years)
-   - Check what data exists: `fin-query saved recent_imports --limit 10`
-   - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM`
-   - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands
+   - Check what data exists: `fin-query saved recent_imports --limit 25 --format csv`
+   - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM --limit 500 --format csv`
+   - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands and include `--limit <N> --format csv`
    - Large CSV files can be searched with grep or read in chunks using offset/limit
 
 4. Optionally, get category breakdown for context:
    ```bash
-   fin-analyze category-breakdown --period 12m --format json > $WORKDIR/category_breakdown.json
+   fin-analyze category-breakdown --period 12m --format csv > $WORKDIR/category_breakdown.csv
    ```
 
 ## Analysis Steps
 
-1. **Load transaction data**: Read `$WORKDIR/merchant_frequency.json` and `$WORKDIR/transactions.csv`
+1. **Load transaction data**: Read `$WORKDIR/merchant_frequency.csv` and `$WORKDIR/transactions.csv`
 
 2. **Identify recurring patterns**: The LLM should analyze:
    - Merchants with regular charge intervals (monthly, quarterly, annual)

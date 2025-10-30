@@ -16,7 +16,7 @@ Environment
 Conventions
 - Use `fin-query` for read-only exploration (it is intentionally read-only).
 - Use `fin-edit` for safe write operations (dry-run by default; add `--apply`).
-- Prefer `--format json` when an agent needs to parse CLI output.
+- Capture structured output with `--limit <N> --format csv` to keep transcripts compact.
 
 Skill Packages
 - statement-processor: extract statements and import into SQLite
@@ -27,6 +27,6 @@ Skill Packages
 Notes for LLMs
 - Load skills progressively based on user intent (e.g., load transaction-categorizer
   only after statement-processor identifies uncategorized transactions).
-- Validate category names against the existing taxonomy (`fin-query saved categories`).
+- Validate category names against the existing taxonomy (`fin-query saved categories --limit 200 --format csv`).
 - Avoid taxonomy bloat: prefer existing categories and confirm with the user
   before creating new ones.

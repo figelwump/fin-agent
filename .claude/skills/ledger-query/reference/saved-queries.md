@@ -14,10 +14,11 @@
 
 Usage pattern:
 ```bash
-fin-query saved <name> --param key=value --limit 25 --format json
+fin-query saved <name> --param key=value --limit 25 --format csv
 ```
 
 Tips
 - Parameters are case-sensitive; wrap values containing spaces in quotes (e.g., `--param category="Food & Dining"`).
 - Omit a parameter completely to accept the default (e.g., pass no `subcategory` to include all subcategories).
 - Add `--db <path>` when the user specifies an alternate database file.
+- Some saved queries expose a `limit` parameter; still pass the CLI-level `--limit <N>` so `fin-query` does not truncate at 200 rows. The CLI limit is safe even when the SQL also receives a `:limit` binding.

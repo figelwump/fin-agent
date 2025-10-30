@@ -72,17 +72,17 @@ mkdir -p $WORKDIR
 6. **Hand off to transaction-categorizer skill** to handle remaining uncategorized transactions. Verify success with:
    ```bash
    source .venv/bin/activate && \
-   fin-query saved uncategorized --limit 5  # Should shrink
+   fin-query saved uncategorized --limit 5 --format csv  # Should shrink
 
    source .venv/bin/activate && \
-   fin-query saved merchant_patterns --limit 5 --format table  # Should reflect new patterns
+   fin-query saved merchant_patterns --limit 5 --format csv  # Should reflect new patterns
    ```
 
 7. **If any command fails** or the sanity checks above are unexpected, stop the loop and resolve the issue before moving to the next statement.
 
 ---
 
-**Note:** The prompt builder focuses purely on extraction guidance. Category taxonomy and merchant hints are fetched later by the transaction-categorizer skill. If you need to inspect taxonomy data separately for debugging, run `python $SKILL_ROOT/scripts/preprocess.py --input scrubbed.txt --emit-json` or query the catalog directly with `fin-query` (e.g., `fin-query saved categories --format json`).
+**Note:** The prompt builder focuses purely on extraction guidance. Category taxonomy and merchant hints are fetched later by the transaction-categorizer skill. If you need to inspect taxonomy data separately for debugging, run `python $SKILL_ROOT/scripts/preprocess.py --input scrubbed.txt --emit-json` or query the catalog directly with `fin-query` (e.g., `fin-query saved categories --limit 200 --format csv`).
 
 ## CSV Requirements (LLM Output)
 - Required header (order fixed):
@@ -112,7 +112,7 @@ mkdir -p $WORKDIR
 - Always preview imports: `fin-edit import-transactions enriched.csv`
 - Apply when satisfied: `fin-edit --apply import-transactions enriched.csv --learn-patterns --learn-threshold 0.75`
 - Use `--default-confidence` to backfill blanks and `--no-create-categories` to enforce pre-created taxonomy entries.
-- Validate inserts with `fin-query saved recent_imports --limit 10` or `fin-query saved transactions_month --param month=YYYY-MM`.
+- Validate inserts with `fin-query saved recent_imports --limit 10 --format csv` or `fin-query saved transactions_month --param month=YYYY-MM --limit 200 --format csv`.
 
 ## Available Commands
 - `fin-scrub`: sanitize PDFs to redact PII.
@@ -121,13 +121,13 @@ mkdir -p $WORKDIR
 - `fin-edit import-transactions`: persist enriched CSV rows into SQLite (preview by default; add `--apply` to write, `--default-confidence` to fill gaps, `--no-create-categories` to force manual taxonomy prep). Uncategorized transactions will be imported successfully.
 - `fin-edit set-category`: correct individual transactions after import (dry-run before `--apply`).
 - `fin-edit add-merchant-pattern`: remember high-confidence merchant/category mappings for future runs.
-- `fin-query saved merchants --format json --min-count N`: retrieve merchant taxonomy for debugging.
+- `fin-query saved merchants --min-count N --limit 200 --format csv`: retrieve merchant taxonomy for debugging.
 
 ## Common Errors
 - **Missing CSV columns**: Verify LLM output has all required fields: `date,merchant,amount,original_description,account_name,institution,account_type,last_4_digits,category,subcategory,confidence`. Run postprocess.py to add `account_key`, `fingerprint`, and related columns.
 - **Fingerprint collision on import**: Transaction already exists in database. This is expected behavior - duplicates are automatically skipped.
 - **Invalid confidence value**: Ensure confidence is between 0 and 1. Use `--default-confidence 0.9` to fill empty cells during import.
-- **Unknown category on import**: Either edit the CSV to use existing categories (check with `fin-query saved categories`) or allow creation by omitting `--no-create-categories` flag.
+- **Unknown category on import**: Either edit the CSV to use existing categories (check with `fin-query saved categories --limit 200 --format csv`) or allow creation by omitting `--no-create-categories` flag.
 - **Account identification unclear**: If the LLM cannot determine which account a statement belongs to, pause and ask the user before importing. Rerun `$SKILL_ROOT/scripts/postprocess.py` after updating account metadata in the CSV.
 - **Low-confidence rows (<0.7)**: Review and correct in the enriched CSV before import, or use `fin-edit set-category` after import to fix individual transactions.
 - **Malformed amount**: Ensure amounts are positive decimals with two decimal places. Credits/refunds should be excluded upstream.
@@ -139,13 +139,13 @@ mkdir -p $WORKDIR
 After successfully importing transactions, verify the results:
 ```bash
 # Check recent imports
-fin-query saved recent_imports --limit 5
+fin-query saved recent_imports --limit 5 --format csv
 
 # Verify transaction count for the month
-fin-query saved transactions_month --param month=YYYY-MM --format table
+fin-query saved transactions_month --param month=YYYY-MM --limit 200 --format csv
 
 # Check for uncategorized transactions (should be minimal if import went well)
-fin-query saved uncategorized --limit 10
+fin-query saved uncategorized --limit 10 --format csv
 ```
 
 ## Cross-Skill Transitions

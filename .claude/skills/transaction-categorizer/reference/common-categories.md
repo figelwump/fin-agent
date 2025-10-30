@@ -4,7 +4,7 @@
 
 Before suggesting any categories, ALWAYS run:
 ```bash
-fin-query saved categories --format json
+fin-query saved categories --limit 200 --format csv
 ```
 
 This shows the user's actual category structure. **Use these categories first** - only reference the suggested categories below as a fallback if the user's taxonomy is empty or doesn't contain a suitable match.
@@ -70,4 +70,3 @@ Income
 Preventing Taxonomy Bloat
 - Prefer existing categories; suggest close matches
 - Confirm with the user before creating new ones
-

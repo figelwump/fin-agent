@@ -49,17 +49,17 @@ Principles
 
 ```bash
 source .venv/bin/activate && \
-fin-query saved uncategorized --format json > $WORKDIR/uncategorized.json && \
-jq 'length' $WORKDIR/uncategorized.json
+fin-query saved uncategorized --limit 500 --format csv > $WORKDIR/uncategorized.csv && \
+tail -n +2 $WORKDIR/uncategorized.csv | wc -l
 ```
 
-If no uncategorized transactions found (count is 0), you're done!
+If no uncategorized transactions remain (count prints `0`), you're done!
 
 **Step 2: Generate LLM categorization prompt**
 ```bash
 source .venv/bin/activate && \
 python $SKILL_ROOT/scripts/build_prompt.py \
-  --input $WORKDIR/uncategorized.json \
+  --input $WORKDIR/uncategorized.csv \
   --output $WORKDIR/categorization-prompt.txt && \
 cat $WORKDIR/categorization-prompt.txt
 ```
@@ -110,8 +110,8 @@ These low-confidence suggestions will be presented to the user during interactiv
 **Step 5: Check for remaining uncategorized**
 ```bash
 source .venv/bin/activate && \
-fin-query saved uncategorized --format json > $WORKDIR/uncategorized-remaining.json && \
-jq 'length' $WORKDIR/uncategorized-remaining.json
+fin-query saved uncategorized --limit 500 --format csv > $WORKDIR/uncategorized-remaining.csv && \
+tail -n +2 $WORKDIR/uncategorized-remaining.csv | wc -l
 ```
 
 If any remain after LLM categorization, proceed to Interactive Manual Review below.
@@ -123,7 +123,7 @@ Use this workflow only for transactions that the LLM had low confidence on (<0.7
 **1) Load existing taxonomy and LLM suggestions**
 ```bash
 source .venv/bin/activate && \
-fin-query saved categories --format json > $WORKDIR/categories.json
+fin-query saved categories --limit 200 --format csv > $WORKDIR/categories.csv
 
 # Low-confidence LLM suggestions (<0.75) are already saved from Step 4c
 # (in $WORKDIR/low-confidence-suggestions.csv)
@@ -132,7 +132,7 @@ fin-query saved categories --format json > $WORKDIR/categories.json
 **2) Review remaining uncategorized**
 ```bash
 source .venv/bin/activate && \
-cat $WORKDIR/uncategorized-remaining.json
+cat $WORKDIR/uncategorized-remaining.csv
 ```
 
 **3) For each transaction:**
@@ -180,9 +180,10 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 
 ## Available Commands
 
-- `python $SKILL_ROOT/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions JSON.
-- `fin-query saved uncategorized`: Query uncategorized transactions from the database.
-- `fin-query saved categories`: Query existing category taxonomy.
+- `python $SKILL_ROOT/scripts/build_prompt.py`: Generate LLM categorization prompt from uncategorized transactions CSV or JSON.
+- `fin-query saved uncategorized --limit 500 --format csv`: Query uncategorized transactions from the database.
+- `fin-query saved categories --limit 200 --format csv`: Query existing category taxonomy.
+- `fin-query saved merchant_patterns --limit 25 --format csv`: Inspect learned merchant rules; prefer this over raw `sqlite3` queries to avoid schema mismatches.
 - `fin-edit set-category`: Apply categorization to a transaction (dry-run by default; add `--apply` to write). Always use `--create-if-missing` to auto-create new categories.
 - `fin-edit add-merchant-pattern`: Learn merchant patterns for future auto-categorization (dry-run by default; add `--apply` to write).
 
@@ -202,28 +203,29 @@ fin-edit --apply add-merchant-pattern --pattern '<pattern_key>' \
 
 **Progress tracking:**
 - Process transactions in batches and show progress ("Categorized 45 of 120 remaining")
-- After each batch, validate with `fin-query saved uncategorized` to see remaining count
+- After each batch, validate with `fin-query saved uncategorized --limit 500 --format csv | tail -n +2 | wc -l` to see remaining count
 
 **Workspace cleanup:**
 - Keep the workspace for debugging if categorizations need to be reviewed or reverted
 
 Common Errors
-- **Transaction not found**: Verify the transaction ID is correct. Use `fin-query saved uncategorized` or `fin-query saved recent_transactions` to find the correct ID.
+- **Transaction not found**: Verify the transaction ID is correct. Use `fin-query saved uncategorized --limit 500 --format csv` or `fin-query saved recent_transactions --limit 25 --format csv` to find the correct ID.
 - **Category already set**: Transaction is already categorized. Use `fin-edit set-category` to update it (overwrites existing category).
 - **Pattern already exists**: Merchant pattern is already learned. Use `fin-edit set-merchant-pattern` to update the existing pattern or choose a more specific pattern key.
-- **Duplicate fingerprint**: Transaction may already exist in database from a previous import. Check with `fin-query saved recent_transactions`.
+- **Duplicate fingerprint**: Transaction may already exist in database from a previous import. Check with `fin-query saved recent_transactions --limit 25 --format csv`.
+- **SQLite column mismatch**: If you drop to `sqlite3`, remember `merchant_patterns` stores `category_id`/`subcategory_id` and requires joining to `categories` for `category`/`subcategory` text. Use `fin-query saved merchant_patterns` whenever possible to avoid these errors.
 
 Validation After Categorization
 After categorizing transactions, verify the changes:
 ```bash
 # Verify the transaction was updated
-fin-query saved recent_transactions --limit 5 --format table
+fin-query saved recent_transactions --limit 5 --format csv
 
 # Check remaining uncategorized count
-fin-query saved uncategorized --format json | jq 'length'
+fin-query saved uncategorized --limit 500 --format csv | tail -n +2 | wc -l
 
 # Verify merchant pattern was learned (if applicable)
-fin-query saved merchant_patterns --param pattern='PATTERN%' --limit 5
+fin-query saved merchant_patterns --param pattern='PATTERN%' --limit 5 --format csv
 ```
 
 Cross-Skill Transitions

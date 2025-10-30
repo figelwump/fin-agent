@@ -18,9 +18,10 @@ Environment
 - `source .venv/bin/activate`
 
 Guidelines
-- Prefer `--format json` for parsing analyzer output
-- Use multiple analyzers for "report" requests and assemble results
-- To cover the full history, use `--period all` (do not combine with `--compare`)
+- Prefer `--format csv` with analyzers to keep transcripts compact.
+- Always ask the user for the analysis window (month, quarter, custom dates). Do not assume or default to multi-year ranges without explicit direction.
+- Use multiple analyzers for "report" requests and assemble results.
+- To cover the full history, use `--period all` (do not combine with `--compare`).
 - The `--compare` flag adds comparison data vs the previous period (e.g., if analyzing Sept 2025, compares to Aug 2025). Only works with specific time windows (month/quarter/year), not with `--period all`.
 
 Report Assembly Patterns
@@ -39,24 +40,24 @@ Use case: Analyze spending in a specific category over time and note new/dormant
 
 Common Analyzers
 ```bash
-fin-analyze spending-trends --month 2025-09 --format json
-fin-analyze category-breakdown --month 2025-09 --format json
-fin-analyze merchant-frequency --month 2025-09 --min-visits 2 --format json
-fin-analyze category-timeline --period 6m --category "Food & Dining" --format json
-fin-query saved transactions_range --param start_date=2025-06-01 --param end_date=2025-10-01 --param limit=50000
+fin-analyze spending-trends --month 2025-09 --format csv
+fin-analyze category-breakdown --month 2025-09 --format csv
+fin-analyze merchant-frequency --month 2025-09 --min-visits 2 --format csv
+fin-analyze category-timeline --period 6m --category "Food & Dining" --format csv
+fin-query saved transactions_range --param start_date=2025-06-01 --param end_date=2025-10-01 --param limit=50000 --limit 50000 --format csv
 ```
 
 Common Errors
 - **Invalid date format**: Use `YYYY-MM` for `--month` (e.g., `2025-09`) and periods like `3m`, `6m`, `12m`, or `all` for `--period`
-- **No data for period**: Check if transactions exist in the specified time range with `fin-query saved transactions_month --param month=YYYY-MM`
+- **No data for period**: Check if transactions exist in the specified time range with `fin-query saved transactions_month --param month=YYYY-MM --limit 500 --format csv`
 - **Unknown analyzer**: Run `fin-analyze --help` to see available analyzers or check `$SKILL_ROOT/reference/all-analyzers.md`
-- **Unknown category**: Verify category name with `fin-query saved categories`. Use exact spelling including ampersands (e.g., `"Food & Dining"`).
+- **Unknown category**: Verify category name with `fin-query saved categories --limit 200 --format csv`. Use exact spelling including ampersands (e.g., `"Food & Dining"`).
 - **Cannot use --compare with --period all**: The `--compare` flag requires a specific time window (month, quarter, year), not the entire history
 - **Empty or sparse transactions_range results**: If `fin-query saved transactions_range` returns empty/sparse data:
   1. Try expanding the date range (go back further, e.g., 2+ years)
-  2. Check what data exists with `fin-query saved recent_imports --limit 10` to see date ranges
-  3. Use `fin-query saved transactions_month` to verify which months have data
-  4. If you need custom SQL queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands
+  2. Check what data exists with `fin-query saved recent_imports --limit 25 --format csv` to see date ranges
+  3. Use `fin-query saved transactions_month --param month=YYYY-MM --limit 500 --format csv` to verify which months have data
+  4. If you need custom SQL queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands and include `--limit <N> --format csv`
 
 Examples & Workflows
 - $SKILL_ROOT/examples/custom-reports.md

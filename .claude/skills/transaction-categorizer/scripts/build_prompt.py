@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import json
+from io import StringIO
 import sys
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import click
 
@@ -23,6 +25,72 @@ def _load_categories() -> list[str]:
         f"{row[category_idx]} > {row[subcategory_idx]}"
         for row in result.rows
     ]
+
+
+def _coerce_amount(value: Any) -> float:
+    """Convert the amount field to a float for prompt formatting."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if value is None:
+        return 0.0
+    try:
+        return float(str(value).strip().replace("$", ""))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _normalise_transaction(txn: Mapping[str, Any]) -> dict[str, Any]:
+    """Ensure transaction fields are ready for prompt rendering."""
+    record = dict(txn)
+    record["amount"] = _coerce_amount(record.get("amount"))
+    return record
+
+
+def _parse_csv(content: str) -> list[dict[str, Any]]:
+    """Parse CSV content into a list of transaction dicts."""
+    reader = csv.DictReader(StringIO(content))
+    rows: list[dict[str, Any]] = []
+    for row in reader:
+        if not row:
+            continue
+        if not any(value.strip() for value in row.values() if isinstance(value, str)):
+            continue
+        rows.append(_normalise_transaction(row))
+    return rows
+
+
+def _parse_json(content: str) -> list[dict[str, Any]]:
+    """Parse JSON content into a list of transaction dicts."""
+    payload = json.loads(content)
+    transactions: list[Mapping[str, Any]]
+    if isinstance(payload, list):
+        transactions = payload  # type: ignore[assignment]
+    elif isinstance(payload, Mapping):
+        # Handle fin-query's structured output formats
+        if "rows" in payload and "columns" in payload:
+            columns = payload["columns"]
+            rows = payload["rows"]
+            transactions = [dict(zip(columns, row)) for row in rows]
+        else:
+            raise click.ClickException("Unsupported JSON structure for transactions.")
+    else:
+        raise click.ClickException("Unsupported JSON payload for transactions.")
+
+    return [_normalise_transaction(txn) for txn in transactions]
+
+
+def _load_transactions_from_source(data: str, hint: str | None = None) -> list[dict[str, Any]]:
+    """Load transactions from serialized CSV or JSON data."""
+    stripped = data.lstrip()
+    if not stripped:
+        return []
+    if hint and hint.lower().endswith(".csv"):
+        return _parse_csv(data)
+    if hint and hint.lower().endswith(".json"):
+        return _parse_json(data)
+    if stripped[0] in ("{", "["):
+        return _parse_json(data)
+    return _parse_csv(data)
 
 
 def _format_transactions(transactions: Sequence[dict[str, Any]]) -> str:
@@ -91,7 +159,7 @@ transaction_id,canonical_merchant,category,subcategory,confidence,notes
     "--input",
     "input_path",
     type=click.Path(path_type=Path, exists=True, dir_okay=False),
-    help="JSON file with uncategorized transactions (from fin-query). If omitted, reads from stdin.",
+    help="CSV or JSON file with uncategorized transactions (from fin-query). If omitted, reads from stdin.",
 )
 @click.option(
     "--output",
@@ -106,16 +174,17 @@ def cli(
     """Build a categorization prompt for uncategorized transactions.
 
     Example usage:
-        fin-query saved uncategorized --format json | python build_prompt.py
-        fin-query saved uncategorized --format json > /tmp/uncategorized.json
-        python build_prompt.py --input /tmp/uncategorized.json --output /tmp/prompt.txt
+        fin-query saved uncategorized --format csv --limit 500 | python build_prompt.py
+        fin-query saved uncategorized --format csv --limit 500 > /tmp/uncategorized.csv
+        python build_prompt.py --input /tmp/uncategorized.csv --output /tmp/prompt.txt
     """
     # Load transactions
     if input_path:
-        with input_path.open("r", encoding="utf-8") as f:
-            transactions = json.load(f)
+        raw = input_path.read_text(encoding="utf-8")
+        transactions = _load_transactions_from_source(raw, hint=input_path.suffix)
     else:
-        transactions = json.load(sys.stdin)
+        raw = sys.stdin.read()
+        transactions = _load_transactions_from_source(raw)
 
     if not transactions:
         click.echo("No uncategorized transactions found.", err=True)

@@ -25,18 +25,17 @@ mkdir -p $WORKDIR
    source .venv/bin/activate
    ```
 
-2. Fetch all transactions for analysis (adjust date range as needed, or use a large range like 2-3 years if not specified):
+2. Confirm the analysis window with the user (e.g., “Which dates should I review for unusual spending?”). Once the timeframe is explicit, fetch transactions covering that range (replace the placeholders with the confirmed dates):
    ```bash
-   fin-query saved transactions_range --param start_date=2023-01-01 --param end_date=2025-10-29 --param limit=50000 --format csv > $WORKDIR/transactions.csv
+   fin-query saved transactions_range --param start_date=<START_DATE> --param end_date=<END_DATE> --param limit=50000 --limit 50000 --format csv > $WORKDIR/transactions.csv
    ```
 
    **Tips:**
    - Use CSV format (not JSON) to save tokens - it's much more compact
-   - For focused analysis, specify a narrower range (e.g., last 3-6 months)
-   - For comprehensive baseline, use 2+ years of data
-   - If the file is empty, check what data exists: `fin-query saved recent_imports --limit 10`
-   - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM`
-   - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands
+   - For focused analysis, prefer a narrower range (e.g., last 3-6 months) unless the user requests otherwise
+   - If the file is empty, check what data exists: `fin-query saved recent_imports --limit 25 --format csv`
+   - Verify which months have data: `fin-query saved transactions_month --param month=YYYY-MM --limit 500 --format csv`
+   - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands and include `--limit <N> --format csv`
    - Large CSV files can be searched with grep or read in chunks using offset/limit
 
 ## Analysis Steps
