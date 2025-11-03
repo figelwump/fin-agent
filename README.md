@@ -339,6 +339,10 @@ The original extraction pipeline remains available but is no longer part of the 
 
 Legacy commands remain in the source tree (invoke via `python -m fin_cli.fin_extract`, etc.) but no longer install as standalone executables; future development focuses on the skills-first workflow above.
 
+## Web Agent & ccsdk
+
+The repository still includes a lightweight web agent in `ccsdk/` and associated MCP tools. They’re useful for demonstrations of the Claude Agent SDK and a simple local UI, but the recommended flow remains the CLI + skills. The open-source web UI no longer surfaces Plaid Link; backend Plaid routes remain for teams who want to wire their own consented import experience.
+
 ## License
 
 Source code is released under the standard MIT license.

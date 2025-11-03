@@ -49,10 +49,12 @@ Notes: `AGENTS.md` (symlinked by `CLAUDE.md`) now documents the skills-first flo
 Notes: Added MIT `LICENSE`, updated `pyproject.toml` metadata (version bump, classifiers), and documented pip/pipx workflows in README. Introduced CLI smoke tests (`tests/cli/test_entrypoints.py`) validating entry points with Click. Authored `docs/dev/release.md` covering lockfiles, build tooling, and publish steps; README now highlights pipx installs. Deprecated Docling support (removed extra dependency, CLI engine option, and loader) so pdfplumber + Camelot remain the maintained extraction path.
 
 ## Phase 6 – Web UI Simplification
-- [ ] Remove the Plaid-powered component from the web UI surface (retain underlying Plaid integration code for future opt-in use)
-- [ ] Write/update a `client/README.md` (or similar) describing the remaining web agent capabilities and local setup
-- [ ] Audit `ccsdk/` and `server/` for additional cleanup opportunities or unused endpoints
-- [ ] Confirm the UI still builds/tests after dependencies are trimmed (`bun test`, `bun run server/server.ts`)
+- [x] Remove the Plaid-powered component from the web UI surface (retain underlying Plaid integration code for future opt-in use)
+- [x] Write/update a `client/README.md` (or similar) describing the remaining web agent capabilities and local setup
+- [x] Audit `ccsdk/` and `server/` for additional cleanup opportunities or unused endpoints
+- [x] Confirm the UI still builds/tests after dependencies are trimmed (`bun test`, `bun run server/server.ts`)
+
+Notes: Removed Plaid-specific React components/utilities, updated the chat interface to drop the connect button, and documented the trimmed web UI in `client/README.md`. Reviewed ccsdk/server code—Plaid helpers remain for future opt-in flows. Added README guidance clarifying that Plaid Link is not surfaced by default. Verified Bun tests succeed.
 
 ## Phase 7 – Developer Experience & Fin-CLI Guidance
 - [ ] Author `fin_cli/README.md` capturing package layout, local development workflow, testing strategy, and release steps

@@ -4,7 +4,6 @@ import { Message, ImportSummaryBlock, ImportProgressBlock, StructuredPrompt } fr
 import { Send, Wifi, WifiOff, RefreshCw, Mail, Clock } from 'lucide-react';
 import { SuggestedQueries } from './dashboard/SuggestedQueries';
 import { ImportStatementsButton } from './dashboard/ImportStatementsButton';
-import { ConnectedPlaidAccounts } from './dashboard/ConnectedPlaidAccounts';
 import { useFileSelection, SelectionMode, SelectedEntry } from '../hooks/useFileSelection';
 
 interface ChatInterfaceProps {
@@ -350,7 +349,6 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
             </div>
           </div>
 
-          <ConnectedPlaidAccounts disabled={!isConnected || isLoading || isImporting || isSelecting} />
           
           {messages.length === 0 ? (
             <div className="text-center text-gray-400 mt-12">
