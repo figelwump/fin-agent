@@ -31,11 +31,10 @@ Each CLI exposes a `main.py` with `click` commands. Only the active commands (`f
    pytest
    bun test        # Node/Bun utilities
    ```
-3. Run targeted linting if needed:
-   ```bash
-   ruff check fin_cli
-   mypy fin_cli
-   ```
+3. Run linting if needed:
+  ```bash
+  ruff check fin_cli
+  ```
 4. For quick smoke checks without the repo venv, install via pipx:
    ```bash
    pipx install '.[all]'
