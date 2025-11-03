@@ -69,6 +69,8 @@ def test_mercury_bundled_spec_parity(pdf_name: str, expected_count: int) -> None
     pytest.importorskip("pdfplumber")
 
     pdf_path = Path("statements/mercury") / pdf_name
+    if not pdf_path.exists():
+        pytest.skip("Mercury sample statements not committed")
     document = load_pdf_document_with_engine(pdf_path, "pdfplumber")
 
     python_result = MercuryExtractor().extract(document)

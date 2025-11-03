@@ -85,6 +85,8 @@ def test_bofa_bundled_spec_parity(pdf_name: str, expected_transactions: int) -> 
     pytest.importorskip("pdfplumber")
 
     pdf_path = Path("statements/bofa") / pdf_name
+    if not pdf_path.exists():
+        pytest.skip("BofA sample statements not committed")
     document = load_pdf_document_with_engine(pdf_path, "pdfplumber")
 
     python_result = BankOfAmericaExtractor().extract(document)

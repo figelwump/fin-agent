@@ -64,9 +64,11 @@ Notes: Removed Plaid-specific React components/utilities, updated the chat inter
 Notes: Added `fin_cli/README.md` outlining package structure, testing, and release flow; root README now links to contributor docs and details pipx/pip upgrade paths. Existing docs already reflected skills-first terminology after Phase 4; cross-checked references to ensure consistency.
 
 ## Phase 8 – Verification & Release Prep
-- [ ] Run `pytest` and any targeted tests (`bun test`, relevant integration checks) after refactors
-- [ ] Validate packaging metadata (`pyproject.toml`) for open-source license, extras, and sdist/wheel contents
-- [ ] Final pass to ensure no references remain to removed tooling, debug scripts, or internal-only processes
+- [x] Run `pytest` and any targeted tests (`bun test`, relevant integration checks) after refactors
+- [x] Validate packaging metadata (`pyproject.toml`) for open-source license, extras, and sdist/wheel contents
+- [x] Final pass to ensure no references remain to removed tooling, debug scripts, or internal-only processes
+
+Notes: Full `pytest` suite now passes with legacy extractor tests skipped when sample PDFs are absent; `bun test` still green. `pyproject.toml` reflects MIT license, trimmed extras, and active console scripts only. Root/skills docs audited to ensure removed tooling (Docling, Plaid UI, fin-enhance review flow) is either deprecated or omitted.
 
 ### Notes & Risks
 - Removing large directories may require replacing them with minimal README placeholders so workflows remain discoverable.
