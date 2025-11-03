@@ -20,12 +20,7 @@ mkdir -p $WORKDIR
 
 ## Data Collection
 
-1. Activate the virtual environment:
-   ```bash
-   source .venv/bin/activate
-   ```
-
-2. Confirm the analysis window with the user (e.g., “Which dates should I review for unusual spending?”). Once the timeframe is explicit, fetch transactions covering that range (replace the placeholders with the confirmed dates):
+1. Confirm the analysis window with the user (e.g., “Which dates should I review for unusual spending?”). Once the timeframe is explicit, fetch transactions covering that range (replace the placeholders with the confirmed dates):
    ```bash
    fin-query saved transactions_range --param start_date=<START_DATE> --param end_date=<END_DATE> --param limit=50000 --limit 50000 --format csv > $WORKDIR/transactions.csv
    ```

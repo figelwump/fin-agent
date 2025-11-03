@@ -20,6 +20,8 @@ Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/statemen
 
 When executing commands, replace `$WORKDIR` with the full path using your chosen slug. Use `$SKILL_ROOT` only when you need an absolute path to a helper script or reference file and keep the shell working directory at the repository root.
 
+Prerequisites: install the `fin-cli` package (e.g., `pip install -e .` or `pipx install fin-cli`) so the `fin-*` commands are on your `PATH`. Python helper scripts run with your default interpreter; no virtualenv activation is required inside the skill.
+
 ## Workflow (Sequential Loop)
 
 Process statements one at a time. For each PDF, run the full loop before touching the next file.
@@ -32,51 +34,44 @@ mkdir -p $WORKDIR
 ### Steps
 
 1. **Scrub sensitive data into the workspace:**
-   ```bash
-   source .venv/bin/activate && \
-   fin-scrub statement.pdf --output-dir $WORKDIR
-   ```
+```bash
+fin-scrub statement.pdf --output-dir $WORKDIR
+```
 
    > **Escalation:** If `fin-scrub` errors, returns an empty/garbled file, or you notice PII surviving in the scrubbed text, switch to the [fin-scrub configuration workflow](reference/fin-scrub-config-workflow.md). Catastrophic failures should trigger that workflow automatically; otherwise pause, alert the user, and wait for approval before promoting any config changes beyond the workspace override.
 
 2. **Build the prompt** (single statement per invocation):
-   ```bash
-   source .venv/bin/activate && \
-   python $SKILL_ROOT/scripts/preprocess.py \
-     --workdir $WORKDIR \
-     --input $WORKDIR/<file>-scrubbed.txt
-   ```
+```bash
+python $SKILL_ROOT/scripts/preprocess.py \
+--workdir $WORKDIR \
+--input $WORKDIR/<file>-scrubbed.txt
+```
 
 3. **Send the prompt to your LLM** (Claude, etc.) and save the CSV response to `$WORKDIR/<filename>.csv`.
 
 4. **Enrich and apply known patterns:**
-   ```bash
-   source .venv/bin/activate && \
-   python $SKILL_ROOT/scripts/postprocess.py \
-     --workdir $WORKDIR \
-     --apply-patterns --verbose
-   ```
+```bash
+python $SKILL_ROOT/scripts/postprocess.py \
+--workdir $WORKDIR \
+--apply-patterns --verbose
+```
 
 5. **Import validated rows** (preview first, then apply with pattern learning):
-   ```bash
-   # Preview
-   source .venv/bin/activate && \
-   fin-edit import-transactions $WORKDIR/<file>-enriched.csv
+```bash
+# Preview
+fin-edit import-transactions $WORKDIR/<file>-enriched.csv
 
-   # Apply
-   source .venv/bin/activate && \
-   fin-edit --apply import-transactions $WORKDIR/<file>-enriched.csv \
-     --learn-patterns --learn-threshold 0.75
-   ```
+# Apply
+fin-edit --apply import-transactions $WORKDIR/<file>-enriched.csv \
+--learn-patterns --learn-threshold 0.75
+```
 
 6. **Hand off to transaction-categorizer skill** to handle remaining uncategorized transactions. Verify success with:
-   ```bash
-   source .venv/bin/activate && \
-   fin-query saved uncategorized --limit 5 --format csv  # Should shrink
+```bash
+fin-query saved uncategorized --limit 5 --format csv  # Should shrink
 
-   source .venv/bin/activate && \
-   fin-query saved merchant_patterns --limit 5 --format csv  # Should reflect new patterns
-   ```
+fin-query saved merchant_patterns --limit 5 --format csv  # Should reflect new patterns
+```
 
 7. **If any command fails** or the sanity checks above are unexpected, stop the loop and resolve the issue before moving to the next statement.
 
@@ -116,16 +111,14 @@ mkdir -p $WORKDIR
 
 ## Cleanup & Database Safety
 - The SQLite schema is normalized: `transactions` only stores foreign keys (`category_id`, `account_id`). There is **no** `category`, `subcategory`, `account_name`, or `account_key` column in the table. Join to `categories` / `accounts` or use saved queries when you need human-readable fields.
-- Need a refresher? Run `source .venv/bin/activate && fin-query schema --table transactions --format table` (or `--all`) before composing ad-hoc SQL.
+- Need a refresher? Run `fin-query schema --table transactions --format table` (or `--all`) before composing ad-hoc SQL.
 - To remove bad rows after an import, run a dry-run preview and confirm the IDs with the user. Example:
   ```bash
-  source .venv/bin/activate && \
-  fin-edit delete-transactions --id 338 --id 340 --id 342
+fin-edit delete-transactions --id 338 --id 340 --id 342
   ```
   This prints every targeted row and exits without writing. Only rerun with `--apply` **after** the user approves the list:
   ```bash
-  source .venv/bin/activate && \
-  fin-edit --apply delete-transactions --id 338 --id 340 --id 342
+fin-edit --apply delete-transactions --id 338 --id 340 --id 342
   ```
 - Avoid raw `sqlite3` deletes unless a fin-cli command cannot perform the operation.
 

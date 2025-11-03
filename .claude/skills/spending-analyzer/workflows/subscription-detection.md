@@ -22,17 +22,12 @@ mkdir -p $WORKDIR
 
 Before running analyzers, confirm the time window with the user. If they do not specify one, ask for the desired coverage (e.g., “Which months should I review for subscriptions?”) instead of guessing.
 
-1. Activate the virtual environment:
-   ```bash
-   source .venv/bin/activate
-   ```
-
-2. Pull recurring merchant context (adjust period as needed, typically 12m for annual subscriptions):
+1. Pull recurring merchant context (adjust period as needed, typically 12m for annual subscriptions):
    ```bash
    fin-analyze merchant-frequency --period 12m --min-visits 3 --format csv > $WORKDIR/merchant_frequency.csv
    ```
 
-3. Fetch detailed transactions for analysis (replace the dates with the user-approved range):
+2. Fetch detailed transactions for analysis (replace the dates with the user-approved range):
    ```bash
    fin-query saved transactions_range --param start_date=<START_DATE> --param end_date=<END_DATE> --param limit=50000 --limit 50000 --format csv > $WORKDIR/transactions.csv
    ```
@@ -45,7 +40,7 @@ Before running analyzers, confirm the time window with the user. If they do not 
    - For custom queries, use `fin-query sql "SELECT ..."` instead of direct sqlite3 commands and include `--limit <N> --format csv`
    - Large CSV files can be searched with grep or read in chunks using offset/limit
 
-4. Optionally, get category breakdown for context:
+3. Optionally, get category breakdown for context:
    ```bash
    fin-analyze category-breakdown --period 12m --format csv > $WORKDIR/category_breakdown.csv
    ```

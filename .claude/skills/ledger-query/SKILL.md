@@ -15,8 +15,8 @@ Teach the agent how to answer direct data questions (e.g., "When did YouTube TV 
 
 When executing commands or referencing paths, use `$SKILL_ROOT` only to build absolute paths to helper resources and keep the shell working directory at the repository root.
 
-Environment
-- Activate the venv first: `source .venv/bin/activate`
+Prerequisites
+- Install `fin-cli` so `fin-query` is on your `PATH` (pip install, pipx, etc.); the skill assumes the CLI is available without activating a repository virtualenv.
 
 Database Schema Overview
 The financial database uses a normalized schema with foreign key relationships:

@@ -25,15 +25,19 @@ Notes: Removed `debug_docling.py`, cleared `statements/`, `output/`, `tmp/` dire
 Notes: README now leads with skills summary, refreshed quickstart, skill-usage examples, CLI reference updates (with format flags), and a deprecated commands section covering fin-extract/enhance/export. Web agent note moved near the end; CSV format details will shift to the fin-cli README in Phase 7.
 
 ## Phase 3 – Skills Documentation Refresh
-- [ ] Update `.claude/skills/README.md` with a full catalog summary, capability matrix, and modern usage notes
-- [ ] Revise each skill `SKILL.md` to remove `source .venv` prerequisites, describe productionized CLI entry points, and add examples
-- [ ] Document how skills interoperate (handoffs, expected inputs/outputs) and cross-link CSV schema references
+- [x] Update `.claude/skills/README.md` with a full catalog summary, capability matrix, and modern usage notes
+- [x] Revise each skill `SKILL.md` to remove `source .venv` prerequisites, describe productionized CLI entry points, and add examples
+- [x] Document how skills interoperate (handoffs, expected inputs/outputs) and cross-link CSV schema references
+
+Notes: Catalog README now highlights prerequisites, conventions, and a detailed skill-by-skill breakdown. All SKILL guides reference installed `fin-*` CLIs (no virtualenv activation), refreshed command snippets, and updated cross-skill guidance; related workflow docs were updated to match.
 
 ## Phase 4 – Agent Prompt Updates
-- [ ] Review `AGENTS.md` for outdated schema hints or CLI syntax; align with new skills workflow and CSV columns
-- [ ] Update `CLAUDE.md` to match the current agent orchestration flow and tool expectations
-- [ ] Remove legacy sections such as the “fin-enhance review process” and replace with skills-first guidance
-- [ ] Ensure both docs point to the refreshed README, skills catalog, and any new developer workflows
+- [x] Review `AGENTS.md` for outdated schema hints or CLI syntax; align with new skills workflow and CSV columns
+- [x] Update `CLAUDE.md` to match the current agent orchestration flow and tool expectations
+- [x] Remove legacy sections such as the “fin-enhance review process” and replace with skills-first guidance
+- [x] Ensure both docs point to the refreshed README, skills catalog, and any new developer workflows
+
+Notes: `AGENTS.md` (symlinked by `CLAUDE.md`) now documents the skills-first flow, references the skills directories, links to official agent skills docs, and adds safety reminders (fin-scrub before PDF ingestion, saved queries, category validation, fin-query/fin-edit best practices). Legacy fin-enhance review instructions removed.
 
 ## Phase 5 – Fin-CLI Productionization
 - [ ] Ensure the Python package can be installed/executed without an activated repo venv (pip/pipx workflows, PATH-safe entry points)
@@ -43,7 +47,7 @@ Notes: README now leads with skills summary, refreshed quickstart, skill-usage e
 - [ ] Provide guidance for reproducible builds (lockfiles, dependency pins, optional Dockerfile if needed for CI)
 
 ## Phase 6 – Web UI Simplification
-- [ ] Remove Plaid-specific integrations and secrets from the web app, replacing them with neutral placeholders or optional plugins
+- [ ] Remove the Plaid-powered component from the web UI surface (retain underlying Plaid integration code for future opt-in use)
 - [ ] Write/update a `client/README.md` (or similar) describing the remaining web agent capabilities and local setup
 - [ ] Audit `ccsdk/` and `server/` for additional cleanup opportunities or unused endpoints
 - [ ] Confirm the UI still builds/tests after dependencies are trimmed (`bun test`, `bun run server/server.ts`)

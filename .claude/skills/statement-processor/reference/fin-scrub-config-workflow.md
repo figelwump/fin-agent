@@ -11,7 +11,6 @@ Always work inside the slug workspace (`$WORKDIR = ~/.finagent/skills/statement-
 
 ```bash
 mkdir -p "$WORKDIR"
-source .venv/bin/activate
 python - <<'PY'
 from importlib import resources
 from pathlib import Path
@@ -37,7 +36,6 @@ The override starts as a copy of the bundled defaults. Edit it with your preferr
 Run `fin-scrub` against the problematic statement using the new config:
 
 ```bash
-source .venv/bin/activate
 fin-scrub statement.pdf \
   --output-dir "$WORKDIR" \
   --config "$WORKDIR/fin-scrub-overrides.yaml" \

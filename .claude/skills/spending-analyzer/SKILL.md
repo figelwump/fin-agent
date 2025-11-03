@@ -14,8 +14,8 @@ Teach the agent how to run analyzers and assemble narrative reports.
 
 When executing commands or referencing paths, use `$SKILL_ROOT` only to build absolute paths to helper resources and keep the shell working directory at the repository root.
 
-Environment
-- `source .venv/bin/activate`
+Prerequisites
+- Install `fin-cli` so `fin-analyze` and `fin-query` are on your `PATH` (pip install, pipx, etc.). No virtualenv activation is required inside the skill.
 
 Guidelines
 - Prefer `--format csv` with analyzers to keep transcripts compact.

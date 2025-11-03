@@ -24,6 +24,8 @@ Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/transact
 
 When executing commands, replace `$WORKDIR` with the full path using your chosen slug. Use `$SKILL_ROOT` only when you need an absolute path to a helper script or reference file and keep the shell working directory at the repository root.
 
+Prerequisites: install `fin-cli` (pip install, pipx, etc.) so `fin-query`, `fin-edit`, and helper scripts run directly. Commands below assume the executables are on your `PATH` without activating a repository virtualenv.
+
 **Before starting, create the workspace directory once:**
 ```bash
 mkdir -p $WORKDIR
@@ -48,7 +50,6 @@ Principles
 **Step 1: Query and save uncategorized transactions**
 
 ```bash
-source .venv/bin/activate && \
 fin-query saved uncategorized --limit 500 --format csv > $WORKDIR/uncategorized.csv && \
 tail -n +2 $WORKDIR/uncategorized.csv | wc -l
 ```
@@ -57,7 +58,6 @@ If no uncategorized transactions remain (count prints `0`), you're done!
 
 **Step 2: Generate LLM categorization prompt**
 ```bash
-source .venv/bin/activate && \
 python $SKILL_ROOT/scripts/build_prompt.py \
   --input $WORKDIR/uncategorized.csv \
   --output $WORKDIR/categorization-prompt.txt && \
@@ -111,7 +111,6 @@ These low-confidence suggestions will be presented to the user during interactiv
 
 **Step 5: Check for remaining uncategorized**
 ```bash
-source .venv/bin/activate && \
 fin-query saved uncategorized --limit 500 --format csv > $WORKDIR/uncategorized-remaining.csv && \
 tail -n +2 $WORKDIR/uncategorized-remaining.csv | wc -l
 ```
@@ -124,7 +123,6 @@ Use this workflow only for transactions that the LLM had low confidence on (<0.7
 
 **1) Load existing taxonomy and LLM suggestions**
 ```bash
-source .venv/bin/activate && \
 fin-query saved categories --limit 200 --format csv > $WORKDIR/categories.csv
 
 # Low-confidence LLM suggestions (<0.75) are already saved from Step 4c
@@ -133,7 +131,6 @@ fin-query saved categories --limit 200 --format csv > $WORKDIR/categories.csv
 
 **2) Review remaining uncategorized**
 ```bash
-source .venv/bin/activate && \
 cat $WORKDIR/uncategorized-remaining.csv
 ```
 
