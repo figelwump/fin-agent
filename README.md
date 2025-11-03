@@ -53,12 +53,30 @@ Pipx creates a dedicated venv and exposes the executables (`fin-scrub`, `fin-que
 
 #### Option B: Local dev (editable install)
 
-For active development work:
+For active development work, use a local venv:
 
 ```bash
 cd /path/to/fin-agent
+
+# Create venv if it doesn't exist
+python3 -m venv .venv
+
+# Activate venv (macOS/Linux)
+source .venv/bin/activate
+
+# Install editable with dev dependencies
 python3 -m pip install --upgrade pip
-python3 -m pip install -e .[dev, all]
+python3 -m pip install -e .[dev,all]
+```
+
+**Development workflow:**
+- When `.venv` is **active**: Commands like `fin-scrub`, `fin-query` run from your working tree (editable install). Code changes take effect immediately.
+- When `.venv` is **deactivated**: Commands fall back to the pipx-installed versions (if any).
+- Skills automatically use whichever version is first in `PATH`.
+
+To deactivate the venv:
+```bash
+deactivate
 ```
 
 ### 2. Verify Installation
@@ -70,6 +88,13 @@ fin-scrub --help
 fin-query --help
 fin-analyze --help
 fin-edit --help
+```
+
+**Check which version is running:**
+```bash
+which fin-scrub
+# venv active: /path/to/fin-agent/.venv/bin/fin-scrub
+# venv inactive (pipx): ~/.local/bin/fin-scrub (or similar)
 ```
 
 ### 3. Configure SQLite Database (optional)
@@ -214,13 +239,18 @@ cd /path/to/fin-agent
 pipx install --force '.[all]'
 ```
 
-### Editable pip installs
+### Editable venv installs
 
-Pull the latest branch; the entry points stay wired because they reference your working tree.
+Pull the latest branch; code changes take effect immediately (no reinstall needed).
 
 ```bash
 git pull
-# No reinstall needed for editable installs
+
+# Activate venv to use the updated code
+source .venv/bin/activate
+
+# Verify you're using the venv version
+which fin-scrub  # Should show .venv/bin/fin-scrub
 ```
 
 ## Troubleshooting
@@ -246,6 +276,22 @@ pipx ensurepath
 1. Restart your terminal to pick up the updated PATH
 2. Or manually run: `pipx ensurepath` and restart your terminal
 3. Verify installation: `which fin-scrub`
+
+### Code changes not taking effect
+
+**Problem**: Modified CLI code but commands still run old behavior
+
+**Solution**: Check which version is active:
+```bash
+which fin-scrub
+```
+
+- If it shows `.venv/bin/fin-scrub`: You're using the editable install. Code changes should work immediately.
+- If it shows `~/.local/bin/fin-scrub` (or similar): You're using pipx. Either:
+  1. Activate your venv: `source .venv/bin/activate`, or
+  2. Reinstall pipx version: `pipx install --force '.[all]'`
+
+**Tip**: When developing, keep `.venv` activated. When using skills in production, deactivate venv to use stable pipx version.
 
 ### Database permission errors
 
