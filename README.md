@@ -2,6 +2,25 @@
 
 Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude agent skills. The repository bundles command-line utilities, skills documentation, and a light web surface so you can ingest statements, learn patterns, and answer questions about your personal ledger. Privacy-first approach to scrubbing sensitive data before sending anything to an LLM.
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Skills Summary](#skills-summary)
+- [Quickstart](#quickstart)
+- [Complete Workflow Example](#complete-workflow-example)
+- [Usage Examples](#usage-examples)
+- [CLI Reference](#cli-reference)
+- [Upgrading](#upgrading)
+- [Troubleshooting](#troubleshooting)
+- [Deprecated Commands](#deprecated-commands)
+- [License](#license)
+
+## Prerequisites
+
+- **Python 3.10 or later** 
+- **Claude Code** (for skills workflow) - [Install Claude Code](https://docs.claude.com/en/docs/claude-code)
+- **Optional**: Homebrew (for macOS users installing pipx)
+
 ## Skills Summary
 
 - **statement-processor** – Scrub bank/credit card PDF statements, build LLM prompts to extract transaction data, and import transactions into a local sqlite DB.
@@ -9,75 +28,146 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 - **spending-analyzer** – Run analytical reports (trend, subscription, merchant activity) and assemble summaries for users.
 - **ledger-query** – Execute saved or ad-hoc SQL queries against the normalized ledger to answer targeted questions.
 
-Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts, and references. Skills will be loaded by Claude Code. Multiple skills can be chained together as well (for example, importing a statement and categorizing uncategorized transactions). More details on how skills work: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview
+Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts, and references. Skills will be loaded by Claude Code. Multiple skills can be chained together (for example, importing a statement and categorizing uncategorized transactions). More details on how skills work: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview
 
 ## Quickstart
-1. **Install the CLI**
-   - Local dev (editable install):
-     ```bash
-     python3.11 -m pip install --upgrade pip
-     python3.11 -m pip install -e .[analysis,pii]
-     ```
-     Use extras like `[llm]`, `[pdf]`, or `[all]` when needed.
-   - Global/isolated setup with pipx:
-     Install pipx (one time):
-     - **macOS with Homebrew**: `brew install pipx && pipx ensurepath`
-     - **Other systems**: `python3 -m pip install --user pipx && python3 -m pipx ensurepath`
 
-     ```bash
-     pipx install '.[all]'
-     ```
-     Pipx creates a dedicated venv and exposes the executables (`fin-scrub`, `fin-query`, etc.) on your PATH without activating `.venv`.
+### 1. Install the CLI
 
-2. **Update pipx installs**
-   - When working from the repo: `pipx install --force '.[all]'` (rebuilds from current sources).
-   - From PyPI (after release): `pipx upgrade fin-cli` (or `pipx upgrade --include-deps fin-cli`).
+Choose one of the following installation methods:
 
-3. **Choose or override the database**
-   - Default path: `~/.finagent/data.db`.
-   - Override via `FINAGENT_DATABASE_PATH` (see `.env.example`) or the `--db` flag on CLI commands.
+#### Option A: Global/isolated setup with pipx (recommended)
 
-4. **Load skills for agents**
-   - Work from this repo and run Claude Code here.
-   - Or copy `.claude/skills/<name>` directories into another project’s `.claude/skills/` (or `~/.claude/skills/`) to reuse the workflows.
+Install pipx (one time):
+- **macOS with Homebrew**: `brew install pipx && pipx ensurepath`
+- **Other systems**: `python3 -m pip install --user pipx && python3 -m pipx ensurepath`
 
-## How to Use fin-agent skills
+Then install fin-cli from the repository:
+
+```bash
+cd /path/to/fin-agent
+pipx install '.[all]'
+```
+
+Pipx creates a dedicated venv and exposes the executables (`fin-scrub`, `fin-query`, etc.) on your PATH without activating `.venv`.
+
+#### Option B: Local dev (editable install)
+
+For active development work:
+
+```bash
+cd /path/to/fin-agent
+python3 -m pip install --upgrade pip
+python3 -m pip install -e .[dev, all]
+```
+
+### 2. Verify Installation
+
+Confirm the CLI tools are available:
+
+```bash
+fin-scrub --help
+fin-query --help
+fin-analyze --help
+fin-edit --help
+```
+
+### 3. Configure SQLite Database (optional)
+
+The database is **automatically created** on first use.
+
+- **Default path**: `~/.finagent/data.db`
+- **Override via environment**: Set `FINAGENT_DATABASE_PATH` in your environment (see [`.env.example`](.env.example))
+- **Override via CLI flag**: Use `--db /path/to/custom.db` on any command
+
+### 4. Load Skills for Claude Code
+
+To use the skills workflow:
+- Work from this repository and run Claude Code here, or
+- Copy `.claude/skills/<name>` directories into another project's `.claude/skills/` (or `~/.claude/skills/`) to reuse the workflows.
+
+## Complete Workflow Example
+
+Here's a typical end-to-end workflow:
+
+**1. Install (one time)**
+
+```bash
+brew install pipx && pipx ensurepath
+cd fin-agent && pipx install '.[all]'
+```
+
+**2. Open Claude Code in this directory**
+
+The skills are automatically loaded from `.claude/skills/`
+
+**3. Import a statement**
+
+Say: `import ~/Downloads/chase-statement-2025-09.pdf`
+
+The statement-processor skill will:
+- Scrub PII from the PDF
+- Extract transactions using LLM
+- Enrich with known merchant patterns
+- Import to the database
+- Auto-categorize using the transaction-categorizer skill
+
+**4. Review your spending**
+
+Say: `Give me a September 2025 spending report with category breakdown and subscriptions`
+
+The spending-analyzer skill provides detailed analysis.
+
+**5. Ask specific questions**
+
+Say: `How much did we spend at Costco in 2025?`
+
+The ledger-query skill answers targeted questions.
+
+## Usage Examples
 
 Below are example prompts that will trigger these skills, the actions each skill performs, and the kind of responses to expect.
 
-- **Process a new statement**
-  - Skill: **statement-processor**
-  - Prompt: “import `~/Downloads/chase-2025-09.pdf`"
-      - Note: do not use Claude Code's "@" mention syntax. This will import the file natively and CC will not invoke the skill (and it may read the PDF statement which defeats the purpose of fin-scrub)
-  - Workflow: `fin-scrub` scrubs PII -> transactions extracted from the scrubbed text using the LLM -> enrich with cached merchant patterns
-  - If uncategorized transactions remain, then the `transaction-categorizer` skill will be invoked.
-  - Result: Transactions added to the ledger, new merchant patterns learned, and a confirmation summary returned to the user.
-  - Works for bulk imports too. Just let CC know which directory (or which set of statements) you'd like to import and it will loop through them. Imports get more efficient over time because we cache known merchant patterns. 
+### Process a new statement
 
-- **Triage uncategorized spend**
-  - Skill: **transaction-categorizer**
-  - Prompt: “Categorize any uncategorized transactions.”
-  - Workflow: Queries the local database for uncategorized transactions -> attempts to categorize them automatically via the LLM (the prompt grounds the categorizations in the existing taxonomy)
-  - If any transactions could not be categorized with a high confidence, then the skill interactively asks the user for categorization confirmations
-  - Result: Category metadata added to all uncategorized transactions in the DB
+- **Skill**: statement-processor
+- **Prompt**: `import ~/Downloads/chase-2025-09.pdf`
+  - **Note**: Do not use Claude Code's "@" mention syntax. This will import the file natively and CC will not invoke the skill (and it may read the PDF statement which defeats the purpose of fin-scrub)
+- **Workflow**: `fin-scrub` scrubs PII → transactions extracted from the scrubbed text using the LLM → enrich with cached merchant patterns
+- If uncategorized transactions remain, then the `transaction-categorizer` skill will be invoked.
+- **Result**: Transactions added to the ledger, new merchant patterns learned, and a confirmation summary returned to the user.
+- Works for bulk imports too. Just let Claude Code know which directory (or which set of statements) you'd like to import and it will loop through them. Imports get more efficient over time because we cache known merchant patterns.
 
-- **Monthly spending review**
-  - Skill: **spending-analyzer**
-  - Prompt: “Give me a September 2025 spending report with category breakdown and subscriptions.”
-  - Workflow: Query the database to retrieve transactions over the given time period, and analyze them in various ways, including category breakdown, subscriptions detection, unusual spend detection, trends, etc.
+### Triage uncategorized spend
 
-- **Answer ledger questions**
-  - Skill: **ledger-query**
-  - Prompt: “How much did we spend at Costco in 2025?”
-  - Workflow: Uses `fin-query` where possible to retrieve the info to answer the user's question. Typically used for more adhoc questions rather than full analyses.
+- **Skill**: transaction-categorizer
+- **Prompt**: `Categorize any uncategorized transactions.`
+- **Workflow**: Queries the local database for uncategorized transactions → attempts to categorize them automatically via the LLM (the prompt grounds the categorizations in the existing taxonomy)
+- If any transactions could not be categorized with a high confidence, then the skill interactively asks the user for categorization confirmations
+- **Result**: Category metadata added to all uncategorized transactions in the DB
 
-To integrate the skills into another repository:
-- Copy each skill directory (and its `reference/` and `scripts/` subfolders) into the destination `.claude/skills/`.
+### Monthly spending review
+
+- **Skill**: spending-analyzer
+- **Prompt**: `Give me a September 2025 spending report with category breakdown and subscriptions.`
+- **Workflow**: Query the database to retrieve transactions over the given time period, and analyze them in various ways, including category breakdown, subscriptions detection, unusual spend detection, trends, etc.
+
+### Answer ledger questions
+
+- **Skill**: ledger-query
+- **Prompt**: `How much did we spend at Costco in 2025?`
+- **Workflow**: Uses `fin-query` where possible to retrieve the info to answer the user's question. Typically used for more adhoc questions rather than full analyses.
+
+### Integrating Skills into Another Repository
+
+Copy each skill directory (and its `reference/` and `scripts/` subfolders) into the destination `.claude/skills/`.
 
 See `.claude/skills/README.md` and the `SKILL.md` files for each skill in `.claude/skills` for deeper guidance, decision trees, and hand-off details between skills.
 
 ## CLI Reference
+
 ### `fin-scrub`
+
 Redacts PII from statements before extraction. Key options:
 - `--output / --output-dir / --stdout` to choose destinations.
 - `--stdin` for piping input text.
@@ -86,6 +176,7 @@ Redacts PII from statements before extraction. Key options:
 - `--report` to emit redaction counts to stderr.
 
 ### `fin-edit`
+
 Write operations for the ledger
 - Dry run by default; use --apply to apply changes.
 - `import-transactions <csv>`: preview/import enriched CSVs (add `--apply`, `--default-confidence`, `--learn-patterns`).
@@ -95,6 +186,7 @@ Write operations for the ledger
 - Global flags from `common_cli_options` apply (`--db`, `--verbose`, `--dry-run`).
 
 ### `fin-query`
+
 Read-only exploration with saved queries and safe SQL.
 - `fin-query saved --list` to enumerate templates from `fin_cli/fin_query/queries/index.yaml`.
 - `fin-query saved merchant_search --param pattern="%Costco%" --limit 20 --format csv`.
@@ -103,6 +195,7 @@ Read-only exploration with saved queries and safe SQL.
 - Most commands emit tables by default; add `--format csv` for agent-friendly output or `--format json` where supported (`saved` queries and `schema`).
 
 ### `fin-analyze`
+
 Analytical rollups on top of the SQLite ledger.
 - Choose a window: `--month`, `--year`, `--period Nd|Nw|Nm`, or `--period all`.
 - Add `--compare` for previous-period deltas, `--format json` for machine-readable output.
@@ -110,19 +203,96 @@ Analytical rollups on top of the SQLite ledger.
 - Use `--threshold` to control highlight sensitivity and `--include-merchants` for drill-downs when supported.
 - Text output is default; pass `--format csv` for tabular exports (analyzers that support tables) or `--format json` for structured payloads.
 
+## Upgrading
+
+### pipx installs
+
+Rerun `pipx install --force '.[all]'` from the repository root; pipx rebuilds the isolated environment with latest code.
+
+```bash
+cd /path/to/fin-agent
+pipx install --force '.[all]'
+```
+
+### Editable pip installs
+
+Pull the latest branch; the entry points stay wired because they reference your working tree.
+
+```bash
+git pull
+# No reinstall needed for editable installs
+```
+
+## Troubleshooting
+
+### PEP 668 / externally-managed-environment error
+
+**Problem**: On macOS with Homebrew Python, `pip install --user pipx` fails with:
+```
+error: externally-managed-environment
+```
+
+**Solution**: Use Homebrew to install pipx instead:
+```bash
+brew install pipx
+pipx ensurepath
+```
+
+### Commands not found after installation
+
+**Problem**: After installing with pipx, commands like `fin-scrub` are not found.
+
+**Solution**:
+1. Restart your terminal to pick up the updated PATH
+2. Or manually run: `pipx ensurepath` and restart your terminal
+3. Verify installation: `which fin-scrub`
+
+### Database permission errors
+
+**Problem**: Permission denied when accessing `~/.finagent/data.db`
+
+**Solution**: Check that the directory exists and has correct permissions:
+```bash
+mkdir -p ~/.finagent
+chmod 755 ~/.finagent
+```
+
+### PDF parsing issues
+
+**Problem**: Statement processing fails on certain PDFs
+
+**Solution**:
+- Check that the PDF is not password-protected or corrupted
+- Configure custom scrubbing rules in `~/.finagent/fin-scrub.yaml` to handle PDFs with different layouts or formats
+- See `fin_cli/fin_scrub/default_config.yaml` for configuration examples
+
+### Skills not loading in Claude Code
+
+**Problem**: Claude Code doesn't recognize the skills
+
+**Solution**:
+1. Ensure you're running Claude Code from the `fin-agent` repository root
+2. Verify skills exist: `ls .claude/skills/`
+3. Check that each skill has a `SKILL.md` file
+
+### Import statement showing raw data
+
+**Problem**: When importing a statement, Claude Code reads the raw PDF content
+
+**Solution**:
+- Do NOT use the "@" mention syntax when importing statements
+- Instead, use a text prompt: `import ~/Downloads/statement.pdf`
+- This ensures the statement-processor skill is invoked, which handles PII scrubbing
+
 ## Deprecated Commands
+
 The original extraction pipeline remains available but is no longer part of the primary skills flow:
 - `fin-extract` – PDF extractor that emitted CSVs directly from PDF parsing.
 - `fin-enhance` – Legacy importer/categorizer that relied on review JSON workflows.
 - `fin-export` – Markdown/JSON report generator built on the legacy analyzer stack.
 
-These commands continue to build/install for backwards compatibility, but future development focuses on the skills-first workflow above.
-
-## Upgrading
-- **pipx installs (repo source):** rerun `pipx install --force '.[all]'` from the repository root; pipx rebuilds the isolated environment with latest code.
-- **pipx installs (PyPI):** run `pipx upgrade fin-cli` (add `--include-deps` if dependencies changed).
-- **Editable pip installs:** pull the latest branch; the entry points stay wired because they reference your working tree.
-- **Standard pip installs:** `pip install --upgrade .[all]` (from the repo) or `pip install --upgrade fin-cli` (from PyPI once published).
+Legacy commands remain in the source tree (invoke via `python -m fin_cli.fin_extract`, etc.) but no longer install as standalone executables; future development focuses on the skills-first workflow above.
 
 ## License
+
 Source code is released under the standard MIT license.

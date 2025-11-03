@@ -16,9 +16,6 @@ from click.testing import CliRunner
         ("fin_cli.fin_edit.main", "main", "fin-edit"),
         ("fin_cli.fin_query.main", "cli", "fin-query"),
         ("fin_cli.fin_analyze.main", "main", "fin-analyze"),
-        ("fin_cli.fin_extract.main", "main", "fin-extract"),
-        ("fin_cli.fin_enhance.main", "main", "fin-enhance"),
-        ("fin_cli.fin_export.main", "cli", "fin-export"),
     ],
 )
 def test_cli_entrypoint_help(module_path: str, attr_name: str, prog_name: str) -> None:
