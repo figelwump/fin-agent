@@ -40,11 +40,13 @@ Notes: Catalog README now highlights prerequisites, conventions, and a detailed 
 Notes: `AGENTS.md` (symlinked by `CLAUDE.md`) now documents the skills-first flow, references the skills directories, links to official agent skills docs, and adds safety reminders (fin-scrub before PDF ingestion, saved queries, category validation, fin-query/fin-edit best practices). Legacy fin-enhance review instructions removed.
 
 ## Phase 5 – Fin-CLI Productionization
-- [ ] Ensure the Python package can be installed/executed without an activated repo venv (pip/pipx workflows, PATH-safe entry points)
-- [ ] Normalize CLI invocations in skills/docs to use installed entry points or `python -m` fallbacks that work cross-platform
-- [ ] Update packaging metadata (versioning, license switch, classifiers) and prepare for PyPI distribution
-- [ ] Add automated smoke tests (or fixtures) that exercise `fin-scrub`, `fin-analyze`, `fin-edit`, `fin-query` via the installed CLI
-- [ ] Provide guidance for reproducible builds (lockfiles, dependency pins, optional Dockerfile if needed for CI)
+- [x] Ensure the Python package can be installed/executed without an activated repo venv (pip/pipx workflows, PATH-safe entry points)
+- [x] Normalize CLI invocations in skills/docs to use installed entry points or `python -m` fallbacks that work cross-platform
+- [x] Update packaging metadata (versioning, license switch, classifiers) and prepare for PyPI distribution
+- [x] Add automated smoke tests (or fixtures) that exercise `fin-scrub`, `fin-analyze`, `fin-edit`, `fin-query` via the installed CLI
+- [x] Provide guidance for reproducible builds (lockfiles, dependency pins, optional Dockerfile if needed for CI)
+
+Notes: Added MIT `LICENSE`, updated `pyproject.toml` metadata (version bump, classifiers), and documented pip/pipx workflows in README. Introduced CLI smoke tests (`tests/cli/test_entrypoints.py`) validating entry points with Click. Authored `docs/dev/release.md` covering lockfiles, build tooling, and publish steps; README now highlights pipx installs.
 
 ## Phase 6 – Web UI Simplification
 - [ ] Remove the Plaid-powered component from the web UI surface (retain underlying Plaid integration code for future opt-in use)

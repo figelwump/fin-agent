@@ -13,11 +13,15 @@ Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts
 
 ## Quickstart
 1. **Install Python dependencies**
-   ```bash
-   python3.11 -m pip install --upgrade pip
-   python3.11 -m pip install -e .[analysis,pii]
-   ```
-   Add `[llm]` if you plan to call hosted models from the CLI.
+ ```bash
+ python3.11 -m pip install --upgrade pip
+ python3.11 -m pip install -e .[analysis,pii]
+ ```
+  Add `[llm]` if you plan to call hosted models from the CLI.
+  Prefer an isolated environment manager (pipx, uv, rye, etc.) when installing globally:
+  ```bash
+  pipx install '.[analysis,pii]'
+  ```
 
 2. **Choose or create a working database**
    The default location is `~/.finagent/data.db`. You can override it with the `FINAGENT_DATABASE_PATH` environment variable (sample provided in `.env.example`) or the `--db` flag on any CLI.

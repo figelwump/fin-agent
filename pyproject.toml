@@ -4,19 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fin-cli"
-version = "0.1.0-dev0"
+version = "0.1.0-dev1"
 description = "Composable local-first financial CLI toolkit."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
   { name = "GiantThings" },
 ]
-license = { text = "Proprietary" }
+license = { file = "LICENSE" }
 keywords = ["finance", "cli", "personal-finance", "analysis"]
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
-  "License :: Other/Proprietary License",
+  "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Intended Audience :: Developers",
   "Topic :: Office/Business :: Financial :: Accounting",
