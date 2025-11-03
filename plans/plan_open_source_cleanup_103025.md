@@ -57,9 +57,11 @@ Notes: Added MIT `LICENSE`, updated `pyproject.toml` metadata (version bump, cla
 Notes: Removed Plaid-specific React components/utilities, updated the chat interface to drop the connect button, and documented the trimmed web UI in `client/README.md`. Reviewed ccsdk/server code—Plaid helpers remain for future opt-in flows. Added README guidance clarifying that Plaid Link is not surfaced by default. Verified Bun tests succeed.
 
 ## Phase 7 – Developer Experience & Fin-CLI Guidance
-- [ ] Author `fin_cli/README.md` capturing package layout, local development workflow, testing strategy, and release steps
-- [ ] Document a consistent “fin-cli development workflow” (tooling, testing, linting) and surface it from the root docs
-- [ ] Review ancillary docs (`AGENTS.md`, `CLAUDE.md`, `docs/**`) to align terminology and remove conflicting guidance
+- [x] Author `fin_cli/README.md` capturing package layout, local development workflow, testing strategy, and release steps
+- [x] Document a consistent “fin-cli development workflow” (tooling, testing, linting) and surface it from the root docs
+- [x] Review ancillary docs (`AGENTS.md`, `CLAUDE.md`, `docs/**`) to align terminology and remove conflicting guidance
+
+Notes: Added `fin_cli/README.md` outlining package structure, testing, and release flow; root README now links to contributor docs and details pipx/pip upgrade paths. Existing docs already reflected skills-first terminology after Phase 4; cross-checked references to ensure consistency.
 
 ## Phase 8 – Verification & Release Prep
 - [ ] Run `pytest` and any targeted tests (`bun test`, relevant integration checks) after refactors

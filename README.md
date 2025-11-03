@@ -11,6 +11,7 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 - [Usage Examples](#usage-examples)
 - [CLI Reference](#cli-reference)
 - [Upgrading](#upgrading)
+- [Contributor Docs](#contributor-docs)
 - [Troubleshooting](#troubleshooting)
 - [Deprecated Commands](#deprecated-commands)
 - [License](#license)
@@ -231,27 +232,21 @@ Analytical rollups on top of the SQLite ledger.
 ## Upgrading
 
 ### pipx installs
-
-Rerun `pipx install --force '.[all]'` from the repository root; pipx rebuilds the isolated environment with latest code.
-
-```bash
-cd /path/to/fin-agent
-pipx install --force '.[all]'
-```
+- Reinstall from the repo: `pipx install --force '.[all]'`
+- Upgrade from PyPI (once published): `pipx upgrade fin-cli` (add `--include-deps` if dependencies changed)
 
 ### Editable venv installs
+- Pull the latest branch (`git pull`); editable installs pick up code changes instantly
+- Activate the venv before testing: `source .venv/bin/activate`
 
-Pull the latest branch; code changes take effect immediately (no reinstall needed).
+### Standard pip installs
+- Local repo: `pip install --upgrade .[all]`
+- PyPI: `pip install --upgrade fin-cli`
 
-```bash
-git pull
-
-# Activate venv to use the updated code
-source .venv/bin/activate
-
-# Verify you're using the venv version
-which fin-scrub  # Should show .venv/bin/fin-scrub
-```
+## Contributor Docs
+- `fin_cli/README.md` – package layout, test commands, and release checklist
+- `docs/dev/release.md` – reproducible builds, TestPyPI validation, publishing steps
+- `plans/plan_open_source_cleanup_103025.md` – current open-source roadmap and status
 
 ## Troubleshooting
 
