@@ -44,7 +44,62 @@ You may be given an implementation plan to work through. If so, here are guideli
 - Skills overview and usage guidance: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview
 - Repository skill catalog lives in `.claude/skills/`; load only the skills required for the current workflow.
 
-# Skills-first Workflow
-- Primary flows rely on the skills catalog (`statement-processor`, `transaction-categorizer`, `spending-analyzer`, `ledger-query`). Consult each skill’s `SKILL.md` for step-by-step guidance and helper scripts.
-- Legacy CLIs like `fin-enhance` and `fin-extract` are deprecated; do not invoke the old review JSON flow. Use skills plus `fin-edit` for imports/categorizations instead.
-- Skills live under `.claude/skills/` in this repository; copy those directories into your project’s `.claude/skills/` (or `~/.claude/skills/`) to reuse them elsewhere.
+## Code Search with ast-grep
+
+Use `ast-grep` (sg) for semantic code searches across the codebase. It's more powerful than text-based grep for finding code patterns.
+
+### Common ast-grep patterns for this Python codebase:
+
+Find all function definitions:
+```bash
+sg --pattern 'def $FUNC($$$):' --lang python
+```
+
+Find specific function calls:
+```bash
+sg --pattern '$OBJ.enhance($$$)' --lang python
+sg --pattern 'categorize($$$)' --lang python
+```
+
+Find all class definitions:
+```bash
+sg --pattern 'class $CLASS($$$):' --lang python
+```
+
+Find database queries:
+```bash
+sg --pattern 'execute($SQL)' --lang python
+sg --pattern 'executemany($$$)' --lang python
+```
+
+Find imports:
+```bash
+sg --pattern 'from $MODULE import $$$' --lang python
+sg --pattern 'import $MODULE' --lang python
+```
+
+Find decorated functions (e.g., CLI commands):
+```bash
+sg --pattern '@click.command()
+def $FUNC($$$):' --lang python
+```
+
+Find specific method calls on objects:
+```bash
+sg --pattern '$VAR.apply_decisions($$$)' --lang python
+```
+
+Find exception handling:
+```bash
+sg --pattern 'try:
+    $$$
+except $EXCEPTION:
+    $$$' --lang python
+```
+
+### Tips:
+- Use `$VAR` for single identifiers
+- Use `$$$` for any sequence of code (wildcards)
+- Add `--json` for machine-readable output
+- Add `-A 3 -B 3` to show context lines
+- Combine with standard Unix tools: `sg --pattern 'def $FUNC($$$):' --lang python | grep enhance`
