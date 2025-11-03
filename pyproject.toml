@@ -55,6 +55,14 @@ dev = [
   "black>=24.4",
   "mypy>=1.11",
 ]
+all = [
+  "pdfplumber>=0.11",
+  "camelot-py[base]>=0.11",
+  "docling>=2.55.1",
+  "openai>=1.40",
+  "numpy>=1.26",
+  "scrubadub>=2.0",
+]
 
 [project.scripts]
 fin-extract = "fin_cli.fin_extract.main:main"

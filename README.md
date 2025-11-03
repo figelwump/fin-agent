@@ -12,23 +12,30 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts, and references. Skills will be loaded by Claude Code. Multiple skills can be chained together as well (for example, importing a statement and categorizing uncategorized transactions). More details on how skills work: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview
 
 ## Quickstart
-1. **Install Python dependencies**
- ```bash
- python3.11 -m pip install --upgrade pip
- python3.11 -m pip install -e .[analysis,pii]
- ```
-  Add `[llm]` if you plan to call hosted models from the CLI.
-  Prefer an isolated environment manager (pipx, uv, rye, etc.) when installing globally:
-  ```bash
-  pipx install '.[analysis,pii]'
-  ```
+1. **Install the CLI**
+   - Local dev (editable install):
+     ```bash
+     python3.11 -m pip install --upgrade pip
+     python3.11 -m pip install -e .[analysis,pii]
+     ```
+     Use extras like `[llm]`, `[pdf]`, or `[all]` when needed.
+   - Global/isolated setup with pipx:
+     ```bash
+     pipx install '.[all]'
+     ```
+     Pipx creates a dedicated venv and exposes the executables (`fin-scrub`, `fin-query`, etc.) on your PATH without activating `.venv`.
 
-2. **Choose or create a working database**
-   The default location is `~/.finagent/data.db`. You can override it with the `FINAGENT_DATABASE_PATH` environment variable (sample provided in `.env.example`) or the `--db` flag on any CLI.
+2. **Update pipx installs**
+   - When working from the repo: `pipx install --force '.[all]'` (rebuilds from current sources).
+   - From PyPI (after release): `pipx upgrade fin-cli` (or `pipx upgrade --include-deps fin-cli`).
 
-3. **Load the skills where you need them**
-   - Keep them in this repository and run Claude Code from this directory
-   - Or copy the folders under `.claude/skills/` into your own project’s `.claude/skills/` directory (or `~/.claude/skills/` for global availability) to make them discoverable.
+3. **Choose or override the database**
+   - Default path: `~/.finagent/data.db`.
+   - Override via `FINAGENT_DATABASE_PATH` (see `.env.example`) or the `--db` flag on CLI commands.
+
+4. **Load skills for agents**
+   - Work from this repo and run Claude Code here.
+   - Or copy `.claude/skills/<name>` directories into another project’s `.claude/skills/` (or `~/.claude/skills/`) to reuse the workflows.
 
 ## How to Use fin-agent skills
 
@@ -109,6 +116,12 @@ These commands continue to build/install for backwards compatibility, but future
 
 ## Web Agent & ccsdk
 The repository still includes a lightweight web agent in `ccsdk/` and associated MCP tools. They’re useful as an example of how to use the Claude Agent SDK and as a custom web interface to the data, but the main workflow now centers on the CLI + skills described above.
+
+## Upgrading
+- **pipx installs (repo source):** rerun `pipx install --force '.[all]'` from the repository root; pipx rebuilds the isolated environment with latest code.
+- **pipx installs (PyPI):** run `pipx upgrade fin-cli` (add `--include-deps` if dependencies changed).
+- **Editable pip installs:** pull the latest branch; the entry points stay wired because they reference your working tree.
+- **Standard pip installs:** `pip install --upgrade .[all]` (from the repo) or `pip install --upgrade fin-cli` (from PyPI once published).
 
 ## License
 Source code is released under the standard MIT license.
