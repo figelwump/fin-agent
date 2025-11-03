@@ -20,6 +20,8 @@ Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts
      ```
      Use extras like `[llm]`, `[pdf]`, or `[all]` when needed.
    - Global/isolated setup with pipx:
+     Install pipx (one time): `python3 -m pip install --user pipx && python3 -m pipx ensurepath`
+
      ```bash
      pipx install '.[all]'
      ```
@@ -113,9 +115,6 @@ The original extraction pipeline remains available but is no longer part of the 
 - `fin-export` – Markdown/JSON report generator built on the legacy analyzer stack.
 
 These commands continue to build/install for backwards compatibility, but future development focuses on the skills-first workflow above.
-
-## Web Agent & ccsdk
-The repository still includes a lightweight web agent in `ccsdk/` and associated MCP tools. They’re useful as an example of how to use the Claude Agent SDK and as a custom web interface to the data, but the main workflow now centers on the CLI + skills described above.
 
 ## Upgrading
 - **pipx installs (repo source):** rerun `pipx install --force '.[all]'` from the repository root; pipx rebuilds the isolated environment with latest code.
