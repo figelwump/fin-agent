@@ -24,7 +24,7 @@ class DatabaseSettings:
 class ExtractionSettings:
     """PDF extraction configuration."""
 
-    engine: str  # "auto", "docling", or "pdfplumber"
+    engine: str  # "auto" or "pdfplumber"
     auto_detect_accounts: bool
     supported_banks: tuple[str, ...]
     camelot_fallback_enabled: bool

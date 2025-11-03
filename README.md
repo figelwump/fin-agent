@@ -20,7 +20,9 @@ Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts
      ```
      Use extras like `[llm]`, `[pdf]`, or `[all]` when needed.
    - Global/isolated setup with pipx:
-     Install pipx (one time): `python3 -m pip install --user pipx && python3 -m pipx ensurepath`
+     Install pipx (one time):
+     - **macOS with Homebrew**: `brew install pipx && pipx ensurepath`
+     - **Other systems**: `python3 -m pip install --user pipx && python3 -m pipx ensurepath`
 
      ```bash
      pipx install '.[all]'
@@ -79,7 +81,7 @@ See `.claude/skills/README.md` and the `SKILL.md` files for each skill in `.clau
 Redacts PII from statements before extraction. Key options:
 - `--output / --output-dir / --stdout` to choose destinations.
 - `--stdin` for piping input text.
-- `--engine auto|docling|pdfplumber` to select the PDF parser.
+- `--engine auto|pdfplumber` to select the PDF parser (auto uses pdfplumber with Camelot fallback when enabled).
 - `--config path/to/fin-scrub.yaml` to override detection rules.
 - `--report` to emit redaction counts to stderr.
 

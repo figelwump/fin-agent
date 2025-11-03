@@ -639,7 +639,13 @@ def _derive_scrubbed_filename(source: Path | None) -> str:
 )
 @click.option("--stdout", "use_stdout", is_flag=True, help="Write scrubbed text to stdout.")
 @click.option("--stdin", "use_stdin", is_flag=True, help="Read raw text from stdin instead of a file.")
-@click.option("--engine", type=click.Choice(["auto", "docling", "pdfplumber"], case_sensitive=False), default="auto", show_default=True, help="PDF parsing engine to use when reading PDFs.")
+@click.option(
+    "--engine",
+    type=click.Choice(["auto", "pdfplumber"], case_sensitive=False),
+    default="auto",
+    show_default=True,
+    help="PDF parsing engine to use when reading PDFs (auto uses pdfplumber with Camelot fallback).",
+)
 @click.option("--report", is_flag=True, help="Emit counts of redacted entities to stderr.")
 @click.option("--config", "config_path", type=click.Path(path_type=Path), help="Path to a YAML configuration file overriding defaults.")
 def main(

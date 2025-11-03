@@ -35,40 +35,28 @@ class PdfDocument:
     tables: list[PdfTable]
 
 def load_pdf_document_with_engine(path: str | Path, engine: str, *, enable_camelot_fallback: bool = False) -> PdfDocument:
-    """Load PDF with specified engine, with fallback logic.
+    """Load a PDF using the configured engine.
 
     Args:
-        path: Path to PDF file
-        engine: "auto", "docling", or "pdfplumber"
-        enable_camelot_fallback: Enable camelot fallback for pdfplumber
+        path: Path to PDF file.
+        engine: "auto" or "pdfplumber".
+        enable_camelot_fallback: Enable Camelot fallback for pdfplumber.
 
     Returns:
-        PdfDocument with text and tables
+        PdfDocument with text and tables.
 
     Raises:
-        ExtractionError: If all engines fail
+        ExtractionError: If an unknown engine is requested.
     """
 
     if engine == "pdfplumber":
         return load_pdf_document_with_pdfplumber(path, enable_camelot_fallback=enable_camelot_fallback)
 
-    elif engine == "docling":
-        from .docling_loader import load_pdf_with_docling
-        return load_pdf_with_docling(path)
+    if engine == "auto":
+        _log.info("Using pdfplumber engine (auto mode)")
+        return load_pdf_document_with_pdfplumber(path, enable_camelot_fallback=enable_camelot_fallback)
 
-    elif engine == "auto":
-        # Try docling first, fallback to pdfplumber
-        try:
-            from .docling_loader import load_pdf_with_docling
-            _log.info("Attempting to use Docling engine")
-            return load_pdf_with_docling(path)
-        except ExtractionError:
-            # docling failed or not installed; try pdfplumber instead
-            _log.info("Docling not available, falling back to pdfplumber")
-            return load_pdf_document_with_pdfplumber(path, enable_camelot_fallback=enable_camelot_fallback)
-
-    else:
-        raise ExtractionError(f"Invalid engine: {engine}. Must be one of: auto, docling, pdfplumber")
+    raise ExtractionError(f"Invalid engine: {engine}. Must be one of: auto, pdfplumber")
 
 def load_pdf_document_with_pdfplumber(path: str | Path, *, enable_camelot_fallback: bool = False) -> PdfDocument:
     if pdfplumber is None:

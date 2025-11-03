@@ -99,7 +99,7 @@ def main(
 @click.option("--account-name", type=str, help="Override auto-detected account name.")
 @click.option(
     "--engine",
-    type=click.Choice(["auto", "docling", "pdfplumber"], case_sensitive=False),
+    type=click.Choice(["auto", "pdfplumber"], case_sensitive=False),
     help="PDF parsing engine to use (default: from config or 'auto')",
 )
 @click.option(

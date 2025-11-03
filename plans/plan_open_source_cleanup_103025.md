@@ -46,7 +46,7 @@ Notes: `AGENTS.md` (symlinked by `CLAUDE.md`) now documents the skills-first flo
 - [x] Add automated smoke tests (or fixtures) that exercise `fin-scrub`, `fin-analyze`, `fin-edit`, `fin-query` via the installed CLI
 - [x] Provide guidance for reproducible builds (lockfiles, dependency pins, optional Dockerfile if needed for CI)
 
-Notes: Added MIT `LICENSE`, updated `pyproject.toml` metadata (version bump, classifiers), and documented pip/pipx workflows in README. Introduced CLI smoke tests (`tests/cli/test_entrypoints.py`) validating entry points with Click. Authored `docs/dev/release.md` covering lockfiles, build tooling, and publish steps; README now highlights pipx installs.
+Notes: Added MIT `LICENSE`, updated `pyproject.toml` metadata (version bump, classifiers), and documented pip/pipx workflows in README. Introduced CLI smoke tests (`tests/cli/test_entrypoints.py`) validating entry points with Click. Authored `docs/dev/release.md` covering lockfiles, build tooling, and publish steps; README now highlights pipx installs. Deprecated Docling support (removed extra dependency, CLI engine option, and loader) so pdfplumber + Camelot remain the maintained extraction path.
 
 ## Phase 6 – Web UI Simplification
 - [ ] Remove the Plaid-powered component from the web UI surface (retain underlying Plaid integration code for future opt-in use)
