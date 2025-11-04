@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.resources as pkg_resources
 import re
 import sys
+import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -13,6 +14,19 @@ from typing import Any
 
 import click
 import yaml
+
+try:
+    from cryptography.utils import CryptographyDeprecationWarning
+except Exception:  # pragma: no cover - cryptography is optional until PDF parsing runs
+    CryptographyDeprecationWarning = DeprecationWarning  # type: ignore[assignment]
+
+# Suppress the noisy ARC4 deprecation warning emitted by pypdf before pdfplumber loads.
+warnings.filterwarnings(
+    "ignore",
+    message="ARC4 has been moved",
+    category=CryptographyDeprecationWarning,
+    module="pypdf._crypt_providers._cryptography",
+)
 
 from fin_cli.fin_extract.parsers.pdf_loader import load_pdf_document_with_engine
 
