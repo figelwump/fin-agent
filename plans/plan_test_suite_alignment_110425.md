@@ -16,7 +16,7 @@
 - [x] Backfilled `fin_cli.shared.importers` unit tests for CSV/enriched loaders (BOM handling, missing columns, invalid metadata) without going through CLI layers.
 
 ## Phase 4 – Skill workflow smoke tests
-- [ ] Build an integration smoke test that fabricates a scrubbed text transcript (based on `.claude/skills/statement-processor` prompt expectations) and runs preprocess → postprocess → categorize scripts end-to-end, confirming assumptions about scrub output remain valid.
+- [x] Added an integration smoke test (`tests/statement_processor/test_pipeline_smoke.py`) that runs preprocess → postprocess → categorize with synthetic scrubbed input and ensures prompts/enriched outputs are generated.
 
 ## Phase 5 – Validation & tooling
 - [ ] Run `pytest` (full suite + targeted markers) after removals/additions and capture runtime deltas for historical notes.
@@ -32,3 +32,4 @@
 - 2025-11-04: Added fin-analyze CLI coverage for help flows and period validation errors.
 - 2025-11-04: Added fin-edit CLI coverage for create-if-missing, metadata validation, dry-run precedence, and selector errors.
 - 2025-11-04: Added shared CLI/importer regression tests to guard decorators and CSV parsing helpers.
+- 2025-11-04: Added statement-processor pipeline smoke test covering preprocess → postprocess → categorize.
