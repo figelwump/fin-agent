@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -125,3 +127,116 @@ def test_cli_merchants_query(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Amazon" in result.output
     assert "Target" not in result.output
+
+
+def test_cli_sql_supports_tsv_and_limit(tmp_path: Path) -> None:
+    db_path = _prepare_database(tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "sql",
+            "SELECT merchant, amount FROM transactions ORDER BY date",
+            "--db",
+            db_path,
+            "--limit",
+            "1",
+            "--format",
+            "tsv",
+        ],
+        env={"NO_COLOR": "1"},
+    )
+
+    assert result.exit_code == 0, result.output
+    lines = [line for line in result.output.splitlines() if line.strip()]
+    warning_parts: list[str] = []
+    while lines and (lines[0].startswith("Result truncated to") or lines[0].startswith("output.")):
+        warning_parts.append(lines.pop(0))
+    warning_text = " ".join(warning_parts)
+    if not warning_text and result.stderr:
+        warning_text = result.stderr
+    stripped_warning = re.sub(r"\x1b\[[0-9;]*m", "", warning_text)
+    assert "Result truncated to 1 rows" in stripped_warning
+    assert lines[0] == "merchant\tamount"
+    assert lines[1].startswith("Amazon\t-25")
+
+
+def test_cli_sql_rejects_empty_query(tmp_path: Path) -> None:
+    db_path = _prepare_database(tmp_path)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "sql",
+            "",
+            "--db",
+            db_path,
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Query text must not be empty" in result.output
+
+
+def test_cli_sql_validates_param_format(tmp_path: Path) -> None:
+    db_path = _prepare_database(tmp_path)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "sql",
+            "SELECT 1",
+            "--db",
+            db_path,
+            "--param",
+            "invalid",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "must be in KEY=VALUE format" in result.output
+
+
+def test_cli_list_outputs_catalog(tmp_path: Path) -> None:
+    db_path = _prepare_database(tmp_path)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "list",
+            "--db",
+            db_path,
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "category_summary" in result.output
+    assert "merchant_patterns" in result.output
+
+
+def test_cli_schema_respects_db_override(tmp_path: Path) -> None:
+    db_path = _prepare_database(tmp_path)
+    unused_db = tmp_path / "unused.db"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "schema",
+            "--db",
+            db_path,
+            "--format",
+            "json",
+        ],
+        env={paths.DATABASE_PATH_ENV: str(unused_db)},
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["database"].endswith("cli-query.db")
+    table_names = {table["name"] for table in payload["tables"]}
+    assert "transactions" in table_names
