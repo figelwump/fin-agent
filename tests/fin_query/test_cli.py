@@ -151,8 +151,13 @@ def test_cli_sql_supports_tsv_and_limit(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     lines = [line for line in result.output.splitlines() if line.strip()]
     warning_parts: list[str] = []
-    while lines and (lines[0].startswith("Result truncated to") or lines[0].startswith("output.")):
-        warning_parts.append(lines.pop(0))
+    # Strip ANSI codes before checking for warning text (Rich Console may add colors)
+    while lines:
+        stripped_line = re.sub(r"\x1b\[[0-9;]*m", "", lines[0])
+        if stripped_line.startswith("Result truncated to") or stripped_line.startswith("output."):
+            warning_parts.append(lines.pop(0))
+        else:
+            break
     warning_text = " ".join(warning_parts)
     if not warning_text and result.stderr:
         warning_text = result.stderr
