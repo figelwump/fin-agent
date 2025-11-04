@@ -108,5 +108,6 @@ minversion = "8.0"
 addopts = "-ra"
 filterwarnings = [
   "error::DeprecationWarning",
+  "ignore:ARC4 has been moved:cryptography.utils.CryptographyDeprecationWarning",
 ]
 testpaths = ["tests"]

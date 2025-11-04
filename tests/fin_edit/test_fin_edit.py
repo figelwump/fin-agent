@@ -202,6 +202,197 @@ def test_set_category_dry_run_then_apply(tmp_path: Path) -> None:
         assert row["categorization_method"] == "claude:interactive"
 
 
+def test_set_category_create_if_missing(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    with connect(config) as connection:
+        txn = models.Transaction(
+            date=date(2025, 9, 18),
+            merchant="DELTA #7890",
+            amount=-320.45,
+            account_id=1,
+            original_description="DELTA AIR",
+        )
+        assert models.insert_transaction(connection, txn) is True
+        row = connection.execute(
+            "SELECT id FROM transactions WHERE merchant = ?",
+            ("DELTA #7890",),
+        ).fetchone()
+        txn_id = int(row["id"])
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "set-category",
+            "--transaction-id",
+            str(txn_id),
+            "--category",
+            "Travel",
+            "--subcategory",
+            "Airfare",
+            "--create-if-missing",
+        ],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        cat_row = connection.execute(
+            "SELECT id FROM categories WHERE category = ? AND subcategory = ?",
+            ("Travel", "Airfare"),
+        ).fetchone()
+        assert cat_row is not None
+        txn_row = connection.execute(
+            "SELECT category_id, categorization_method FROM transactions WHERE id = ?",
+            (txn_id,),
+        ).fetchone()
+        assert txn_row["category_id"] == cat_row["id"]
+        assert txn_row["categorization_method"] == "claude:interactive"
+
+
+def test_add_merchant_pattern_stores_raw_metadata_when_invalid_json(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+    with connect(config) as connection:
+        models.get_or_create_category(
+            connection,
+            category="Shopping",
+            subcategory="Online",
+            auto_generated=False,
+            user_approved=True,
+        )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "add-merchant-pattern",
+            "--pattern",
+            "ACME%",
+            "--category",
+            "Shopping",
+            "--subcategory",
+            "Online",
+            "--metadata",
+            "{not json",
+        ],
+        env=env,
+    )
+
+    assert result.exit_code != 0
+    assert result.exception is not None
+    assert (
+        "metadata" in str(result.exception).lower() or "json_valid" in str(result.exception).lower()
+    )
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        row = connection.execute(
+            "SELECT metadata FROM merchant_patterns WHERE pattern = ?",
+            ("ACME%",),
+        ).fetchone()
+        assert row is None
+
+
+def test_delete_transactions_respects_dry_run_even_with_apply(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    with connect(config) as connection:
+        txn = models.Transaction(
+            date=date(2025, 9, 10),
+            merchant="Test Payee",
+            amount=-120.00,
+            account_id=1,
+            original_description="PAYEE",
+        )
+        assert models.insert_transaction(connection, txn, skip_dedupe=True) is True
+        txn_id = connection.execute(
+            "SELECT id FROM transactions WHERE merchant = ?",
+            ("Test Payee",),
+        ).fetchone()["id"]
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "--dry-run",
+            "delete-transactions",
+            "--id",
+            str(txn_id),
+        ],
+        env=env,
+    )
+
+    assert result.exit_code == 0, result.output
+    normalized_output = result.output.lower()
+    assert "delete" in normalized_output and "dry" in normalized_output
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        remaining = connection.execute(
+            "SELECT COUNT(*) AS count FROM transactions WHERE id = ?",
+            (txn_id,),
+        ).fetchone()["count"]
+        assert remaining == 1
+
+
+def test_set_category_requires_selector_choice(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+
+    runner = CliRunner()
+    result_both = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "set-category",
+            "--transaction-id",
+            "1",
+            "--fingerprint",
+            "abc",
+            "--category",
+            "Food",
+            "--subcategory",
+            "Coffee",
+        ],
+        env=env,
+    )
+    assert result_both.exit_code != 0
+    assert "Provide exactly one" in result_both.output
+
+    result_none = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "set-category",
+            "--category",
+            "Food",
+            "--subcategory",
+            "Coffee",
+        ],
+        env=env,
+    )
+    assert result_none.exit_code != 0
+    assert "Provide exactly one" in result_none.output
+
+
 def test_add_merchant_pattern_dry_run_then_apply(tmp_path: Path) -> None:
     db_path = tmp_path / "db.sqlite"
     _prepare_db(db_path)

@@ -20,7 +20,7 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 ## Prerequisites
 
 - **Python 3.10 or later** 
-- **Claude Code** (for skills workflow) - [Install Claude Code](https://docs.claude.com/en/docs/claude-code)
+- **Claude Code** (for skills workflow)
 - **Optional**: Homebrew (for macOS users installing pipx)
 
 ## Skills Summary
@@ -38,7 +38,11 @@ Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts
 
 Choose one of the following installation methods:
 
-#### Option A: Global/isolated setup with pipx (recommended)
+#### Option A: Global/isolated setup with pipx or uv
+
+Use this method if you just want to install the CLI commands globally and don't want to edit them.
+
+**Using pipx:**
 
 Install pipx (one time):
 - **macOS with Homebrew**: `brew install pipx && pipx ensurepath`
@@ -52,6 +56,18 @@ pipx install '.[all]'
 ```
 
 Pipx creates a dedicated venv and exposes the executables (`fin-scrub`, `fin-query`, etc.) on your PATH without activating `.venv`.
+
+**Using uv (faster alternative):**
+
+```bash
+# Install uv once (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+cd /path/to/fin-agent
+uv tool install '.[all]'
+```
+
+Like pipx, `uv tool` creates an isolated environment and exposes CLI commands globally.
 
 #### Option B: Local dev (editable install)
 
@@ -76,9 +92,22 @@ python3 -m pip install -e .[dev,all]
 - When `.venv` is **deactivated**: Commands fall back to the pipx-installed versions (if any).
 - Skills automatically use whichever version is first in `PATH`.
 
-To deactivate the venv:
+#### Option C: Local dev with uv (fast dependency resolver)
+
+If you use [uv](https://github.com/astral-sh/uv), you can let it manage the virtual environment and dependency installation:
+
 ```bash
-deactivate
+# Install uv once (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+cd /path/to/fin-agent
+
+# Create and activate the project venv
+uv venv .venv
+source .venv/bin/activate
+
+# Install editable with dev extras using uv's pip shim
+uv pip install -e '.[dev,all]'
 ```
 
 ### 2. Verify Installation
@@ -119,9 +148,16 @@ Here's a typical end-to-end workflow:
 
 **1. Install (one time)**
 
+Using pipx:
 ```bash
 brew install pipx && pipx ensurepath
 cd fin-agent && pipx install '.[all]'
+```
+
+Or using uv (faster):
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+cd fin-agent && uv tool install '.[all]'
 ```
 
 **2. Open Claude Code in this directory**
@@ -158,8 +194,8 @@ Below are example prompts that will trigger these skills, the actions each skill
 ### Process a new statement
 
 - **Skill**: statement-processor
-- **Prompt**: `import ~/Downloads/chase-2025-09.pdf`
-  - **Note**: Do not use Claude Code's "@" mention syntax. This will import the file natively and CC will not invoke the skill (and it may read the PDF statement which defeats the purpose of fin-scrub)
+- **Example prompt**: `import ~/Downloads/chase-2025-09.pdf` or `import all statements in ~/Downloads/bofa`
+  - **Note**: Do NOT use Claude Code's "@" mention syntax to import statements. This will import the file natively and CC will not invoke the skill (and it may read the PDF statement which defeats the purpose of fin-scrub)
 - **Workflow**: `fin-scrub` scrubs PII → transactions extracted from the scrubbed text using the LLM → enrich with cached merchant patterns
 - If uncategorized transactions remain, then the `transaction-categorizer` skill will be invoked.
 - **Result**: Transactions added to the ledger, new merchant patterns learned, and a confirmation summary returned to the user.
@@ -168,21 +204,21 @@ Below are example prompts that will trigger these skills, the actions each skill
 ### Triage uncategorized spend
 
 - **Skill**: transaction-categorizer
-- **Prompt**: `Categorize any uncategorized transactions.`
+- **Example prompt**: `Categorize any uncategorized transactions.`
 - **Workflow**: Queries the local database for uncategorized transactions → attempts to categorize them automatically via the LLM (the prompt grounds the categorizations in the existing taxonomy)
 - If any transactions could not be categorized with a high confidence, then the skill interactively asks the user for categorization confirmations
 - **Result**: Category metadata added to all uncategorized transactions in the DB
 
-### Monthly spending review
+### Spending analysis
 
 - **Skill**: spending-analyzer
-- **Prompt**: `Give me a September 2025 spending report with category breakdown and subscriptions.`
+- **Example prompt**: `Categorize my spending over the past 12 months` or `What subscriptions do I currently have?`
 - **Workflow**: Query the database to retrieve transactions over the given time period, and analyze them in various ways, including category breakdown, subscriptions detection, unusual spend detection, trends, etc.
 
 ### Answer ledger questions
 
 - **Skill**: ledger-query
-- **Prompt**: `How much did we spend at Costco in 2025?`
+- **Example prompt**: `How much did we spend at Costco in 2025?` or `What transactions are in the fitness category?`
 - **Workflow**: Uses `fin-query` where possible to retrieve the info to answer the user's question. Typically used for more adhoc questions rather than full analyses.
 
 ### Integrating Skills into Another Repository
@@ -232,9 +268,11 @@ Analytical rollups on top of the SQLite ledger.
 
 ## Upgrading
 
-### pipx installs
-- Reinstall from the repo: `pipx install --force '.[all]'`
-- Upgrade from PyPI (once published): `pipx upgrade fin-cli` (add `--include-deps` if dependencies changed)
+### pipx or uv tool installs
+- **pipx**: Reinstall from the repo: `pipx install --force '.[all]'`
+- **pipx**: Upgrade from PyPI (once published): `pipx upgrade fin-cli` (add `--include-deps` if dependencies changed)
+- **uv**: Reinstall from the repo: `uv tool install --force '.[all]'`
+- **uv**: Upgrade from PyPI (once published): `uv tool upgrade fin-cli`
 
 ### Editable venv installs
 - Pull the latest branch (`git pull`); editable installs pick up code changes instantly
@@ -307,6 +345,28 @@ When setting up CI/CD, add these checks:
 black --check fin_cli tests
 ruff check fin_cli tests
 ```
+
+
+## Testing
+
+Run the full suite from the repo venv:
+
+```bash
+./.venv/bin/python -m pytest
+```
+
+Useful subsets during development:
+
+```bash
+# CLI regressions
+./.venv/bin/python -m pytest tests/fin_query/test_cli.py tests/fin_edit/test_fin_edit.py
+
+# Statement-processor pipeline smoke test
+./.venv/bin/python -m pytest tests/statement_processor/test_pipeline_smoke.py
+```
+
+The pipeline smoke test fabricates scrubbed text and relies on the bundled skill scripts under `.claude/skills/statement-processor/`. Synthetic fixtures live in `tests/fixtures/`, including `scrubbed/sample_raw_statement.txt` for fin-scrub.
+
 
 ## Troubleshooting
 

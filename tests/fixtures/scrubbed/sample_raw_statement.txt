@@ -1,0 +1,14 @@
+Statement Header - Example Credit Card
+Customer Name: John Smith
+Customer Address: 42 Example Street, San Francisco, CA 94105
+Email: john.q.smith@example.com
+Website: https://examplebank.com/profile
+Primary Card Number: 4111 1111 1111 1111
+Routing: routing # 123456789
+Account ID: account number 000123456789
+Customer ID: Customer ID ABC12345
+Phone: (415) 555-1234
+Reminder: card ending in 4242
+
+09/01 Coffee Shop        -5.45
+09/02 AMAZON MKTPLACE   -45.67

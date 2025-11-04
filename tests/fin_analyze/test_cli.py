@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
 from fin_cli.fin_analyze.main import main
+from fin_cli.shared import paths
 
 
 @pytest.fixture()
@@ -217,6 +219,33 @@ def test_cli_period_all_window(load_analysis_dataset, app_config, runner) -> Non
     assert window["label"].startswith("period_all_")
     assert window["start"] <= window["end"]
     assert payload["categories"], "Expected categorized spend records for dataset"
+
+
+def test_cli_help_list_outputs_catalog(runner: CliRunner) -> None:
+    result = runner.invoke(main, ["--help-list"])
+
+    assert result.exit_code == 0, result.output
+    assert "Available analyses" in result.output
+    assert "merchant-frequency" in result.output
+
+
+def test_cli_analyzer_help_shows_options(runner: CliRunner) -> None:
+    result = runner.invoke(main, ["merchant-frequency", "--", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "Analysis: Merchant Frequency" in result.output
+    assert "--category" in result.output
+
+
+def test_cli_invalid_period_errors(runner: CliRunner, tmp_path: Path) -> None:
+    result = runner.invoke(
+        main,
+        ["merchant-frequency", "--period", "3q"],
+        env={paths.DATABASE_PATH_ENV: str(tmp_path / "invalid.db")},
+    )
+
+    assert result.exit_code != 0
+    assert "Unsupported period" in result.output
 
 
 def test_cli_period_all_empty_dataset(load_analysis_dataset, app_config, runner) -> None:
