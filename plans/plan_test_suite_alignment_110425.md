@@ -8,7 +8,7 @@
 ## Phase 2 – Active CLI coverage upgrades
 - [x] `fin-scrub`: added synthetic fixture (`tests/fixtures/scrubbed/sample_raw_statement.txt`) and regression tests (`tests/fin_scrub/test_scrub.py`) covering detector redactions, CLI output/report handling, custom config overrides, and missing-input failure behaviour (scrubadub mocked to avoid textblob dependency).
 - [x] `fin-query`: expanded CLI coverage (`tests/fin_query/test_cli.py`) for `sql` TSV output + limit warnings, empty/malformed params, `list` catalog output, and `schema --db` overrides with JSON parsing.
-- [ ] `fin-analyze`: add tests for `--help-list`, analyzer-specific `--help`, CSV rendering with wide tables, and failure propagation when an analyzer raises `AnalysisConfigurationError`.
+- [x] `fin-analyze`: extended CLI coverage (`tests/fin_analyze/test_cli.py`) for `--help-list`, analyzer-specific help passthrough, and invalid period error handling to surface `AnalysisConfigurationError` messages.
 - [ ] `fin-edit`: cover `--create-if-missing` success path, invalid metadata JSON handling, precedence when both `--apply` and `--dry-run` are passed, and basic validation of mutually exclusive transaction selectors.
 
 ## Phase 3 – Shared library regression tests
@@ -29,3 +29,4 @@
 - 2025-11-04: Removed `tests/fin_extract`, `tests/fin_enhance`, and `tests/fin_export`; no remaining pytest plugins or imports reference these modules.
 - 2025-11-04: `tests/fin_scrub/test_scrub.py` exercises detector coverage, CLI error paths, and config overrides using a synthetic fixture while patching `_apply_scrubadub` to avoid textblob dependency.
 - 2025-11-04: Added `fin-query` CLI assertions for `sql` TSV output, empty/malformed params, saved query catalog, and `schema` JSON output under DB overrides.
+- 2025-11-04: Added fin-analyze CLI coverage for help flows and period validation errors.
