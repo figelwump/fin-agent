@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
-from ..metrics import percentage_change, significance, safe_float
-from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 from ...shared.dataframe import (
     build_window_frames,
     filter_frame_by_category,
     prepare_grouped_spend,
     summarize_merchants,
 )
+from ..metrics import percentage_change, safe_float, significance
+from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 
 
 @dataclass(frozen=True)
@@ -148,12 +149,14 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
                     "transactions_previous": rec.transactions_previous,
                     "spend_current": round(rec.spend_current, 2),
                     "spend_previous": round(rec.spend_previous, 2),
-                    "spend_change_pct": None
-                    if rec.spend_change_pct is None
-                    else round(rec.spend_change_pct, 4),
-                    "transaction_change_pct": None
-                    if rec.transaction_change_pct is None
-                    else round(rec.transaction_change_pct, 4),
+                    "spend_change_pct": (
+                        None if rec.spend_change_pct is None else round(rec.spend_change_pct, 4)
+                    ),
+                    "transaction_change_pct": (
+                        None
+                        if rec.transaction_change_pct is None
+                        else round(rec.transaction_change_pct, 4)
+                    ),
                 }
                 for rec in evolution_records
             ],
@@ -216,13 +219,17 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         },
     }
 
-    if comparison_grouped is not None and not comparison_grouped.empty and comparison_total is not None:
+    if (
+        comparison_grouped is not None
+        and not comparison_grouped.empty
+        and comparison_total is not None
+    ):
         json_payload["comparison"] = {
             "spend": round(comparison_total, 2),
             "intervals": len(comparison_grouped),
-            "change_pct": None
-            if change_vs_comparison is None
-            else round(float(change_vs_comparison), 4),
+            "change_pct": (
+                None if change_vs_comparison is None else round(float(change_vs_comparison), 4)
+            ),
         }
 
     if include_merchants:
@@ -253,14 +260,14 @@ def _iter_rows(grouped: pd.DataFrame) -> Sequence[TimelineRow]:
     for record in grouped.itertuples(index=False):
         rows.append(
             TimelineRow(
-                interval=getattr(record, "interval"),
-                start=getattr(record, "start"),
-                end=getattr(record, "end"),
-                spend=safe_float(getattr(record, "spend")),
-                income=safe_float(getattr(record, "income")),
-                net=safe_float(getattr(record, "net")),
-                transaction_count=int(getattr(record, "transaction_count")),
-                cumulative_spend=safe_float(getattr(record, "cumulative_spend")),
+                interval=record.interval,
+                start=record.start,
+                end=record.end,
+                spend=safe_float(record.spend),
+                income=safe_float(record.income),
+                net=safe_float(record.net),
+                transaction_count=int(record.transaction_count),
+                cumulative_spend=safe_float(record.cumulative_spend),
             )
         )
     return rows
@@ -406,7 +413,9 @@ def _build_evolution_records(
     return records
 
 
-def _significant_changes(records: Sequence[EvolutionRecord], *, threshold: float | None) -> list[str]:
+def _significant_changes(
+    records: Sequence[EvolutionRecord], *, threshold: float | None
+) -> list[str]:
     highlights: list[str] = []
     for rec in records:
         change_pct = rec.spend_change_pct

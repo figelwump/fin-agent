@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
@@ -15,9 +16,9 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     np = None  # type: ignore[assignment]
 
-from ..metrics import percentage_change, significance, safe_float
-from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 from ...shared.dataframe import build_window_frames
+from ..metrics import percentage_change, safe_float, significance
+from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 
 
 @dataclass(frozen=True)
@@ -130,10 +131,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 def _summarise_monthly(frame: pd.DataFrame) -> list[TrendRow]:
     ordered = frame.sort_values("date")
     grouped = (
-        ordered.groupby("month", sort=True)["spend_amount"]
-        .sum()
-        .reset_index()
-        .sort_values("month")
+        ordered.groupby("month", sort=True)["spend_amount"].sum().reset_index().sort_values("month")
     )
 
     rows: list[TrendRow] = []

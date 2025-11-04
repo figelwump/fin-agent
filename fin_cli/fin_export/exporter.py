@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -15,14 +16,12 @@ from fin_cli.fin_analyze.metrics import percentage_change, safe_float
 from fin_cli.fin_analyze.types import (
     AnalysisContext,
     AnalysisError,
-    AnalysisResult,
     TableSeries,
     TimeWindow,
 )
 from fin_cli.shared.cli import CLIContext
 from fin_cli.shared.dataframe import load_transactions_frame
 from fin_cli.shared.exceptions import FinAgentError
-
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 DEFAULT_TEMPLATE_NAME = "standard.md.j2"
@@ -198,9 +197,9 @@ def build_report(
         generated_at=_utc_now_iso(),
         report_title=_report_title(window_resolution.window),
         window=_window_payload(window_resolution.window),
-        comparison_window=_window_payload(window_resolution.comparison)
-        if window_resolution.comparison
-        else None,
+        comparison_window=(
+            _window_payload(window_resolution.comparison) if window_resolution.comparison else None
+        ),
         sections=[section.slug for section in section_outputs],
     )
     return metadata, section_outputs
@@ -428,9 +427,7 @@ class _ReportBuilder:
                     "status": "unavailable",
                     "error": message,
                     "window": _window_payload(self.window),
-                    "comparison_window": _window_payload(self.comparison)
-                    if self.compare
-                    else None,
+                    "comparison_window": _window_payload(self.comparison) if self.compare else None,
                 },
             )
         except FinAgentError:
@@ -521,9 +518,7 @@ def _subscriptions_markdown(payload: Mapping[str, Any]) -> list[str]:
         for entry in cancelled:
             indicator = _indicator_markup("negative")
             last_seen = entry.get("last_seen", "unknown")
-            cancelled_lines.append(
-                f"{indicator} {entry['merchant']} (last seen {last_seen})"
-            )
+            cancelled_lines.append(f"{indicator} {entry['merchant']} (last seen {last_seen})")
         blocks.append("\n".join(cancelled_lines))
 
     return blocks
@@ -544,9 +539,7 @@ def _unusual_markdown(payload: Mapping[str, Any]) -> list[str]:
         else:
             change = "notable"
         spend_amount = safe_float(anomaly.get("spend"))
-        lines.append(
-            f"{indicator} {anomaly['merchant']}: {_currency(spend_amount)} ({change})"
-        )
+        lines.append(f"{indicator} {anomaly['merchant']}: {_currency(spend_amount)} ({change})")
     for merchant in new_merchants:
         indicator = _indicator_markup("positive")
         lines.append(f"{indicator} New merchant detected: {merchant}")

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
 from ..parsers.pdf_loader import PdfDocument
 from ..types import ExtractionResult
@@ -63,9 +63,9 @@ class ExtractorRegistry:
         allow_override: bool = False,
     ) -> RegistrationResult:
         if not hasattr(extractor, "__origin__"):
-            setattr(extractor, "__origin__", f"python::{extractor.__module__}")
+            extractor.__origin__ = f"python::{extractor.__module__}"
         if not hasattr(extractor, "__plugin_kind__"):
-            setattr(extractor, "__plugin_kind__", "builtin_python")
+            extractor.__plugin_kind__ = "builtin_python"
         name = extractor.name
         key = name.lower()
         bucket = self._entries_by_name.setdefault(key, [])
@@ -101,8 +101,7 @@ class ExtractorRegistry:
             if not bucket:
                 continue
             if include_alternates:
-                for extractor in bucket:
-                    yield extractor
+                yield from bucket
             else:
                 yield bucket[0]
 

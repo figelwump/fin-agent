@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Sequence
+from typing import Any
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
-from ..metrics import percentage_change, safe_float
-from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries, TimeWindow
 from ...shared.dataframe import build_window_frames, load_transactions_frame
 from ...shared.merchants import friendly_display_name
+from ..metrics import percentage_change, safe_float
+from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries, TimeWindow
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,9 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     frames = build_window_frames(context)
     current = frames.frame
     if current.empty:
-        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet.")
+        raise AnalysisError(
+            "No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet."
+        )
 
     baseline_frame = frames.comparison_frame
     baseline_window = frames.comparison_window
@@ -78,8 +81,16 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
             continue
 
         baseline = comparison_totals.get(canonical)
-        spend_change = percentage_change(metrics.spend, baseline.spend if baseline else None) if baseline else None
-        visit_change = percentage_change(metrics.visits, baseline.visits if baseline else None) if baseline else None
+        spend_change = (
+            percentage_change(metrics.spend, baseline.spend if baseline else None)
+            if baseline
+            else None
+        )
+        visit_change = (
+            percentage_change(metrics.visits, baseline.visits if baseline else None)
+            if baseline
+            else None
+        )
 
         notes: list[str] = []
         if baseline is None:
@@ -137,10 +148,14 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
     fallback_recommended = False
     if not baseline_available:
-        summary_lines.append("Baseline window lacked transactions; heuristics limited to listing new merchants.")
+        summary_lines.append(
+            "Baseline window lacked transactions; heuristics limited to listing new merchants."
+        )
         fallback_recommended = True
     elif not anomalies:
-        summary_lines.append("No spending anomalies met heuristic thresholds; LLM review recommended.")
+        summary_lines.append(
+            "No spending anomalies met heuristic thresholds; LLM review recommended."
+        )
         fallback_recommended = True
 
     if fallback_recommended:
@@ -175,14 +190,14 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
                 "canonical": record.canonical,
                 "spend": round(record.spend, 2),
                 "baseline_spend": round(record.baseline_spend, 2),
-                "spend_change_pct": None
-                if record.spend_change_pct is None
-                else round(record.spend_change_pct, 4),
+                "spend_change_pct": (
+                    None if record.spend_change_pct is None else round(record.spend_change_pct, 4)
+                ),
                 "visits": record.visits,
                 "baseline_visits": record.baseline_visits,
-                "visit_change_pct": None
-                if record.visit_change_pct is None
-                else round(record.visit_change_pct, 4),
+                "visit_change_pct": (
+                    None if record.visit_change_pct is None else round(record.visit_change_pct, 4)
+                ),
                 "notes": record.notes,
             }
             for record in anomalies
@@ -250,12 +265,18 @@ def _build_table(records: Sequence[AnomalyRecord]) -> TableSeries:
                 record.merchant,
                 round(record.spend, 2),
                 round(record.baseline_spend, 2),
-                None if record.spend_change_pct is None else round(record.spend_change_pct * 100, 2),
+                (
+                    None
+                    if record.spend_change_pct is None
+                    else round(record.spend_change_pct * 100, 2)
+                ),
                 record.visits,
                 record.baseline_visits,
-                None
-                if record.visit_change_pct is None
-                else round(record.visit_change_pct * 100, 2),
+                (
+                    None
+                    if record.visit_change_pct is None
+                    else round(record.visit_change_pct * 100, 2)
+                ),
                 record.notes,
             ]
         )

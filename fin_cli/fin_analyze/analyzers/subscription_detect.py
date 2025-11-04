@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
+from ...shared.dataframe import load_recurring_candidates
 from ..metrics import percentage_change, safe_float
 from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
-from ...shared.dataframe import load_recurring_candidates
-
 
 CADENCE_MIN_DAYS = 20
 CADENCE_MAX_DAYS = 365
@@ -68,7 +68,9 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     if context.comparison_window is not None:
         comparison_frame = load_recurring_candidates(context, window=context.comparison_window)
 
-    comparison_stats = _summarise_merchants(comparison_frame) if comparison_frame is not None else {}
+    comparison_stats = (
+        _summarise_merchants(comparison_frame) if comparison_frame is not None else {}
+    )
     current_stats = _summarise_merchants(current)
     combined_stats = _build_combined_stats(current, comparison_frame)
 
@@ -240,8 +242,7 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
         "selected_merchants": len(records),
         "skipped_total": sum(skipped_counter.values()),
         "skipped_summary": [
-            {"reason": reason, "count": count}
-            for reason, count in skipped_counter.most_common()
+            {"reason": reason, "count": count} for reason, count in skipped_counter.most_common()
         ],
         "skipped_samples": skipped_samples,
         "filters": {
@@ -366,7 +367,9 @@ def _summarise_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
             if not subcategory_series.empty:
                 subcategory_modes = subcategory_series.mode()
                 subcategory_value = (
-                    subcategory_modes.iloc[0] if not subcategory_modes.empty else subcategory_series.iloc[0]
+                    subcategory_modes.iloc[0]
+                    if not subcategory_modes.empty
+                    else subcategory_series.iloc[0]
                 )
 
         metadata_signals = _collect_metadata_signals(group.get("transaction_metadata"))
@@ -389,7 +392,9 @@ def _summarise_merchants(frame: pd.DataFrame | None) -> dict[str, _MerchantStats
     return stats
 
 
-def _build_combined_stats(current: pd.DataFrame, comparison: pd.DataFrame | None) -> dict[str, _CombinedStats]:
+def _build_combined_stats(
+    current: pd.DataFrame, comparison: pd.DataFrame | None
+) -> dict[str, _CombinedStats]:
     frames = [current]
     if comparison is not None and not comparison.empty:
         frames.append(comparison)

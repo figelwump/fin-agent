@@ -78,9 +78,19 @@ include = [
 ]
 
 [tool.ruff]
-select = ["E", "F", "B", "I", "UP", "NP", "G"]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "NPY", "G"]
+ignore = [
+    "E501",  # Line too long (handled by black)
+    "G004",  # Logging f-string (common and acceptable in modern Python)
+    "G003",  # Logging with + (acceptable alternative to %)
+    "B904",  # raise-without-from-inside-except (too strict for many cases)
+    "B905",  # zip-without-explicit-strict (Python 3.10+ feature, may not always be needed)
+    "E402",  # Module level import not at top (intentional in some CLI entry points)
+]
 
 [tool.black]
 line-length = 100

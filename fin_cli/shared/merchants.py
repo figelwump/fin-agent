@@ -1,11 +1,10 @@
-
 """Merchant normalization helpers shared across modules."""
 
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from functools import lru_cache
-from typing import Iterable
 
 TRANSACTION_ID_RE = re.compile(r"\b(?=[A-Z0-9]*\d)[A-Z0-9]{4,}\b")
 PHONE_RE = re.compile(r"\b\d{3}[-\s]?\d{3}[-\s]?\d{4}\b")

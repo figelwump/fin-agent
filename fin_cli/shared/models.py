@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import sqlite3
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Iterable, Mapping
-
-import sqlite3
-import json
+from typing import Any
 
 from .exceptions import DatabaseError
 
@@ -298,6 +298,7 @@ def apply_review_decision(
         """,
         (category_id, confidence, method, fingerprint),
     )
+
 
 def increment_category_usage(
     connection: sqlite3.Connection,

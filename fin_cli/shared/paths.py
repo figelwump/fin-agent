@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
 
 DEFAULT_CONFIG_DIR = "~/.finagent"
 DEFAULT_DATA_DIR = "~/.findata"
@@ -57,7 +57,9 @@ def default_config_path(create_parents: bool = False, env: Mapping[str, str] | N
     return config_dir / DEFAULT_CONFIG_FILE
 
 
-def default_database_path(create_parents: bool = False, env: Mapping[str, str] | None = None) -> Path:
+def default_database_path(
+    create_parents: bool = False, env: Mapping[str, str] | None = None
+) -> Path:
     """Return the default database file path, optionally ensuring parent dirs exist."""
     env = env or os.environ
     override = env.get(DATABASE_PATH_ENV)

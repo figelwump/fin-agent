@@ -17,11 +17,9 @@ to ``_validate_bofa`` and ``_validate_mercury``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable
 
-from .types import ExtractionResult, ExtractedTransaction
+from .types import ExtractedTransaction, ExtractionResult
 from .utils.amounts import normalize_token
-
 
 _SUMMARY_KEYWORDS = {
     "total",
@@ -189,10 +187,14 @@ def _validate_mercury(result: ExtractionResult, report: ValidationReport) -> Non
 def _contains_summary_keyword(txn: ExtractedTransaction) -> bool:
     merchant_norm = normalize_token(txn.merchant)
     original_norm = normalize_token(txn.original_description)
-    return any(keyword in merchant_norm or keyword in original_norm for keyword in _SUMMARY_KEYWORDS)
+    return any(
+        keyword in merchant_norm or keyword in original_norm for keyword in _SUMMARY_KEYWORDS
+    )
 
 
 def _looks_like_credit(txn: ExtractedTransaction) -> bool:
     normalized = normalize_token(txn.merchant)
     original_norm = normalize_token(txn.original_description)
-    return any(keyword in normalized or keyword in original_norm for keyword in _BOFA_CREDIT_KEYWORDS)
+    return any(
+        keyword in normalized or keyword in original_norm for keyword in _BOFA_CREDIT_KEYWORDS
+    )

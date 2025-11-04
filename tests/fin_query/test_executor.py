@@ -277,5 +277,8 @@ def test_run_category_transactions_query(tmp_path) -> None:
     )
 
     assert result.description == "Transactions filtered by category and optional subcategory."
-    categories = {(row[result.columns.index("category")], row[result.columns.index("subcategory")]) for row in result.rows}
+    categories = {
+        (row[result.columns.index("category")], row[result.columns.index("subcategory")])
+        for row in result.rows
+    }
     assert categories == {("Entertainment", "Comedy")}

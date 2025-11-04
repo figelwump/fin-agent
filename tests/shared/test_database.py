@@ -3,9 +3,9 @@ from __future__ import annotations
 from importlib import resources
 from pathlib import Path
 
+from fin_cli.shared import paths
 from fin_cli.shared.config import load_config
 from fin_cli.shared.database import connect, run_migrations
-from fin_cli.shared import paths
 
 
 def _temp_config(tmp_path: Path):
@@ -24,7 +24,13 @@ def test_run_migrations_creates_schema(tmp_path: Path) -> None:
             row["name"]
             for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert {"accounts", "categories", "transactions", "merchant_patterns", "schema_versions"}.issubset(tables)
+        assert {
+            "accounts",
+            "categories",
+            "transactions",
+            "merchant_patterns",
+            "schema_versions",
+        }.issubset(tables)
         version = connection.execute("SELECT MAX(version) FROM schema_versions").fetchone()[0]
         expected_version = max(
             int(path.stem.split("_", 1)[0])

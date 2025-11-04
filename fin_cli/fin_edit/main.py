@@ -7,14 +7,15 @@ We intentionally keep fin-query read-only; fin-edit holds write operations.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Sequence
-
 import json
 import sqlite3
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
 import click
 
+from fin_cli.shared import models
 from fin_cli.shared.cli import (
     CLIContext,
     common_cli_options,
@@ -22,13 +23,12 @@ from fin_cli.shared.cli import (
     pass_cli_context,
 )
 from fin_cli.shared.database import connect
-from fin_cli.shared import models
-from fin_cli.shared.merchants import merchant_pattern_key
 from fin_cli.shared.importers import (
     CSVImportError,
     EnrichedCSVTransaction,
     load_enriched_transactions,
 )
+from fin_cli.shared.merchants import merchant_pattern_key
 
 
 def _format_transaction_summary(row: sqlite3.Row) -> str:
@@ -41,11 +41,7 @@ def _format_transaction_summary(row: sqlite3.Row) -> str:
 
     account_name = row["account_name"] or "(unknown account)"
     institution = row["institution"]
-    account_display = (
-        f"{account_name} ({institution})"
-        if institution
-        else account_name
-    )
+    account_display = f"{account_name} ({institution})" if institution else account_name
 
     amount = float(row["amount"]) if row["amount"] is not None else 0.0
     return (
@@ -76,7 +72,11 @@ def main(apply: bool, cli_ctx: CLIContext) -> None:
 
 
 @main.command("set-category")
-@click.option("--transaction-id", type=int, help="Target transaction id (mutually exclusive with --fingerprint).")
+@click.option(
+    "--transaction-id",
+    type=int,
+    help="Target transaction id (mutually exclusive with --fingerprint).",
+)
 @click.option(
     "--fingerprint",
     type=str,
@@ -106,8 +106,8 @@ def main(apply: bool, cli_ctx: CLIContext) -> None:
 @pass_cli_context
 def set_category(
     cli_ctx: CLIContext,
-    transaction_id: Optional[int],
-    fingerprint: Optional[str],
+    transaction_id: int | None,
+    fingerprint: str | None,
     category: str,
     subcategory: str,
     confidence: float,
@@ -130,9 +130,7 @@ def set_category(
                     f"Category does not exist: '{category} > {subcategory}'. Use --create-if-missing to create it."
                 )
             if preview:
-                cli_ctx.logger.info(
-                    f"[dry-run] Would create category: {category} > {subcategory}"
-                )
+                cli_ctx.logger.info(f"[dry-run] Would create category: {category} > {subcategory}")
                 # Simulate: fetch id after creation for logging clarity
                 # We cannot know the id without writing; keep as None in preview output.
             else:
@@ -148,7 +146,9 @@ def set_category(
                 )
 
         target_desc = (
-            f"transaction id={transaction_id}" if transaction_id is not None else f"fingerprint={fingerprint}"
+            f"transaction id={transaction_id}"
+            if transaction_id is not None
+            else f"fingerprint={fingerprint}"
         )
 
         if preview:
@@ -246,9 +246,7 @@ def add_merchant_pattern(
                     f"Category does not exist: '{category} > {subcategory}'. Use --create-if-missing to create it."
                 )
             if preview:
-                cli_ctx.logger.info(
-                    f"[dry-run] Would create category: {category} > {subcategory}"
-                )
+                cli_ctx.logger.info(f"[dry-run] Would create category: {category} > {subcategory}")
             else:
                 cat_id = models.get_or_create_category(
                     connection,
@@ -329,9 +327,7 @@ def delete_transactions(
         found_ids = {int(row["id"]) for row in rows}
         missing = [str(txn_id) for txn_id in unique_ids if txn_id not in found_ids]
         if missing:
-            raise click.ClickException(
-                "Transactions not found: " + ", ".join(missing)
-            )
+            raise click.ClickException("Transactions not found: " + ", ".join(missing))
 
         for row in rows:
             cli_ctx.logger.info(_format_transaction_summary(row))
@@ -388,12 +384,12 @@ def _log_import_summary(logger, summary: ImportSummary, preview: bool) -> None:
         formatted = ", ".join(
             _format_category(*item) for item in sorted(summary.categories_created)
         )
-        logger.info(f"{prefix}{action} {len(summary.categories_created)} categor{'y' if len(summary.categories_created) == 1 else 'ies'}: {formatted}.")
+        logger.info(
+            f"{prefix}{action} {len(summary.categories_created)} categor{'y' if len(summary.categories_created) == 1 else 'ies'}: {formatted}."
+        )
     if summary.accounts_created:
         action = "Would create" if preview else "Created"
-        formatted = ", ".join(
-            _format_account(item) for item in sorted(summary.accounts_created)
-        )
+        formatted = ", ".join(_format_account(item) for item in sorted(summary.accounts_created))
         logger.info(
             f"{prefix}{action} {len(summary.accounts_created)} account{'s' if len(summary.accounts_created) != 1 else ''}: {formatted}."
         )
@@ -432,7 +428,9 @@ def _ensure_default_confidence(value: float) -> float:
     return value
 
 
-def _check_fingerprint(cli_ctx: CLIContext, row: EnrichedCSVTransaction, account_id: int | None) -> None:
+def _check_fingerprint(
+    cli_ctx: CLIContext, row: EnrichedCSVTransaction, account_id: int | None
+) -> None:
     expected = models.compute_transaction_fingerprint(
         row.date,
         row.amount,
@@ -442,10 +440,8 @@ def _check_fingerprint(cli_ctx: CLIContext, row: EnrichedCSVTransaction, account
     )
     if expected != row.fingerprint:
         cli_ctx.logger.warning(
-            (
-                f"Fingerprint mismatch for merchant '{row.merchant}' on {row.date.isoformat()}. "
-                f"Computed {expected} but CSV provided {row.fingerprint}."
-            )
+            f"Fingerprint mismatch for merchant '{row.merchant}' on {row.date.isoformat()}. "
+            f"Computed {expected} but CSV provided {row.fingerprint}."
         )
 
 
@@ -466,7 +462,9 @@ def _import_enriched_transactions(
     account_cache: dict[tuple[str, str, str], int | None] = {}
     patterns_recorded: set[tuple[str, int]] = set()
 
-    def _resolve_pattern(row: EnrichedCSVTransaction) -> tuple[str | None, str | None, Mapping[str, Any] | str | None]:
+    def _resolve_pattern(
+        row: EnrichedCSVTransaction,
+    ) -> tuple[str | None, str | None, Mapping[str, Any] | str | None]:
         pattern = (row.pattern_key or "").strip() if row.pattern_key else ""
         if not pattern:
             pattern = merchant_pattern_key(row.merchant) or ""
@@ -502,7 +500,12 @@ def _import_enriched_transactions(
 
             if row.account_id is None:
                 # Prefer lookup by (institution, account_type, last_4_digits)
-                account_key = (row.account_name, row.institution, row.account_type, row.last_4_digits)
+                account_key = (
+                    row.account_name,
+                    row.institution,
+                    row.account_type,
+                    row.last_4_digits,
+                )
                 if account_key not in account_cache:
                     result = None
                     if row.last_4_digits:
@@ -518,7 +521,9 @@ def _import_enriched_transactions(
                         ).fetchone()
                     account_cache[account_key] = int(result[0]) if result else None
             else:
-                account_cache[(row.account_name, row.institution, row.account_type, row.last_4_digits)] = row.account_id
+                account_cache[
+                    (row.account_name, row.institution, row.account_type, row.last_4_digits)
+                ] = row.account_id
 
         if summary.categories_missing and not allow_category_creation:
             missing_formatted = ", ".join(
@@ -538,11 +543,22 @@ def _import_enriched_transactions(
                         summary.categories_created.add(category_key)
 
                 if row.account_id is None:
-                    account_key = (row.account_name, row.institution, row.account_type, row.last_4_digits)
+                    account_key = (
+                        row.account_name,
+                        row.institution,
+                        row.account_type,
+                        row.last_4_digits,
+                    )
                     if account_cache.get(account_key) is None:
-                        summary.accounts_created.add((row.account_name, row.institution, row.account_type))
+                        summary.accounts_created.add(
+                            (row.account_name, row.institution, row.account_type)
+                        )
 
-                _check_fingerprint(cli_ctx, row, account_cache.get((row.account_name, row.institution, row.account_type)))
+                _check_fingerprint(
+                    cli_ctx,
+                    row,
+                    account_cache.get((row.account_name, row.institution, row.account_type)),
+                )
                 existing = connection.execute(
                     "SELECT 1 FROM transactions WHERE fingerprint = ? LIMIT 1",
                     (row.fingerprint,),
@@ -594,7 +610,9 @@ def _import_enriched_transactions(
                         auto_detected=False,
                     )
                     account_cache[account_key] = account_id
-                    summary.accounts_created.add((row.account_name, row.institution, row.account_type))
+                    summary.accounts_created.add(
+                        (row.account_name, row.institution, row.account_type)
+                    )
             else:
                 account_cache[account_key] = account_id
 
@@ -636,7 +654,12 @@ def _import_enriched_transactions(
             else:
                 summary.duplicates += 1
             # Only learn patterns for categorized transactions
-            if learn_patterns and pattern_key and cat_id is not None and (row.category and row.subcategory):
+            if (
+                learn_patterns
+                and pattern_key
+                and cat_id is not None
+                and (row.category and row.subcategory)
+            ):
                 if row.confidence >= learn_threshold:
                     cache_key = (pattern_key, cat_id)
                     if cache_key not in patterns_recorded:
@@ -649,9 +672,7 @@ def _import_enriched_transactions(
                             metadata=merchant_metadata,
                         )
                         patterns_recorded.add(cache_key)
-                    summary.patterns_learned.add(
-                        (pattern_key, row.category, row.subcategory)
-                    )
+                    summary.patterns_learned.add((pattern_key, row.category, row.subcategory))
                 else:
                     summary.patterns_skipped_low_conf += 1
 
@@ -718,9 +739,7 @@ def import_transactions_command(
     apply_flag = bool(cli_ctx.state.get("apply_flag"))
     preview = _effective_dry_run(cli_ctx, apply_flag)
 
-    cli_ctx.logger.debug(
-        f"Loaded {len(rows)} enriched row(s) from {csv_path} (preview={preview})."
-    )
+    cli_ctx.logger.debug(f"Loaded {len(rows)} enriched row(s) from {csv_path} (preview={preview}).")
 
     summary = _import_enriched_transactions(
         cli_ctx,

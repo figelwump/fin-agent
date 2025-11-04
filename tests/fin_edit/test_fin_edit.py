@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from datetime import date
 from pathlib import Path
 
 from click.testing import CliRunner
-import re
 
 from fin_cli.fin_edit.main import main as edit_cli
 from fin_cli.shared import models, paths
-from fin_cli.shared.merchants import merchant_pattern_key
 from fin_cli.shared.config import load_config
 from fin_cli.shared.database import connect
+from fin_cli.shared.merchants import merchant_pattern_key
 
 
 def _prepare_db(db_path: Path) -> None:
@@ -519,6 +519,7 @@ def test_import_transactions_learn_patterns_threshold(tmp_path: Path) -> None:
         assert txn_meta["merchant_pattern_key"] == merchant_pattern_key("LOCAL BAKERY")
         assert txn_meta["merchant_pattern_display"] == "Local Bakery"
 
+
 def test_import_transactions_missing_category_without_creation(tmp_path: Path) -> None:
     db_path = tmp_path / "db.sqlite"
     _prepare_db(db_path)
@@ -672,6 +673,8 @@ def test_delete_transactions_missing_id(tmp_path: Path) -> None:
     )
     assert result.exit_code != 0
     assert "Transactions not found" in result.output
+
+
 ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 
 

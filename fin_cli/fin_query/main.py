@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 import click
 
@@ -11,7 +11,7 @@ from fin_cli.shared.config import AppConfig
 from fin_cli.shared.exceptions import QueryError
 
 from . import executor, render
-from .types import QueryResult, SavedQuerySummary, SchemaOverview
+from .types import QueryResult, SavedQuerySummary
 
 OUTPUT_FORMAT_CHOICES = ("table", "tsv", "csv", "json")
 SCHEMA_FORMAT_CHOICES = ("table", "json")
@@ -287,9 +287,7 @@ def _render_query_output(cli_ctx: CLIContext, result: QueryResult, output_format
         raise click.ClickException(str(exc)) from exc
 
 
-def _render_saved_query_catalog(
-    cli_ctx: CLIContext, catalog: Iterable[SavedQuerySummary]
-) -> None:
+def _render_saved_query_catalog(cli_ctx: CLIContext, catalog: Iterable[SavedQuerySummary]) -> None:
     try:
         render.render_saved_query_catalog(
             list(catalog),

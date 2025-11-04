@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+
 from dateutil.relativedelta import relativedelta
 
 from fin_cli.shared.config import AppConfig
@@ -126,7 +127,9 @@ def _from_all_period(
     compare: bool,
 ) -> TimeWindow:
     if compare:
-        raise AnalysisConfigurationError("--period all does not support --compare; choose a bounded period.")
+        raise AnalysisConfigurationError(
+            "--period all does not support --compare; choose a bounded period."
+        )
     if app_config is None:
         raise AnalysisConfigurationError(
             "--period all requires a configured database; pass --db or set FIN_DB_PATH."

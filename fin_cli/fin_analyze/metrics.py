@@ -37,6 +37,7 @@ def safe_float(value: Any) -> float:
     except (TypeError, ValueError):
         return 0.0
 
+
 def jaccard_similarity(a: set[Any], b: set[Any]) -> float:
     """Return Jaccard similarity between two sets (0-1 range)."""
 
@@ -57,4 +58,3 @@ def ratio(numerator: float, denominator: float) -> float:
     if denominator == 0:
         return 0.0
     return numerator / denominator
-

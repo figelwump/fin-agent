@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
@@ -12,9 +13,9 @@ except ImportError:  # pragma: no cover
 
 from fin_cli.shared.merchants import friendly_display_name, merchant_pattern_key
 
+from ...shared.dataframe import build_window_frames, filter_frame_by_category
 from ..metrics import percentage_change, safe_float
 from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
-from ...shared.dataframe import build_window_frames, filter_frame_by_category
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,9 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
             subcategory=str(subcategory) if subcategory else None,
         )
     if frame.empty:
-        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet.")
+        raise AnalysisError(
+            "No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet."
+        )
 
     min_visits = max(int(context.options.get("min_visits", 1) or 1), 1)
 
@@ -71,8 +74,6 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
                 subcategory=str(subcategory) if subcategory else None,
             )
         comparison_stats = _aggregate_merchants(comparison_frame)
-
-    threshold = context.threshold if context.threshold is not None else 0.10
 
     records: list[MerchantRecord] = []
     new_merchants: list[str] = []

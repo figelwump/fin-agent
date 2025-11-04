@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import functools
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import click
 
@@ -40,8 +41,12 @@ def common_cli_options(
     """Decorator injecting shared CLI options and context creation."""
 
     def decorator(inner_func: F) -> F:
-        @click.option("--config", "config_path", type=click.Path(path_type=str), help="Path to config file.")
-        @click.option("--db", "db_path", type=click.Path(path_type=str), help="Override database path.")
+        @click.option(
+            "--config", "config_path", type=click.Path(path_type=str), help="Path to config file."
+        )
+        @click.option(
+            "--db", "db_path", type=click.Path(path_type=str), help="Override database path."
+        )
         @click.option("--dry-run", is_flag=True, help="Preview actions without side effects.")
         @click.option("--verbose", is_flag=True, help="Enable verbose logging output.")
         @click.pass_context

@@ -32,7 +32,13 @@ def test_dev_list_plugins_shows_bundled_and_builtin(tmp_path: Path) -> None:
 
 
 def test_dev_validate_spec_reports_success(tmp_path: Path) -> None:
-    spec_path = Path(__file__).resolve().parent.parent.parent / "fin_cli" / "fin_extract" / "bundled_specs" / "chase.yaml"
+    spec_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "fin_cli"
+        / "fin_extract"
+        / "bundled_specs"
+        / "chase.yaml"
+    )
     runner = CliRunner()
     result = runner.invoke(
         main,

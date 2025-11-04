@@ -9,8 +9,8 @@ LLM-friendly: explicit keys, deterministic defaults, and minimal inference.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pytest
 
@@ -181,7 +181,9 @@ def load_analysis_dataset(app_config: AppConfig) -> Callable[[str], AppConfig]:
 def analysis_context(
     cli_context: CLIContext,
     app_config: AppConfig,
-) -> Callable[[TimeWindow, TimeWindow | None, dict[str, object], bool, float | None, str], AnalysisContext]:
+) -> Callable[
+    [TimeWindow, TimeWindow | None, dict[str, object], bool, float | None, str], AnalysisContext
+]:
     """Factory to build AnalysisContext instances for individual analyzers."""
 
     def _builder(
@@ -204,4 +206,3 @@ def analysis_context(
         )
 
     return _builder
-

@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
-from ..metrics import percentage_change, significance, safe_float
-from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 from ...shared.dataframe import load_category_totals
+from ..metrics import percentage_change, safe_float, significance
+from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,9 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     comparison_map: dict[tuple[str, str], float] = {}
     if context.compare and context.comparison_window is not None:
         comparison = load_category_totals(context, window=context.comparison_window)
-        comparison = comparison.fillna({"category": "Uncategorized", "subcategory": "Uncategorized"})
+        comparison = comparison.fillna(
+            {"category": "Uncategorized", "subcategory": "Uncategorized"}
+        )
         comparison["spend_amount"] = comparison["spend_amount"].astype(float)
         comparison_map = {
             (str(row.category), str(row.subcategory)): safe_float(row.spend_amount)
@@ -129,7 +132,9 @@ def _build_records(
         income = safe_float(row.income_amount)
         pct = spend / total_spend if total_spend else 0.0
         comparison_value = comparison_map.get((cat, sub))
-        change_pct = percentage_change(spend, comparison_value) if comparison_value is not None else None
+        change_pct = (
+            percentage_change(spend, comparison_value) if comparison_value is not None else None
+        )
         records.append(
             CategoryRecord(
                 category=cat,

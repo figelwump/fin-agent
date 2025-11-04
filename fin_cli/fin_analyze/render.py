@@ -11,9 +11,9 @@ from fin_cli.fin_analyze.types import AnalysisResult, TableSeries
 from fin_cli.shared.logging import Logger
 
 try:  # Rich is optional
+    from rich import box
     from rich.console import Console
     from rich.table import Table
-    from rich import box
 except ImportError:  # pragma: no cover
     Console = None  # type: ignore[assignment]
     Table = None  # type: ignore[assignment]
@@ -110,11 +110,13 @@ def _render_csv(result: AnalysisResult, *, stream: IO[str]) -> None:
 
         if table.metadata:
             for key, value in sorted(table.metadata.items()):
-                writer.writerow([
-                    "metadata",
-                    key,
-                    json.dumps(value, sort_keys=True, default=str),
-                ])
+                writer.writerow(
+                    [
+                        "metadata",
+                        key,
+                        json.dumps(value, sort_keys=True, default=str),
+                    ]
+                )
 
         if table.columns:
             writer.writerow(list(table.columns))

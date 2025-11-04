@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 from click.testing import CliRunner

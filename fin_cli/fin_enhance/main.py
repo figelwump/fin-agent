@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import csv
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import click
 
@@ -13,20 +13,42 @@ from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors
 from fin_cli.shared.database import connect
 
 from .importer import CSVImportError
-from .pipeline import EnhancedTransaction, ImportPipeline, ImportResult, ImportStats, ReviewQueue, dry_run_preview
+from .pipeline import (
+    EnhancedTransaction,
+    ImportPipeline,
+    ImportResult,
+    ImportStats,
+    dry_run_preview,
+)
 from .review import ReviewApplicationError, apply_review_file, write_review_file
 
 
 @click.command(help="Import transactions with intelligent categorization.")
 @click.argument("csv_files", type=click.Path(path_type=str), nargs=-1)
 @click.option("--stdin", is_flag=True, help="Read CSV input from stdin instead of files.")
-@click.option("--stdout", is_flag=True, help="Output enhanced CSV to stdout (in addition to DB updates).")
-@click.option("--review-output", type=click.Path(path_type=str), help="Write unresolved items to JSON for agent review.")
-@click.option("--apply-review", type=click.Path(path_type=str), help="Apply review decisions from file.")
-@click.option("--confidence", type=float, help="Override auto-categorization confidence threshold (default from config).")
-@click.option("--skip-llm", is_flag=True, help="Use only rules-based categorization (no LLM calls).")
+@click.option(
+    "--stdout", is_flag=True, help="Output enhanced CSV to stdout (in addition to DB updates)."
+)
+@click.option(
+    "--review-output",
+    type=click.Path(path_type=str),
+    help="Write unresolved items to JSON for agent review.",
+)
+@click.option(
+    "--apply-review", type=click.Path(path_type=str), help="Apply review decisions from file."
+)
+@click.option(
+    "--confidence",
+    type=float,
+    help="Override auto-categorization confidence threshold (default from config).",
+)
+@click.option(
+    "--skip-llm", is_flag=True, help="Use only rules-based categorization (no LLM calls)."
+)
 @click.option("--force", is_flag=True, help="Skip duplicate detection safeguards.")
-@click.option("--auto", is_flag=True, help="Auto-approve all categorizations; skip review queue output.")
+@click.option(
+    "--auto", is_flag=True, help="Auto-approve all categorizations; skip review queue output."
+)
 @common_cli_options
 @handle_cli_errors
 def main(
@@ -56,7 +78,9 @@ def main(
     if not stdin and csv_files:
         default_review_path = _derive_default_review_path(Path(csv_files[0]))
     if stdin and review_output is None:
-        cli_ctx.logger.info("Provide --review-output <file> to capture unresolved transactions when reading from stdin.")
+        cli_ctx.logger.info(
+            "Provide --review-output <file> to capture unresolved transactions when reading from stdin."
+        )
     elif review_output is None and default_review_path is not None and not auto:
         review_output = str(default_review_path)
         cli_ctx.logger.info(f"No --review-output provided; defaulting to {review_output}.")
@@ -66,12 +90,18 @@ def main(
     if effective_skip_llm:
         cli_ctx.logger.info("Running in rules-only mode (LLM categorization disabled).")
 
-    threshold = confidence if confidence is not None else cli_ctx.config.categorization.confidence.auto_approve
+    threshold = (
+        confidence
+        if confidence is not None
+        else cli_ctx.config.categorization.confidence.auto_approve
+    )
 
     csv_paths = [Path("-")] if stdin else [Path(p) for p in csv_files]
 
     if auto and review_output is not None:
-        cli_ctx.logger.info("--auto specified; skipping review output despite --review-output flag.")
+        cli_ctx.logger.info(
+            "--auto specified; skipping review output despite --review-output flag."
+        )
         review_output = None
 
     if cli_ctx.dry_run:
@@ -96,7 +126,9 @@ def main(
     if review_output:
         review_path = Path(review_output)
         if cli_ctx.dry_run:
-            cli_ctx.logger.info(f"Dry-run: unresolved transactions would be written to {review_path}.")
+            cli_ctx.logger.info(
+                f"Dry-run: unresolved transactions would be written to {review_path}."
+            )
         else:
             write_review_file(review_path, result.review)
             cli_ctx.logger.info(
@@ -205,29 +237,42 @@ def _write_enhanced_csv_to_stdout(enhanced_transactions: list[EnhancedTransactio
     writer = csv.writer(sys.stdout)
 
     # Write header
-    writer.writerow([
-        "date", "merchant", "amount", "original_description",
-        "account_name", "institution", "account_type", "account_key",
-        "category", "subcategory", "confidence", "method"
-    ])
+    writer.writerow(
+        [
+            "date",
+            "merchant",
+            "amount",
+            "original_description",
+            "account_name",
+            "institution",
+            "account_type",
+            "account_key",
+            "category",
+            "subcategory",
+            "confidence",
+            "method",
+        ]
+    )
 
     # Write data rows
     for enhanced in enhanced_transactions:
         txn = enhanced.transaction
-        writer.writerow([
-            txn.date.isoformat(),
-            txn.merchant,
-            f"{txn.amount:.2f}",
-            txn.original_description,
-            txn.account_name,
-            txn.institution,
-            txn.account_type,
-            txn.account_key or "",
-            enhanced.category or "",
-            enhanced.subcategory or "",
-            f"{enhanced.confidence:.2f}" if enhanced.confidence is not None else "",
-            enhanced.method or ""
-        ])
+        writer.writerow(
+            [
+                txn.date.isoformat(),
+                txn.merchant,
+                f"{txn.amount:.2f}",
+                txn.original_description,
+                txn.account_name,
+                txn.institution,
+                txn.account_type,
+                txn.account_key or "",
+                enhanced.category or "",
+                enhanced.subcategory or "",
+                f"{enhanced.confidence:.2f}" if enhanced.confidence is not None else "",
+                enhanced.method or "",
+            ]
+        )
     sys.stdout.flush()
 
 

@@ -1,2 +1,1 @@
 """fin-edit package init."""
-

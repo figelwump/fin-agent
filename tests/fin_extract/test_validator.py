@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date
+
 from fin_cli.fin_extract.extractors.bofa import BankOfAmericaExtractor
 from fin_cli.fin_extract.extractors.mercury import MercuryExtractor
-from fin_cli.fin_extract.parsers.pdf_loader import PdfTable, PdfDocument
-from fin_cli.fin_extract.types import ExtractedTransaction, ExtractionResult, StatementMetadata
+from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable
+from fin_cli.fin_extract.types import ExtractedTransaction, ExtractionResult
 from fin_cli.fin_extract.validator import validate_extraction
 
 

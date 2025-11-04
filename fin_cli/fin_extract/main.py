@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable, Sequence
 from dataclasses import replace
 from io import StringIO
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import click
 
@@ -34,11 +34,12 @@ class ExtractDefaultGroup(click.Group):
 
         return super().resolve_command(ctx, [self._default_command] + args)
 
+
 from .declarative import DeclarativeExtractor, load_spec
 from .extractors import REGISTRY, detect_extractor, ensure_bundled_specs_loaded
 from .parsers.pdf_loader import PdfDocument, load_pdf_document_with_engine
 from .plugin_loader import PluginLoadReport, load_user_plugins
-from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
+from .types import ExtractedTransaction, ExtractionResult, StatementMetadata
 
 
 def load_pdf_document(
@@ -296,9 +297,7 @@ def dev_list_plugins(cli_ctx: CLIContext) -> None:
             )
         for skipped in report.skipped:
             if skipped.message:
-                cli_ctx.logger.debug(
-                    f"Skipped plugin {skipped.source}: {skipped.message}"
-                )
+                cli_ctx.logger.debug(f"Skipped plugin {skipped.source}: {skipped.message}")
 
 
 @dev_group.command("validate-spec")
@@ -313,7 +312,7 @@ def dev_validate_spec(cli_ctx: CLIContext, yaml_path: str) -> None:
     except Exception as exc:  # pragma: no cover - validation errors bubble up
         raise click.ClickException(f"Spec validation failed: {exc}") from exc
 
-    extractor = DeclarativeExtractor(spec)
+    DeclarativeExtractor(spec)
     cli_ctx.logger.info(
         f"Spec '{spec.name}' loaded successfully for institution '{spec.institution}'."
     )
@@ -340,8 +339,7 @@ def dev_validate_spec(cli_ctx: CLIContext, yaml_path: str) -> None:
     missing_detection = [key for key in sample_keys if not getattr(spec.detection, key)]
     if missing_detection:
         cli_ctx.logger.warning(
-            "Consider populating detection." +
-            " Missing: " + ", ".join(missing_detection)
+            "Consider populating detection." + " Missing: " + ", ".join(missing_detection)
         )
     else:
         cli_ctx.logger.debug("Detection keywords provided.")
@@ -400,7 +398,9 @@ def _render_csv_rows(
     metadata: StatementMetadata,
 ) -> list[list[str]]:
     rows: list[list[str]] = []
-    account_key = compute_account_key(metadata.account_name, metadata.institution, metadata.account_type)
+    account_key = compute_account_key(
+        metadata.account_name, metadata.institution, metadata.account_type
+    )
     for txn in transactions:
         rows.append(
             [

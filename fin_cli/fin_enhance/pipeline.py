@@ -2,25 +2,24 @@
 
 from __future__ import annotations
 
+import sqlite3
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
-
-import sqlite3
 
 from fin_cli.shared import models
 from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
 
 from .categorizer.hybrid import (
-    CategoryProposal,
     CategorizationOptions,
+    CategoryProposal,
     HybridCategorizer,
     HybridCategorizerResult,
     TransactionReview,
 )
 from .categorizer.rules import CategorizationOutcome
-from .importer import CSVImportError, ImportedTransaction, load_csv_transactions
+from .importer import ImportedTransaction, load_csv_transactions
 
 
 @dataclass(slots=True)
@@ -42,6 +41,7 @@ class ReviewQueue:
 @dataclass(slots=True)
 class EnhancedTransaction:
     """Transaction with categorization results."""
+
     transaction: ImportedTransaction
     category: str | None = None
     subcategory: str | None = None
@@ -113,9 +113,7 @@ class ImportPipeline:
                 enhanced_transactions=None,
             )
 
-        self.logger.info(
-            f"Stage 1/3: Categorizing {total_transactions} transaction(s)…"
-        )
+        self.logger.info(f"Stage 1/3: Categorizing {total_transactions} transaction(s)…")
         result = self._run_categorizer(
             transactions,
             skip_llm=skip_llm,
@@ -149,9 +147,7 @@ class ImportPipeline:
         enhanced_transactions = None
         if include_enhanced:
             self.logger.info("Stage 3/3: Preparing enhanced transaction output…")
-            enhanced_transactions = self._build_enhanced_transactions(
-                transactions, result.outcomes
-            )
+            enhanced_transactions = self._build_enhanced_transactions(transactions, result.outcomes)
             self.logger.info("Stage 3/3 complete.")
 
         self.logger.info("Import pipeline processing finished.")
@@ -241,13 +237,9 @@ class ImportPipeline:
             else:
                 stats.duplicates += 1
             if should_log_progress and index % progress_every == 0:
-                self.logger.info(
-                    f"Database progress: processed {index}/{total} transaction(s)…"
-                )
+                self.logger.info(f"Database progress: processed {index}/{total} transaction(s)…")
         if should_log_progress and total % progress_every != 0:
-            self.logger.info(
-                f"Database progress: processed {total}/{total} transaction(s)."
-            )
+            self.logger.info(f"Database progress: processed {total}/{total} transaction(s).")
         return stats
 
     def _resolve_account_id(self, txn: ImportedTransaction) -> int:

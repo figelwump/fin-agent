@@ -3,10 +3,9 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from fin_cli.shared import paths
+from fin_cli.shared import models, paths
 from fin_cli.shared.config import load_config
 from fin_cli.shared.database import connect, run_migrations
-from fin_cli.shared import models
 
 
 def _config(tmp_path):

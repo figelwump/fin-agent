@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from itertools import zip_longest
-from typing import Callable, Iterable, Sequence
 
 try:  # Optional typing support without runtime dependency
     from ..parsers.pdf_loader import PdfTable
@@ -24,7 +24,7 @@ class NormalizedTable:
 
 
 def normalize_pdf_table(
-    table: "PdfTable",
+    table: PdfTable,
     *,
     header_scan: int = 6,
     header_predicate: NormalizedPredicate | None = None,
@@ -112,4 +112,3 @@ def normalize_cells(row: Sequence[str | None]) -> tuple[str, ...]:
 def _default_header_predicate(header: tuple[str, ...]) -> bool:
     non_empty = sum(1 for cell in header if cell)
     return non_empty >= 2
-

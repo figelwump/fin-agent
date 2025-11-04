@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable, TYPE_CHECKING
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from fin_cli.shared.exceptions import UnsupportedFormatError
 
 from .base import ExtractorRegistry, StatementExtractor
-from .chase import ChaseExtractor
 from .bofa import BankOfAmericaExtractor
+from .chase import ChaseExtractor
 from .mercury import MercuryExtractor
 
 if TYPE_CHECKING:  # pragma: no cover - import only for typing
@@ -18,10 +19,10 @@ if TYPE_CHECKING:  # pragma: no cover - import only for typing
 REGISTRY = ExtractorRegistry([ChaseExtractor, BankOfAmericaExtractor, MercuryExtractor])
 
 _LOGGER = logging.getLogger(__name__)
-_BUNDLED_SPEC_REPORT: "PluginLoadReport" | None = None
+_BUNDLED_SPEC_REPORT: PluginLoadReport | None = None
 
 
-def ensure_bundled_specs_loaded() -> "PluginLoadReport":
+def ensure_bundled_specs_loaded() -> PluginLoadReport:
     """Load bundled declarative specs once and return the report."""
 
     global _BUNDLED_SPEC_REPORT
@@ -89,11 +90,11 @@ def detect_extractor(
 
     if probable and probable not in allowed_set:
         raise UnsupportedFormatError(
-            "Detected {friendly} statement but support is disabled via configuration.".format(
-                friendly=FRIENDLY_NAMES.get(probable, probable.title()),
-            )
+            f"Detected {FRIENDLY_NAMES.get(probable, probable.title())} statement but support is disabled via configuration."
         )
-    supported_list = ", ".join(FRIENDLY_NAMES.get(name.lower(), name) for name in sorted(allowed_set))
+    supported_list = ", ".join(
+        FRIENDLY_NAMES.get(name.lower(), name) for name in sorted(allowed_set)
+    )
     raise UnsupportedFormatError(
         "Unsupported statement format. Supported institutions: "
         f"{supported_list or 'none configured'}"

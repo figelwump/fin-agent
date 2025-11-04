@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any
 
 from fin_cli.shared.cli import CLIContext
 from fin_cli.shared.config import AppConfig
-
 
 # ----- Exceptions ---------------------------------------------------------------------------
 
@@ -82,7 +82,6 @@ class TableSeries:
     columns: Sequence[str]
     rows: Sequence[Sequence[Any]]
     metadata: Mapping[str, Any] = field(default_factory=dict)
-
 
 
 @dataclass(frozen=True)
@@ -165,4 +164,3 @@ class AnalyzerSpec:
 
 
 Registry = Mapping[str, AnalyzerSpec]
-

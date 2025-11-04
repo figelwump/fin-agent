@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
-from ..metrics import percentage_change, significance, safe_float
-from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 from ...shared.dataframe import build_window_frames
+from ..metrics import percentage_change, safe_float, significance
+from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
 
 
 @dataclass(frozen=True)
@@ -83,12 +84,14 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
                 "transactions_previous": rec.transactions_previous,
                 "spend_current": round(rec.spend_current, 2),
                 "spend_previous": round(rec.spend_previous, 2),
-                "spend_change_pct": None
-                if rec.spend_change_pct is None
-                else round(rec.spend_change_pct, 4),
-                "transaction_change_pct": None
-                if rec.transaction_change_pct is None
-                else round(rec.transaction_change_pct, 4),
+                "spend_change_pct": (
+                    None if rec.spend_change_pct is None else round(rec.spend_change_pct, 4)
+                ),
+                "transaction_change_pct": (
+                    None
+                    if rec.transaction_change_pct is None
+                    else round(rec.transaction_change_pct, 4)
+                ),
             }
             for rec in records
         ],
@@ -191,9 +194,11 @@ def _build_table(records: Sequence[EvolutionRecord]) -> TableSeries:
                 round(rec.spend_current, 2),
                 round(rec.spend_previous, 2),
                 None if rec.spend_change_pct is None else round(rec.spend_change_pct * 100, 2),
-                None
-                if rec.transaction_change_pct is None
-                else round(rec.transaction_change_pct * 100, 2),
+                (
+                    None
+                    if rec.transaction_change_pct is None
+                    else round(rec.transaction_change_pct * 100, 2)
+                ),
             ]
         )
     return TableSeries(
@@ -213,7 +218,9 @@ def _build_table(records: Sequence[EvolutionRecord]) -> TableSeries:
     )
 
 
-def _significant_changes(records: Sequence[EvolutionRecord], *, threshold: float | None) -> list[str]:
+def _significant_changes(
+    records: Sequence[EvolutionRecord], *, threshold: float | None
+) -> list[str]:
     highlights: list[str] = []
     for rec in records:
         change_pct = rec.spend_change_pct
@@ -225,4 +232,3 @@ def _significant_changes(records: Sequence[EvolutionRecord], *, threshold: float
                 f"{rec.category} > {rec.subcategory} spend {direction} {abs(change_pct)*100:.1f}%"
             )
     return highlights
-

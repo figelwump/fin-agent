@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-import re
-from typing import Iterable, Sequence
 
 from ..parsers.pdf_loader import PdfDocument
-from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
+from ..types import ExtractedTransaction, ExtractionResult, StatementMetadata
 from ..utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
 from .base import StatementExtractor
 
@@ -55,10 +55,18 @@ _PERIOD_LONG_RE = re.compile(
 
 _ACCOUNT_NAME_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"advantage\s+banking", re.IGNORECASE), "BofA Advantage Checking", "checking"),
-    (re.compile(r"advantage\s+relationship", re.IGNORECASE), "BofA Advantage Relationship", "checking"),
+    (
+        re.compile(r"advantage\s+relationship", re.IGNORECASE),
+        "BofA Advantage Relationship",
+        "checking",
+    ),
     (re.compile(r"adv\s+relationship", re.IGNORECASE), "BofA Advantage Relationship", "checking"),
     (re.compile(r"travel\s+rewards", re.IGNORECASE), "BofA Travel Rewards", "credit"),
-    (re.compile(r"customized\s+cash\s+rewards", re.IGNORECASE), "BofA Customized Cash Rewards", "credit"),
+    (
+        re.compile(r"customized\s+cash\s+rewards", re.IGNORECASE),
+        "BofA Customized Cash Rewards",
+        "credit",
+    ),
     (re.compile(r"premium\s+rewards", re.IGNORECASE), "BofA Premium Rewards", "credit"),
     (re.compile(r"cash\s+rewards", re.IGNORECASE), "BofA Cash Rewards", "credit"),
 ]
@@ -166,7 +174,9 @@ class BankOfAmericaExtractor(StatementExtractor):
             },
         )
         distinct_indices = {
-            idx for idx in (date_idx, desc_idx, amount_idx, deposits_idx, withdrawals_idx) if idx is not None
+            idx
+            for idx in (date_idx, desc_idx, amount_idx, deposits_idx, withdrawals_idx)
+            if idx is not None
         }
         if len(distinct_indices) <= 2:
             return None
@@ -174,7 +184,11 @@ class BankOfAmericaExtractor(StatementExtractor):
         has_dual_amount_columns = withdrawals_idx is not None or deposits_idx is not None
         if not has_posting_column and not has_dual_amount_columns:
             header_text = " ".join(normalized)
-            if "all transactions" in header_text or "date (utc)" in header_text or "end of day balance" in header_text:
+            if (
+                "all transactions" in header_text
+                or "date (utc)" in header_text
+                or "end of day balance" in header_text
+            ):
                 return None
         return _ColumnMapping(
             date_index=date_idx,
@@ -291,7 +305,9 @@ class BankOfAmericaExtractor(StatementExtractor):
                     continue
                 if any(keyword in desc_norm for keyword in _BOFA_SIGN_CLASSIFIER.interest_keywords):
                     continue
-                if any(keyword in desc_norm for keyword in _BOFA_SIGN_CLASSIFIER.card_payment_keywords):
+                if any(
+                    keyword in desc_norm for keyword in _BOFA_SIGN_CLASSIFIER.card_payment_keywords
+                ):
                     continue
                 signed_amount = amount
 
@@ -312,9 +328,8 @@ def _bofa_header_predicate(header: tuple[str, ...]) -> bool:
     if len([cell for cell in header if cell]) < 3:
         return False
     normalized = [cell.lower() for cell in header if cell]
-    return (
-        any("date" in cell for cell in normalized)
-        and any("description" in cell for cell in normalized)
+    return any("date" in cell for cell in normalized) and any(
+        "description" in cell for cell in normalized
     )
 
 
@@ -322,7 +337,9 @@ def _is_summary_row(value: str) -> bool:
     normalized = normalize_token(value)
     if normalized in _SUMMARY_ROW_KEYWORDS:
         return True
-    if normalized.startswith("total") and ("payments" in normalized or "purchases" in normalized or "fees" in normalized):
+    if normalized.startswith("total") and (
+        "payments" in normalized or "purchases" in normalized or "fees" in normalized
+    ):
         return True
     if "interest charged" in normalized:
         return True

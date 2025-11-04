@@ -31,7 +31,9 @@ class StubLogger:
 def test_render_query_result_csv() -> None:
     buffer = io.StringIO()
     logger = StubLogger()
-    result = QueryResult(columns=("merchant", "amount"), rows=[("Amazon", -42.1)], truncated=True, limit_value=1)
+    result = QueryResult(
+        columns=("merchant", "amount"), rows=[("Amazon", -42.1)], truncated=True, limit_value=1
+    )
 
     render.render_query_result(result, output_format="csv", logger=logger, stream=buffer)
 

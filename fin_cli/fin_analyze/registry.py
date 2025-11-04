@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from typing import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 from .analyzers import (
     category_breakdown,
@@ -15,21 +14,20 @@ from .analyzers import (
     subscription_detect,
     unusual_spending,
 )
-
 from .types import (
     AnalysisConfigurationError,
     AnalysisContext,
     AnalysisNotImplementedError,
+    AnalysisResult,
     AnalyzerCallable,
     AnalyzerHelpRequested,
     AnalyzerOption,
     AnalyzerSpec,
-    AnalysisResult,
 )
-
 
 # Placeholder implementations will be replaced in later phases. Each currently raises
 # `AnalysisNotImplementedError` so the CLI can ship before analyzers are complete.
+
 
 def _placeholder_analyzer(name: str) -> AnalyzerCallable:
     def _inner(_: AnalysisContext) -> AnalysisResult:  # pragma: no cover - until analyzers land

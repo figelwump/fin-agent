@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
-from typing import Any, Sequence
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
+from ...shared.dataframe import load_transactions_frame
 from ..metrics import jaccard_similarity, safe_float
 from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
-from ...shared.dataframe import load_transactions_frame
 
 
 @dataclass(frozen=True)
@@ -39,21 +39,28 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
 
     frame = load_transactions_frame(context)
     if frame.empty:
-        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet.")
+        raise AnalysisError(
+            "No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet."
+        )
 
     min_overlap = float(context.options.get("min_overlap", 0.8) or 0.8)
     min_transactions = 3
 
     profiles = _build_profiles(frame)
     if len(profiles) < 2:
-        raise AnalysisError("Not enough categories to evaluate suggestions. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or inform the user of the error.")
+        raise AnalysisError(
+            "Not enough categories to evaluate suggestions. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or inform the user of the error."
+        )
 
     suggestions: list[Suggestion] = []
     keys = list(profiles.keys())
     for a, b in combinations(keys, 2):
         profile_a = profiles[a]
         profile_b = profiles[b]
-        if profile_a.transaction_count < min_transactions or profile_b.transaction_count < min_transactions:
+        if (
+            profile_a.transaction_count < min_transactions
+            or profile_b.transaction_count < min_transactions
+        ):
             continue
         overlap = jaccard_similarity(profile_a.merchants, profile_b.merchants)
         if overlap >= min_overlap:

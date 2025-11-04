@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Mapping, Sequence
-
 import sqlite3
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
 from fin_cli.shared import models
 from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
+from fin_cli.shared.merchants import merchant_pattern_key, normalize_merchant
 
+from ..importer import ImportedTransaction
 from .llm_client import (
     LLMClient,
     LLMClientError,
@@ -21,9 +23,7 @@ from .llm_client import (
     deserialize_llm_results,
     serialize_llm_results,
 )
-from fin_cli.shared.merchants import merchant_pattern_key, normalize_merchant
 from .rules import CategorizationOutcome, RuleCategorizer
-from ..importer import ImportedTransaction
 
 
 @dataclass(slots=True)
@@ -127,7 +127,7 @@ class HybridCategorizer:
         category_proposals_map: dict[tuple[str, str], CategoryProposal] = {}
         auto_created: list[tuple[str, str]] = []
 
-        merchant_batches: Dict[str, list[tuple[int, ImportedTransaction]]] = defaultdict(list)
+        merchant_batches: dict[str, list[tuple[int, ImportedTransaction]]] = defaultdict(list)
         rule_auto = 0
 
         for idx, txn in enumerate(transactions):
@@ -186,9 +186,7 @@ class HybridCategorizer:
                 self._persist_cache(fetched)
                 if fetched:
                     fetched_txns = sum(len(merchant_batches[key]) for key in fetched)
-                    self.logger.info(
-                        f"Received LLM suggestions for {fetched_txns} transaction(s)."
-                    )
+                    self.logger.info(f"Received LLM suggestions for {fetched_txns} transaction(s).")
                 else:
                     self.logger.info(
                         "No new LLM suggestions returned; relying on cache or review queue."
@@ -297,7 +295,7 @@ class HybridCategorizer:
         options: CategorizationOptions,
         category_proposals_map: dict[tuple[str, str], CategoryProposal],
         auto_created: list[tuple[str, str]],
-    ) -> "HybridCategorizer._LLMDetail":
+    ) -> HybridCategorizer._LLMDetail:
         suggestions = llm_result.suggestions
         if not suggestions:
             return self._fallback_review(txn)
@@ -328,7 +326,9 @@ class HybridCategorizer:
         # Use deterministic regex-normalized key for lookups to avoid re-contacting the LLM
         deterministic_pattern = merchant_pattern_key(txn.merchant) or llm_result.merchant_normalized
         pattern_display = llm_result.pattern_display or llm_result.pattern_key
-        merchant_metadata = dict(llm_result.merchant_metadata) if llm_result.merchant_metadata else {}
+        merchant_metadata = (
+            dict(llm_result.merchant_metadata) if llm_result.merchant_metadata else {}
+        )
         if llm_result.pattern_key and llm_result.pattern_key != deterministic_pattern:
             merchant_metadata.setdefault("canonical_pattern_key", llm_result.pattern_key)
 
@@ -460,7 +460,7 @@ class HybridCategorizer:
             metadata=merchant_metadata,
         )
 
-    def _fallback_review(self, txn: ImportedTransaction) -> "HybridCategorizer._LLMDetail":
+    def _fallback_review(self, txn: ImportedTransaction) -> HybridCategorizer._LLMDetail:
         outcome = CategorizationOutcome(
             category_id=None,
             confidence=0.0,

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Iterator, Sequence
 
 from .config import AppConfig
 from .exceptions import DatabaseError
@@ -56,7 +56,9 @@ def _load_migrations() -> Sequence[Migration]:
             except ValueError as exc:  # pragma: no cover - configuration time error
                 raise DatabaseError(f"Invalid migration filename '{entry.name}'") from exc
             sql = entry.read_text(encoding="utf-8")
-            migrations.append(Migration(version=version, name=name, description=description, sql=sql))
+            migrations.append(
+                Migration(version=version, name=name, description=description, sql=sql)
+            )
     migrations.sort(key=lambda m: m.version)
     return migrations
 

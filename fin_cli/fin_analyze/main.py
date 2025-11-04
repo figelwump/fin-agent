@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import click
 
@@ -19,15 +19,13 @@ from .types import (
     AnalyzerHelpRequested,
 )
 
-
 HELP_TEXT = (
     "Run financial analyses against the local dataset.\n\n"
-    "\b\n"  # Preserve the catalog formatting in Click's help output.
-    + registry.format_catalog()
+    "\b\n" + registry.format_catalog()  # Preserve the catalog formatting in Click's help output.
 )
 
 
-@click.command(help=HELP_TEXT, context_settings={'ignore_unknown_options': True})
+@click.command(help=HELP_TEXT, context_settings={"ignore_unknown_options": True})
 @click.argument("analysis_type", type=str, required=False)
 @click.argument("analysis_args", nargs=-1, type=str)
 @click.option("--month", type=str, help="Analyse a specific month (YYYY-MM).")
@@ -92,14 +90,12 @@ def main(
     )
 
     comparison_label = windows.comparison.label if windows.comparison else None
-    debug_message = (
-        f"Resolved analysis window {windows.window.label} ({windows.window.start} to {windows.window.end})"
-    )
+    debug_message = f"Resolved analysis window {windows.window.label} ({windows.window.start} to {windows.window.end})"
     if comparison_label is not None:
         debug_message += f", comparison={comparison_label}"
     cli_ctx.logger.debug(debug_message)
 
-    request = AnalysisRequest(
+    AnalysisRequest(
         analysis_type=spec.slug,
         options=parsed_analyzer_args,
         output_format=output_format,
@@ -120,9 +116,7 @@ def main(
         options=parsed_analyzer_args,
     )
 
-    cli_ctx.logger.debug(
-        f"Dispatching analysis '{spec.slug}' with options {parsed_analyzer_args}"
-    )
+    cli_ctx.logger.debug(f"Dispatching analysis '{spec.slug}' with options {parsed_analyzer_args}")
     analyzer = spec.factory
     try:
         result = analyzer(context)
@@ -144,9 +138,7 @@ def main(
 
     cli_ctx.state["last_analysis_result"] = result
     if cli_ctx.verbose:
-        cli_ctx.logger.info(
-            f"Analysis '{spec.slug}' completed (result stored for rendering)."
-        )
+        cli_ctx.logger.info(f"Analysis '{spec.slug}' completed (result stored for rendering).")
 
 
 if __name__ == "__main__":  # pragma: no cover

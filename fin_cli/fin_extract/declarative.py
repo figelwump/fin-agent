@@ -7,18 +7,18 @@ instead of writing custom Python code for each bank.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import yaml
 
 from .parsers.pdf_loader import PdfDocument, PdfTable
-from .types import ExtractionResult, ExtractedTransaction, StatementMetadata
+from .types import ExtractedTransaction, ExtractionResult, StatementMetadata
 from .utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
 from .utils.table import NormalizedTable
-
 
 _SINGLE_COLUMN_MONTH_DAY_RE = re.compile(
     r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b",
@@ -81,7 +81,9 @@ def _expand_single_column_table(table: PdfTable) -> NormalizedTable | None:
         if any(lowered.startswith(prefix) for prefix in _SINGLE_COLUMN_STOP_PREFIXES):
             break
 
-        date_match = _SINGLE_COLUMN_MONTH_DAY_RE.match(line) or _SINGLE_COLUMN_NUMERIC_DATE_RE.match(line)
+        date_match = _SINGLE_COLUMN_MONTH_DAY_RE.match(
+            line
+        ) or _SINGLE_COLUMN_NUMERIC_DATE_RE.match(line)
         if date_match:
             current_date = date_match.group(0).strip()
             rest = line[date_match.end() :].strip()
@@ -156,8 +158,8 @@ def _split_single_column_type(description: str) -> tuple[str, str]:
             return trimmed or description, suffix
     return description, ""
 
-from .extractors.base import StatementExtractor
 
+from .extractors.base import StatementExtractor
 
 # ============================================================================
 # Data Classes (match YAML schema)
@@ -333,7 +335,9 @@ class DeclarativeSpec:
     row_filters: RowFiltersConfig = field(default_factory=RowFiltersConfig)
     multiline: MultilineConfig = field(default_factory=MultilineConfig)
     merchant_cleanup: MerchantCleanupConfig = field(default_factory=MerchantCleanupConfig)
-    account_name_inference: AccountNameInferenceConfig = field(default_factory=AccountNameInferenceConfig)
+    account_name_inference: AccountNameInferenceConfig = field(
+        default_factory=AccountNameInferenceConfig
+    )
     detection: DetectionConfig = field(default_factory=DetectionConfig)
 
 
@@ -1034,7 +1038,9 @@ class DeclarativeExtractor(StatementExtractor):
                 if value:
                     try:
                         parsed = parse_amount(value)
-                        amount = abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        amount = (
+                            abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        )
                         return amount, "amount", parsed
                     except ValueError:
                         pass
@@ -1044,7 +1050,9 @@ class DeclarativeExtractor(StatementExtractor):
                 if value:
                     try:
                         parsed = parse_amount(value)
-                        amount = abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        amount = (
+                            abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        )
                         return amount, "debit", parsed
                     except ValueError:
                         pass
@@ -1054,7 +1062,9 @@ class DeclarativeExtractor(StatementExtractor):
                 if value:
                     try:
                         parsed = parse_amount(value)
-                        amount = abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        amount = (
+                            abs(parsed) if self.spec.amount_resolution.take_absolute else parsed
+                        )
                         return amount, "credit", parsed
                     except ValueError:
                         pass

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any
 
 import yaml
 
@@ -164,9 +165,7 @@ def load_config(
     return _build_config(merged, resolved_config_path)
 
 
-def _resolve_config_path(
-    config_path: str | Path | None, env: Mapping[str, str]
-) -> Path:
+def _resolve_config_path(config_path: str | Path | None, env: Mapping[str, str]) -> Path:
     if config_path:
         return paths.resolve_path(config_path)
     return paths.default_config_path(env=env)

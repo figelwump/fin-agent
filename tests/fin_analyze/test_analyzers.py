@@ -11,7 +11,7 @@ from fin_cli.fin_analyze.analyzers import (
     subscription_detect,
     unusual_spending,
 )
-from fin_cli.fin_analyze.types import AnalysisContext, AnalysisError
+from fin_cli.fin_analyze.types import AnalysisError
 
 
 @pytest.mark.parametrize(
@@ -86,6 +86,7 @@ def test_subscription_detection_filters_parking_and_domains(
     assert "NETFLIX" in new_merchants
     assert all("NAMECHEAP" not in merchant for merchant in new_merchants)
 
+
 @pytest.mark.parametrize(
     "options",
     [
@@ -142,7 +143,9 @@ def test_spending_patterns_day_group(
     load_analysis_dataset("spending_multi_year")
     window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
     comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
-    context = analysis_context(window, comparison, {"group_by": "day"}, compare=True, threshold=0.10)
+    context = analysis_context(
+        window, comparison, {"group_by": "day"}, compare=True, threshold=0.10
+    )
 
     result = spending_patterns.analyze(context)
     patterns = {entry["label"]: entry for entry in result.json_payload["patterns"]}
@@ -196,7 +199,10 @@ def test_spending_trends_with_categories_and_comparison(
 
     assert payload["trend_slope"] and payload["trend_slope"] > 0
     assert payload["monthly"][-1]["month"] == "2025-08"
-    assert "category_breakdown" in payload and payload["category_breakdown"][0]["category"] == "Shopping"
+    assert (
+        "category_breakdown" in payload
+        and payload["category_breakdown"][0]["category"] == "Shopping"
+    )
 
 
 def test_category_breakdown_min_amount_and_change(
@@ -259,9 +265,13 @@ def test_category_timeline_month_interval_with_merchants(
     assert "merchants" in payload and "AMAZON" in payload["merchants"]["canonical"]
     assert "evolution" in payload
     evolution_payload = payload["evolution"]
-    assert {"new_categories", "dormant_categories", "changes", "significant_changes", "threshold"} <= set(
-        evolution_payload.keys()
-    )
+    assert {
+        "new_categories",
+        "dormant_categories",
+        "changes",
+        "significant_changes",
+        "threshold",
+    } <= set(evolution_payload.keys())
 
 
 def test_category_timeline_raises_when_no_matches(
@@ -322,7 +332,9 @@ def test_json_payload_keys_remain_stable(
         "category_breakdown",
     }
 
-    breakdown_context = analysis_context(window, comparison, {"min_amount": 0}, compare=True, threshold=0.10)
+    breakdown_context = analysis_context(
+        window, comparison, {"min_amount": 0}, compare=True, threshold=0.10
+    )
     breakdown_payload = category_breakdown.analyze(breakdown_context).json_payload
     assert set(breakdown_payload.keys()) == {
         "window",
@@ -352,7 +364,9 @@ def test_json_payload_keys_remain_stable(
     load_analysis_dataset("subscriptions")
     subs_window = window_factory("month_2025_08", "2025-08-01", "2025-09-01")
     subs_comparison = window_factory("month_2025_07", "2025-07-01", "2025-08-01")
-    subs_context = analysis_context(subs_window, subs_comparison, {"include_inactive": True}, compare=True)
+    subs_context = analysis_context(
+        subs_window, subs_comparison, {"include_inactive": True}, compare=True
+    )
     subs_payload = subscription_detect.analyze(subs_context).json_payload
     expected_keys = {
         "window",
@@ -367,7 +381,9 @@ def test_json_payload_keys_remain_stable(
     assert {"diagnostics", "fallback_recommended"}.issubset(actual_keys)
 
     load_analysis_dataset("spending_multi_year")
-    unusual_context = analysis_context(window, comparison, {"sensitivity": 3}, compare=True, threshold=0.10)
+    unusual_context = analysis_context(
+        window, comparison, {"sensitivity": 3}, compare=True, threshold=0.10
+    )
     unusual_payload = unusual_spending.analyze(unusual_context).json_payload
     expected_unusual_keys = {"window", "threshold_pct", "sensitivity", "anomalies", "new_merchants"}
     assert expected_unusual_keys.issubset(unusual_payload.keys())
@@ -381,5 +397,12 @@ def test_json_payload_keys_remain_stable(
         threshold=0.10,
     )
     timeline_payload = category_timeline.analyze(timeline_context).json_payload
-    assert set(timeline_payload.keys()) >= {"window", "interval", "filter", "intervals", "totals", "metadata"}
+    assert set(timeline_payload.keys()) >= {
+        "window",
+        "interval",
+        "filter",
+        "intervals",
+        "totals",
+        "metadata",
+    }
     assert timeline_payload["interval"] == "quarter"

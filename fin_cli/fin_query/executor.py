@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from importlib import resources
 from importlib.resources.abc import Traversable
-from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import yaml
 
@@ -227,7 +226,9 @@ def _lookup_saved_query(name: str) -> SavedQueryDefinition:
         if definition.name == name:
             return definition
     available = ", ".join(definition.name for definition in catalog)
-    raise QueryError(f"Saved query '{name}' is not defined. Available queries: {available or 'none'}.")
+    raise QueryError(
+        f"Saved query '{name}' is not defined. Available queries: {available or 'none'}."
+    )
 
 
 def _parse_query_definition(entry: Mapping[str, Any]) -> SavedQueryDefinition:
@@ -263,7 +264,9 @@ def _parse_query_definition(entry: Mapping[str, Any]) -> SavedQueryDefinition:
     )
 
 
-def _coerce_parameter_value(raw: Any, declared_type: str | None, param_name: str | None = None) -> Any:
+def _coerce_parameter_value(
+    raw: Any, declared_type: str | None, param_name: str | None = None
+) -> Any:
     if raw is None:
         return None
     if declared_type is None:
@@ -300,7 +303,9 @@ def _fetch_table_names(connection: sqlite3.Connection, table_filter: str | None)
     return [row[0] for row in cursor.fetchall()]
 
 
-def _fetch_table_columns(connection: sqlite3.Connection, table: str) -> Sequence[tuple[str, str, bool]]:
+def _fetch_table_columns(
+    connection: sqlite3.Connection, table: str
+) -> Sequence[tuple[str, str, bool]]:
     cursor = connection.execute(f"PRAGMA table_info('{table}')")
     return [(row[1], row[2], bool(row[3])) for row in cursor.fetchall()]
 
@@ -310,7 +315,9 @@ def _fetch_table_indexes(connection: sqlite3.Connection, table: str) -> Sequence
     return [row[1] for row in cursor.fetchall()]
 
 
-def _fetch_foreign_keys(connection: sqlite3.Connection, table: str) -> Sequence[tuple[str, str, str]]:
+def _fetch_foreign_keys(
+    connection: sqlite3.Connection, table: str
+) -> Sequence[tuple[str, str, str]]:
     cursor = connection.execute(f"PRAGMA foreign_key_list('{table}')")
     return [(row[3], row[2], row[4]) for row in cursor.fetchall()]
 

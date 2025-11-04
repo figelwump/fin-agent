@@ -6,7 +6,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from click.testing import CliRunner
 
@@ -30,7 +30,7 @@ sys.modules[_spec.name] = postprocess
 _spec.loader.exec_module(postprocess)
 
 
-def _sample_row() -> Dict[str, Any]:
+def _sample_row() -> dict[str, Any]:
     return {
         "date": "2025-09-15",
         "merchant": "  AMAZON  ",

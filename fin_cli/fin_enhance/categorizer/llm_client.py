@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Sequence
+from typing import Any
 
 from fin_cli.shared.config import AppConfig
 from fin_cli.shared.logging import Logger
-from fin_cli.shared.merchants import merchant_pattern_key, normalize_merchant
+from fin_cli.shared.merchants import normalize_merchant
 
 TRANSACTION_ID_RE = re.compile(r"\b(?=[A-Z0-9]*\d)[A-Z0-9]{4,}\b")
 PHONE_RE = re.compile(r"\b\d{3}[-\s]?\d{3}[-\s]?\d{4}\b")
@@ -59,11 +60,9 @@ class LLMResult:
     merchant_metadata: Mapping[str, Any] | None = None
     suggestions: list[LLMSuggestion] = field(default_factory=list)
 
+
 class LLMClientError(RuntimeError):
     """Raised when the LLM client cannot fulfill a request."""
-
-
-
 
 
 def _normalize_metadata(value: Any) -> dict[str, Any] | None:
@@ -79,47 +78,6 @@ def _normalize_metadata(value: Any) -> dict[str, Any] | None:
             normalized[str(key)] = val
         return normalized if normalized else None
     return None
-
-
-class LLMClientError(RuntimeError):
-    """Raised when the LLM client cannot fulfill a request."""
-
-
-
-
-
-def _normalize_metadata(value: Any) -> dict[str, Any] | None:
-    """Normalize arbitrary metadata payloads from the LLM."""
-
-    if value is None:
-        return None
-    if isinstance(value, Mapping):
-        normalized: dict[str, Any] = {}
-        for key, val in value.items():
-            if key is None:
-                continue
-            normalized[str(key)] = val
-        return normalized if normalized else None
-    return None
-
-
-def normalize_merchant(merchant: str) -> str:
-    """Return a normalized key for caching and batching purposes."""
-
-    cleaned = merchant.strip().upper()
-    return " ".join(cleaned.split())
-
-
-def merchant_pattern_key(merchant: str) -> str:
-    """Return a deterministic lookup key for merchant pattern learning.
-
-    Cleans known volatile tokens (ticket IDs, phone numbers, dates, URLs, order
-    prefixes) while retaining a stable brand token to reuse for future matches.
-    """
-
-    normalized = normalize_merchant(merchant)
-    if not normalized:
-        return normalized
 
     cleaned = ORDER_PREFIX_RE.sub("", normalized)
 
@@ -149,6 +107,7 @@ def merchant_pattern_key(merchant: str) -> str:
     if not cleaned:
         cleaned = normalized
     return cleaned[:80]
+
 
 class LLMClient:
     """Thin wrapper around the configured LLM provider."""
@@ -204,6 +163,7 @@ class LLMClient:
         except Exception as exc:  # pragma: no cover - defensive
             self._logger.error(f"Failed to initialize OpenAI client: {exc}")
             return None
+
     def build_payload(
         self,
         items: Mapping[str, list[LLMRequestItem]],
@@ -274,7 +234,9 @@ class LLMClient:
             try:
                 chunk_results = self._invoke_llm(payload)
             except LLMClientError as exc:
-                self._logger.warning(f"LLM categorization failed for merchants {list(chunk)}: {exc}")
+                self._logger.warning(
+                    f"LLM categorization failed for merchants {list(chunk)}: {exc}"
+                )
                 continue
             results.update(chunk_results)
             self._logger.info(
@@ -339,9 +301,7 @@ class LLMClient:
             if not pattern_key_norm:
                 pattern_key_norm = key_norm
             pattern_display_raw = entry.get("pattern_display")
-            pattern_display = (
-                str(pattern_display_raw).strip() if pattern_display_raw else None
-            )
+            pattern_display = str(pattern_display_raw).strip() if pattern_display_raw else None
             metadata_entry = entry.get("metadata")
             suggestions: list[LLMSuggestion] = []
             for suggestion in suggestions_data:
@@ -376,7 +336,7 @@ class LLMClient:
                 )
         return results
 
-    def _build_prompt(self, payload_json: str) -> list[Dict[str, Any]]:
+    def _build_prompt(self, payload_json: str) -> list[dict[str, Any]]:
         system_prompt = (
             "You categorize financial transactions. Return JSON with a 'merchants' array. Each "
             "merchant must include: 'merchant_normalized' (echo of the provided key), 'pattern_key' "
@@ -397,7 +357,9 @@ class LLMClient:
         # The SDK no longer supports structured input blocks like input_json, so we inline
         # the JSON payload as plain text for the model to parse.
         try:
-            compact_payload = json.dumps(json.loads(payload_json), separators=(",", ":"), ensure_ascii=False)
+            compact_payload = json.dumps(
+                json.loads(payload_json), separators=(",", ":"), ensure_ascii=False
+            )
         except json.JSONDecodeError:  # Pragmatic fallback – should never happen
             compact_payload = payload_json
 

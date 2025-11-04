@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-import re
-from typing import Iterable, Sequence
 
 from ..parsers.pdf_loader import PdfDocument, PdfTable
-from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
+from ..types import ExtractedTransaction, ExtractionResult, StatementMetadata
 from ..utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
 from ..utils.table import NormalizedTable
 from .base import StatementExtractor
@@ -60,7 +60,13 @@ _SUMMARY_KEYWORDS = {"total", "balance", "summary"}
 _MERCURY_SIGN_CLASSIFIER = SignClassifier(
     charge_keywords={"ach pull", "debit", "withdrawal", "purchase"},
     credit_keywords={"ach in", "transfer in", "interest", "deposit"},
-    transfer_keywords={"transfer to", "transfer from", "transfer", "cash sending apps", "mercury checking"},
+    transfer_keywords={
+        "transfer to",
+        "transfer from",
+        "transfer",
+        "cash sending apps",
+        "mercury checking",
+    },
     interest_keywords={"interest"},
     card_payment_keywords={"credit card", "credit crd", "applecard", "bank of america", "card"},
 )
@@ -263,7 +269,11 @@ def _expand_single_column_table(table: PdfTable) -> NormalizedTable | None:
 
     for line in data_lines:
         lowered = line.lower()
-        if lowered.startswith("total ") or "banking services" in lowered or lowered.startswith("interest disclosure"):
+        if (
+            lowered.startswith("total ")
+            or "banking services" in lowered
+            or lowered.startswith("interest disclosure")
+        ):
             break
 
         date_match = _MONTH_DAY_RE.match(line)

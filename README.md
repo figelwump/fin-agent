@@ -12,6 +12,7 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 - [CLI Reference](#cli-reference)
 - [Upgrading](#upgrading)
 - [Contributor Docs](#contributor-docs)
+- [Code Style](#code-style)
 - [Troubleshooting](#troubleshooting)
 - [Deprecated Commands](#deprecated-commands)
 - [License](#license)
@@ -247,6 +248,65 @@ Analytical rollups on top of the SQLite ledger.
 - `fin_cli/README.md` – package layout, test commands, and release checklist
 - `docs/dev/release.md` – reproducible builds, TestPyPI validation, publishing steps
 - `plans/plan_open_source_cleanup_103025.md` – current open-source roadmap and status
+
+## Code Style
+
+This project uses **black** for code formatting and **ruff** for linting to ensure consistent code style.
+
+### Running Formatters and Linters
+
+```bash
+# Activate venv first
+source .venv/bin/activate
+
+# Format all code with black
+black fin_cli tests
+
+# Lint with ruff
+ruff check fin_cli tests
+
+# Auto-fix linting issues
+ruff check --fix fin_cli tests
+
+# Check a specific file
+black fin_cli/fin_scrub/main.py
+ruff check fin_cli/fin_scrub/main.py
+```
+
+### Pre-commit Hook
+
+A pre-commit hook is configured in `.git/hooks/pre-commit` that automatically runs black and ruff before each commit. If issues are found:
+
+- **black**: Auto-fixes formatting, then exits. Review changes and re-stage files.
+- **ruff**: Reports linting errors. Run `ruff check --fix` to auto-fix where possible.
+
+### Configuration
+
+Code style settings are in `pyproject.toml`:
+
+```toml
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "NPY", "G"]  # Enable specific rule sets
+ignore = [
+    "E501",  # Line too long (handled by black)
+    "G004",  # Logging f-string
+    "B904",  # raise-without-from-inside-except
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+```
+
+### CI/CD Integration
+
+When setting up CI/CD, add these checks:
+
+```bash
+# In CI, use --check mode (don't auto-fix)
+black --check fin_cli tests
+ruff check fin_cli tests
+```
 
 ## Troubleshooting
 

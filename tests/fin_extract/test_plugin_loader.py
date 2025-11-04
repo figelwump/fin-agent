@@ -13,9 +13,9 @@ def test_bundled_specs_loaded_without_failures() -> None:
     primaries = {extractor.name: extractor for extractor in extractor_module.REGISTRY.iter_types()}
     for bank in ("chase", "bofa", "mercury"):
         primary = primaries[bank]
-        assert getattr(primary, "__plugin_kind__") == "bundled_yaml"
+        assert primary.__plugin_kind__ == "bundled_yaml"
         alternates = extractor_module.REGISTRY.alternates_for(bank)
-        assert any(getattr(alt, "__plugin_kind__") == "builtin_python" for alt in alternates)
+        assert any(alt.__plugin_kind__ == "builtin_python" for alt in alternates)
 
 
 class BuiltinExtractor(StatementExtractor):
@@ -50,7 +50,9 @@ sign_classification:
   transfer_keywords: []
   interest_keywords: []
   card_payment_keywords: []
-""".strip().format(name=name),
+""".strip().format(
+            name=name
+        ),
         encoding="utf-8",
     )
 
@@ -62,15 +64,17 @@ def test_load_user_yaml_plugin_registers(tmp_path: Path) -> None:
     registry = ExtractorRegistry([BuiltinExtractor])
     report = load_user_plugins(registry, [tmp_path])
 
-    assert any(event.status == "registered" and event.name == "custom_bank" for event in report.events)
+    assert any(
+        event.status == "registered" and event.name == "custom_bank" for event in report.events
+    )
     assert registry.names() == ("builtin", "custom_bank")
     yaml_extractor = next(
         extractor
         for extractor in registry.iter_types(include_alternates=True)
         if extractor.name == "custom_bank"
     )
-    assert getattr(yaml_extractor, "__plugin_kind__") == "user_yaml"
-    assert getattr(yaml_extractor, "__origin__") == str(plugin_path)
+    assert yaml_extractor.__plugin_kind__ == "user_yaml"
+    assert yaml_extractor.__origin__ == str(plugin_path)
 
 
 def test_load_user_yaml_plugin_duplicate_skips(tmp_path: Path) -> None:
@@ -115,15 +119,17 @@ class MyPlugin(StatementExtractor):
     registry = ExtractorRegistry([BuiltinExtractor])
     report = load_user_plugins(registry, [tmp_path])
 
-    assert any(event.status == "registered" and event.name == "plugin_bank" for event in report.events)
+    assert any(
+        event.status == "registered" and event.name == "plugin_bank" for event in report.events
+    )
     assert "plugin_bank" in registry.names()
     plugin_extractor = next(
         extractor
         for extractor in registry.iter_types(include_alternates=True)
         if extractor.name == "plugin_bank"
     )
-    assert getattr(plugin_extractor, "__plugin_kind__") == "python_user"
-    assert str(tmp_path / "plugin.py") == getattr(plugin_extractor, "__origin__")
+    assert plugin_extractor.__plugin_kind__ == "python_user"
+    assert str(tmp_path / "plugin.py") == plugin_extractor.__origin__
 
 
 def test_allowlist_filters_plugins(tmp_path: Path) -> None:

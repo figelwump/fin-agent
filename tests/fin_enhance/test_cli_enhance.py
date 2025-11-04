@@ -69,7 +69,9 @@ def test_cli_import_persists_transactions(tmp_path: Path) -> None:
     _prepare_db(db_path)
     env = {paths.DATABASE_PATH_ENV: str(db_path)}
     runner = CliRunner()
-    result = runner.invoke(enhance_cli, [str(csv_path), "--db", str(db_path), "--skip-llm"], env=env)
+    result = runner.invoke(
+        enhance_cli, [str(csv_path), "--db", str(db_path), "--skip-llm"], env=env
+    )
     assert result.exit_code == 0, result.output
     config = load_config(env=env)
     with connect(config) as connection:
@@ -128,6 +130,8 @@ def test_cli_auto_skips_review(tmp_path: Path) -> None:
         ).fetchone()[0]
         # UNKNOWN MERCHANT remains uncategorized but we should not have review artifacts
         assert pending == 1
+
+
 def test_cli_dry_run(tmp_path: Path) -> None:
     csv_path = tmp_path / "transactions.csv"
     _write_sample_csv(

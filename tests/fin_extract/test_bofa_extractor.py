@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import date
-from fin_cli.fin_extract.extractors.bofa import BankOfAmericaExtractor
+
 from fin_cli.fin_extract.declarative import DeclarativeExtractor, load_spec
+from fin_cli.fin_extract.extractors.bofa import BankOfAmericaExtractor
 from fin_cli.fin_extract.parsers.pdf_loader import PdfDocument, PdfTable
 
 
@@ -79,9 +80,7 @@ def test_bofa_bundled_spec_parity() -> None:
 
     assert len(python_result.transactions) == len(declarative_result.transactions)
 
-    python_rows = {
-        (txn.date, txn.merchant, txn.amount) for txn in python_result.transactions
-    }
+    python_rows = {(txn.date, txn.merchant, txn.amount) for txn in python_result.transactions}
     declarative_rows = {
         (txn.date, txn.merchant, txn.amount) for txn in declarative_result.transactions
     }

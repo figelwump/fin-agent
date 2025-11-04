@@ -7,12 +7,12 @@ import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable, TextIO
+from typing import TextIO
 
 from dateutil import parser as date_parser
 
-from fin_cli.shared.models import compute_account_key
 from fin_cli.shared.importers import CSVImportError
+from fin_cli.shared.models import compute_account_key
 
 
 @dataclass(slots=True)
@@ -47,7 +47,9 @@ OPTIONAL_HEADERS = {
 }
 
 
-def load_csv_transactions_from_stream(stream: TextIO, source_name: str = "stdin") -> list[ImportedTransaction]:
+def load_csv_transactions_from_stream(
+    stream: TextIO, source_name: str = "stdin"
+) -> list[ImportedTransaction]:
     """Load transactions from a file-like object (e.g., sys.stdin).
 
     Args:
@@ -69,7 +71,8 @@ def load_csv_transactions_from_stream(stream: TextIO, source_name: str = "stdin"
     missing_required = REQUIRED_HEADERS - headers
     if missing_required:
         raise CSVImportError(
-            f"{source_name}: Missing required columns in CSV: " + ", ".join(sorted(missing_required))
+            f"{source_name}: Missing required columns in CSV: "
+            + ", ".join(sorted(missing_required))
         )
     transactions: list[ImportedTransaction] = []
     for idx, row in enumerate(reader, start=1):
@@ -90,7 +93,7 @@ def load_csv_transactions(path: str | Path | None = None) -> list[ImportedTransa
     Returns:
         List of imported transactions
     """
-    if path is None or path == '-':
+    if path is None or path == "-":
         # Read from stdin
         return load_csv_transactions_from_stream(sys.stdin, "stdin")
 

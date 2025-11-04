@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import click
 
@@ -24,7 +24,9 @@ from fin_cli.shared.cli import (
 
 @click.command(help="Export financial analyses as Markdown or JSON reports.")
 @click.option("--month", type=str, help="Month to export (YYYY-MM).")
-@click.option("--period", type=str, help="Relative period (e.g., 3m, 12w) covering the report window.")
+@click.option(
+    "--period", type=str, help="Relative period (e.g., 3m, 12w) covering the report window."
+)
 @click.option("--sections", type=str, help="Comma-separated sections to include (default all).")
 @click.option(
     "--format",

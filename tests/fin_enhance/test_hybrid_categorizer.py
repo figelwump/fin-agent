@@ -1,10 +1,8 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import date
 from pathlib import Path
-from typing import Dict
-
-import sqlite3
 
 from fin_cli.fin_enhance.categorizer.hybrid import (
     CategorizationOptions,
@@ -31,15 +29,16 @@ from fin_cli.shared.merchants import merchant_pattern_key
 
 
 class DummyLLMClient:
-    def __init__(self, responses: Dict[str, LLMResult]) -> None:
+    def __init__(self, responses: dict[str, LLMResult]) -> None:
         self._responses = responses
         self.enabled = True
-        self.calls: list[Dict[str, list[object]]] = []
+        self.calls: list[dict[str, list[object]]] = []
 
-    def categorize_batch(self, items, *, known_categories=None, max_batch_merchants: int = 6):  # noqa: ANN001 - interface compatibility
+    def categorize_batch(
+        self, items, *, known_categories=None, max_batch_merchants: int = 6
+    ):  # noqa: ANN001 - interface compatibility
         self.calls.append(items)
         return self._responses
-
 
 
 def _make_config(*, llm_enabled: bool = True) -> AppConfig:
@@ -138,15 +137,15 @@ def _init_db() -> sqlite3.Connection:
 
 
 def _make_transaction(merchant: str) -> ImportedTransaction:
-    account_key = models.compute_account_key('Test Account', 'Test Bank', 'credit')
+    account_key = models.compute_account_key("Test Account", "Test Bank", "credit")
     return ImportedTransaction(
         date=date(2024, 11, 27),
         merchant=merchant,
         amount=-42.00,
         original_description=f"{merchant} POS",
-        account_name='Test Account',
-        institution='Test Bank',
-        account_type='credit',
+        account_name="Test Account",
+        institution="Test Bank",
+        account_type="credit",
         account_key=account_key,
         account_id=1,
     )
@@ -167,8 +166,10 @@ def test_merchant_pattern_key_strips_noise() -> None:
 
 def test_hybrid_auto_assigns_high_confidence() -> None:
     conn = _init_db()
-    conn.execute("INSERT INTO categories (category, subcategory, auto_generated, user_approved) VALUES (?, ?, ?, ?)",
-                 ("Food & Dining", "Groceries", False, True))
+    conn.execute(
+        "INSERT INTO categories (category, subcategory, auto_generated, user_approved) VALUES (?, ?, ?, ?)",
+        ("Food & Dining", "Groceries", False, True),
+    )
     logger = Logger(verbose=False)
     config = _make_config()
     categorizer = HybridCategorizer(conn, config, logger, track_usage=False)
@@ -206,7 +207,9 @@ def test_hybrid_auto_assigns_high_confidence() -> None:
     assert result.outcomes[0].pattern_display == "New Shop"
     assert result.outcomes[0].merchant_metadata == {"platform": "Test"}
     assert not result.transaction_reviews
-    cache_row = conn.execute("SELECT response_json FROM llm_cache WHERE merchant_normalized = ?", (merchant_key,)).fetchone()
+    cache_row = conn.execute(
+        "SELECT response_json FROM llm_cache WHERE merchant_normalized = ?", (merchant_key,)
+    ).fetchone()
     assert cache_row is not None
     pattern_row = conn.execute(
         "SELECT pattern_display, metadata FROM merchant_patterns WHERE pattern = ?",
@@ -287,8 +290,10 @@ def test_hybrid_creates_missing_category_for_high_confidence() -> None:
 
 def test_hybrid_flags_review_when_below_auto_threshold() -> None:
     conn = _init_db()
-    conn.execute("INSERT INTO categories (category, subcategory, auto_generated, user_approved) VALUES (?, ?, ?, ?)",
-                 ("Food & Dining", "Groceries", False, True))
+    conn.execute(
+        "INSERT INTO categories (category, subcategory, auto_generated, user_approved) VALUES (?, ?, ?, ?)",
+        ("Food & Dining", "Groceries", False, True),
+    )
     logger = Logger(verbose=False)
     config = _make_config()
     categorizer = HybridCategorizer(conn, config, logger, track_usage=False)

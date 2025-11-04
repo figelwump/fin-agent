@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 from fin_cli.shared.exceptions import ExtractionError
 
@@ -34,7 +34,10 @@ class PdfDocument:
     text: str
     tables: list[PdfTable]
 
-def load_pdf_document_with_engine(path: str | Path, engine: str, *, enable_camelot_fallback: bool = False) -> PdfDocument:
+
+def load_pdf_document_with_engine(
+    path: str | Path, engine: str, *, enable_camelot_fallback: bool = False
+) -> PdfDocument:
     """Load a PDF using the configured engine.
 
     Args:
@@ -50,15 +53,22 @@ def load_pdf_document_with_engine(path: str | Path, engine: str, *, enable_camel
     """
 
     if engine == "pdfplumber":
-        return load_pdf_document_with_pdfplumber(path, enable_camelot_fallback=enable_camelot_fallback)
+        return load_pdf_document_with_pdfplumber(
+            path, enable_camelot_fallback=enable_camelot_fallback
+        )
 
     if engine == "auto":
         _log.info("Using pdfplumber engine (auto mode)")
-        return load_pdf_document_with_pdfplumber(path, enable_camelot_fallback=enable_camelot_fallback)
+        return load_pdf_document_with_pdfplumber(
+            path, enable_camelot_fallback=enable_camelot_fallback
+        )
 
     raise ExtractionError(f"Invalid engine: {engine}. Must be one of: auto, pdfplumber")
 
-def load_pdf_document_with_pdfplumber(path: str | Path, *, enable_camelot_fallback: bool = False) -> PdfDocument:
+
+def load_pdf_document_with_pdfplumber(
+    path: str | Path, *, enable_camelot_fallback: bool = False
+) -> PdfDocument:
     if pdfplumber is None:
         raise ExtractionError(
             "pdfplumber is not installed. Install fin-cli with the 'pdf' extra to enable extraction."
@@ -149,14 +159,15 @@ def _looks_like_transaction_header(headers: tuple[str, ...]) -> bool:
     normalized = [header.lower() for header in headers]
     has_date = any("date" in cell for cell in normalized)
     has_amount = any(
-        any(keyword in cell for keyword in ("amount", "debit", "credit"))
-        for cell in normalized
+        any(keyword in cell for keyword in ("amount", "debit", "credit")) for cell in normalized
     )
     has_description = any("description" in cell or "merchant" in cell for cell in normalized)
     return has_date and has_description and has_amount
 
 
-def _normalize_table(raw_table: Sequence[Sequence[str | None]]) -> tuple[tuple[str, ...], list[tuple[str, ...]]]:
+def _normalize_table(
+    raw_table: Sequence[Sequence[str | None]],
+) -> tuple[tuple[str, ...], list[tuple[str, ...]]]:
     rows: list[tuple[str, ...]] = []
     headers: tuple[str, ...] = ()
     iterator = iter(raw_table)

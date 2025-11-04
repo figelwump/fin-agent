@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 try:
     import pandas as pd
@@ -12,7 +13,13 @@ except ImportError:  # pragma: no cover - pandas is an optional dependency
 
 from fin_cli.fin_analyze.types import AnalysisContext, TimeWindow, WindowFrameSet
 from fin_cli.shared.database import connect
-from fin_cli.shared.merchants import AGGREGATOR_LABELS, GENERIC_PLATFORMS, friendly_display_name, merchant_pattern_key, normalize_merchant
+from fin_cli.shared.merchants import (
+    AGGREGATOR_LABELS,
+    GENERIC_PLATFORMS,
+    friendly_display_name,
+    merchant_pattern_key,
+    normalize_merchant,
+)
 
 # Known column order for transaction datasets; maintained manually to avoid repeated PRAGMA calls.
 TRANSACTION_COLUMNS = [
@@ -100,6 +107,7 @@ def _expenses_use_positive_sign(
         return positive_count > negative_count
     return positive_total >= negative_total
 
+
 RECURRING_CANDIDATES_QUERY = """
 SELECT
     t.merchant,
@@ -119,7 +127,7 @@ ORDER BY t.merchant ASC, t.date ASC
 """
 
 
-def _ensure_pandas() -> "pd.DataFrame":
+def _ensure_pandas() -> pd.DataFrame:
     """Return the pandas module or raise a helpful error if missing."""
 
     if pd is None:
@@ -130,10 +138,8 @@ def _ensure_pandas() -> "pd.DataFrame":
 
 
 def load_transactions_frame(
-    context: AnalysisContext,
-    *,
-    window: TimeWindow | None = None
-) -> "pd.DataFrame":
+    context: AnalysisContext, *, window: TimeWindow | None = None
+) -> pd.DataFrame:
     """Return denormalised transactions for a specific window."""
 
     pandas = _ensure_pandas()
@@ -158,7 +164,7 @@ def load_category_totals(
     context: AnalysisContext,
     *,
     window: TimeWindow | None = None,
-) -> "pd.DataFrame":
+) -> pd.DataFrame:
     """Aggregate category totals for the supplied window."""
 
     pandas = _ensure_pandas()
@@ -170,7 +176,14 @@ def load_category_totals(
 
     if frame.empty:
         frame = pandas.DataFrame(
-            columns=["category", "subcategory", "total_amount", "spend_amount", "income_amount", "transaction_count"],
+            columns=[
+                "category",
+                "subcategory",
+                "total_amount",
+                "spend_amount",
+                "income_amount",
+                "transaction_count",
+            ],
         )
         frame["window_label"] = target_window.label
         return frame
@@ -227,7 +240,7 @@ def load_recurring_candidates(
     context: AnalysisContext,
     *,
     window: TimeWindow | None = None,
-) -> "pd.DataFrame":
+) -> pd.DataFrame:
     """Return transaction slices useful for subscription detection heuristics."""
 
     pandas = _ensure_pandas()
@@ -238,17 +251,19 @@ def load_recurring_candidates(
         frame = pandas.read_sql_query(RECURRING_CANDIDATES_QUERY, connection, params=params)
 
     if frame.empty:
-        frame = pandas.DataFrame(columns=[
-            "merchant",
-            "amount",
-            "date",
-            "account_id",
-            "account_name",
-            "institution",
-            "category",
-            "subcategory",
-            "transaction_metadata",
-        ])
+        frame = pandas.DataFrame(
+            columns=[
+                "merchant",
+                "amount",
+                "date",
+                "account_id",
+                "account_name",
+                "institution",
+                "category",
+                "subcategory",
+                "transaction_metadata",
+            ]
+        )
 
     frame["date"] = pandas.to_datetime(frame["date"], errors="coerce")
     if "transaction_metadata" not in frame.columns:
@@ -256,18 +271,20 @@ def load_recurring_candidates(
     else:
         metadata_mask = frame["transaction_metadata"].notna()
         if metadata_mask.any():
-            frame.loc[metadata_mask, "transaction_metadata"] = frame.loc[metadata_mask, "transaction_metadata"].apply(_safe_json_load)
+            frame.loc[metadata_mask, "transaction_metadata"] = frame.loc[
+                metadata_mask, "transaction_metadata"
+            ].apply(_safe_json_load)
     _attach_merchant_fields(frame)
     frame["window_label"] = target_window.label
     return frame
 
 
 def filter_frame_by_category(
-    frame: "pd.DataFrame",
+    frame: pd.DataFrame,
     *,
     category: str | None = None,
     subcategory: str | None = None,
-) -> "pd.DataFrame":
+) -> pd.DataFrame:
     """Return a copy of *frame* filtered by the supplied category/subcategory.
 
     Filtering is performed case-insensitively and leaves the original DataFrame
@@ -287,28 +304,16 @@ def filter_frame_by_category(
 
     if category is not None:
         category_norm = category.casefold()
-        mask &= (
-            working["category"]
-            .fillna("")
-            .astype(str)
-            .str.casefold()
-            .eq(category_norm)
-        )
+        mask &= working["category"].fillna("").astype(str).str.casefold().eq(category_norm)
 
     if subcategory is not None:
         subcategory_norm = subcategory.casefold()
-        mask &= (
-            working["subcategory"]
-            .fillna("")
-            .astype(str)
-            .str.casefold()
-            .eq(subcategory_norm)
-        )
+        mask &= working["subcategory"].fillna("").astype(str).str.casefold().eq(subcategory_norm)
 
     return working.loc[mask].copy()
 
 
-def summarize_merchants(frame: "pd.DataFrame") -> dict[str, list[str]]:
+def summarize_merchants(frame: pd.DataFrame) -> dict[str, list[str]]:
     """Return canonical/display merchant lists present in *frame*.
 
     The helper is used by category-scoped analyzers to surface which merchants
@@ -330,10 +335,10 @@ def summarize_merchants(frame: "pd.DataFrame") -> dict[str, list[str]]:
 
 
 def prepare_grouped_spend(
-    frame: "pd.DataFrame",
+    frame: pd.DataFrame,
     *,
     interval: str = "month",
-) -> "pd.DataFrame":
+) -> pd.DataFrame:
     """Aggregate spending metrics for *frame* grouped by the supplied interval.
 
     Parameters
@@ -430,8 +435,7 @@ def build_window_frames(context: AnalysisContext) -> WindowFrameSet:
     )
 
 
-
-def _attach_merchant_fields(frame: "pd.DataFrame") -> None:
+def _attach_merchant_fields(frame: pd.DataFrame) -> None:
     canonical_keys: list[str] = []
     display_names: list[str] = []
     for merchant, metadata in zip(frame.get("merchant", []), frame.get("transaction_metadata", [])):
@@ -471,7 +475,11 @@ def _derive_merchant_fields(merchant: str, metadata: Any) -> tuple[str, str]:
         if platform_upper in AGGREGATOR_LABELS:
             canonical = platform_upper
             display_candidates.insert(0, AGGREGATOR_LABELS[platform_upper])
-        elif platform_upper == "HOTEL" and isinstance(metadata_block, Mapping) and metadata_block.get("hotel_name"):
+        elif (
+            platform_upper == "HOTEL"
+            and isinstance(metadata_block, Mapping)
+            and metadata_block.get("hotel_name")
+        ):
             hotel_name = str(metadata_block["hotel_name"]).strip()
             if hotel_name:
                 canonical = normalize_merchant(hotel_name)
@@ -513,7 +521,8 @@ def _select_display(canonical: str, candidates: list[str], merchant: str) -> str
         return cleaned
     return friendly_display_name(canonical, [merchant])
 
-def _normalise_transactions(frame: "pd.DataFrame", *, pandas: "pd") -> None:
+
+def _normalise_transactions(frame: pd.DataFrame, *, pandas: pd) -> None:
     """Coerce types and derived columns in place."""
 
     frame["date"] = pandas.to_datetime(frame["date"], errors="coerce")
@@ -553,10 +562,12 @@ def _normalise_transactions(frame: "pd.DataFrame", *, pandas: "pd") -> None:
         frame["transaction_metadata"] = pandas.Series(dtype=object)
     mask = frame["transaction_metadata"].notna()
     if mask.any():
-        frame.loc[mask, "transaction_metadata"] = frame.loc[mask, "transaction_metadata"].apply(_safe_json_load)
+        frame.loc[mask, "transaction_metadata"] = frame.loc[mask, "transaction_metadata"].apply(
+            _safe_json_load
+        )
 
 
-def _attach_temporal_columns(frame: "pd.DataFrame", *, pandas: "pd") -> None:
+def _attach_temporal_columns(frame: pd.DataFrame, *, pandas: pd) -> None:
     """Add time-derived helper columns used by multiple analyzers."""
 
     if frame.empty:

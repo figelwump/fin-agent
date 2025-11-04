@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-import re
-from typing import Iterable, Sequence
 
 from ..parsers.pdf_loader import PdfDocument
-from ..types import ExtractionResult, ExtractedTransaction, StatementMetadata
-from ..utils import SignClassifier, normalize_pdf_table, normalize_token, parse_amount
+from ..types import ExtractedTransaction, ExtractionResult, StatementMetadata
+from ..utils import SignClassifier, normalize_pdf_table, parse_amount
 from .base import StatementExtractor
-
 
 _SECTION_HEADER_DESCRIPTIONS = {
     "PAYMENTS AND OTHER CREDITS",
@@ -61,7 +60,7 @@ class ChaseExtractor(StatementExtractor):
         transactions: list[ExtractedTransaction] = []
         statement_month, statement_year = _infer_statement_month_year(document.text)
         year_hint = statement_year or datetime.today().year
-        for i, table in enumerate(document.tables):
+        for _i, table in enumerate(document.tables):
             normalized = normalize_pdf_table(table, header_predicate=_chase_header_predicate)
             mapping = self._find_column_mapping(normalized.headers)
             if not mapping:
@@ -100,7 +99,9 @@ class ChaseExtractor(StatementExtractor):
     def _find_column_mapping(self, headers: Iterable[str]) -> _ColumnMapping | None:
         normalized = [header.strip().lower() for header in headers]
         date_idx = _find_index(normalized, {"transaction date", "date", "post date"})
-        desc_idx = _find_index(normalized, {"merchant name", "description", "transaction description"})
+        desc_idx = _find_index(
+            normalized, {"merchant name", "description", "transaction description"}
+        )
         amount_idx = _find_index(normalized, {"amount", "transaction amount", "total"})
         type_idx = _find_index(normalized, {"type", "transaction type"})
         if date_idx is None or desc_idx is None or amount_idx is None:
@@ -205,7 +206,9 @@ class ChaseExtractor(StatementExtractor):
             if _contains_keyword(upper_line, "PAYMENTS AND OTHER CREDITS"):
                 current_section = "credit"
                 continue
-            if _contains_keyword(upper_line, "PURCHASE") or _contains_keyword(upper_line, "PURCHASES"):
+            if _contains_keyword(upper_line, "PURCHASE") or _contains_keyword(
+                upper_line, "PURCHASES"
+            ):
                 current_section = "purchase"
                 continue
             match = _STATEMENT_LINE_RE.match(line)
@@ -293,9 +296,7 @@ def _find_index(headers: list[str], targets: set[str]) -> int | None:
     return None
 
 
-_STATEMENT_LINE_RE = re.compile(
-    r"^(\d{2})/(\d{2})\s+(.+?)\s+([-\$\(\)\d,\.]+)$"
-)
+_STATEMENT_LINE_RE = re.compile(r"^(\d{2})/(\d{2})\s+(.+?)\s+([-\$\(\)\d,\.]+)$")
 
 
 _MONTH_TO_INT = {

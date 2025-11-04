@@ -8,11 +8,12 @@ import importlib.util
 import inspect
 import logging
 import sys
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from types import ModuleType
-from typing import Iterable, Iterator, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -312,8 +313,8 @@ def _register_python_module(
             )
             continue
 
-        setattr(extractor_type, "__origin__", str(path))
-        setattr(extractor_type, "__plugin_kind__", "python_user")
+        extractor_type.__origin__ = str(path)
+        extractor_type.__plugin_kind__ = "python_user"
         result = registry.register(extractor_type, allow_override=allow_override)
         status, message = _status_from_registration(result)
         events.append(
@@ -332,11 +333,11 @@ def _register_python_module(
 
 
 def _make_declarative_type(
-    spec: "DeclarativeSpec",
+    spec: DeclarativeSpec,
     *,
     origin: str,
     source_kind: str,
-) -> type["DeclarativeExtractor"]:
+) -> type[DeclarativeExtractor]:
     declarative_module = _get_declarative_module()
     base_cls = declarative_module.DeclarativeExtractor
     spec_copy = copy.deepcopy(spec)
@@ -349,8 +350,8 @@ def _make_declarative_type(
 
     _DeclarativePluginExtractor.__module__ = "fin_cli.fin_extract.plugins"
     _DeclarativePluginExtractor.__qualname__ = f"DeclarativeExtractor[{spec_copy.name}]"
-    setattr(_DeclarativePluginExtractor, "__origin__", origin)
-    setattr(_DeclarativePluginExtractor, "__plugin_kind__", source_kind)
+    _DeclarativePluginExtractor.__origin__ = origin
+    _DeclarativePluginExtractor.__plugin_kind__ = source_kind
     return _DeclarativePluginExtractor
 
 

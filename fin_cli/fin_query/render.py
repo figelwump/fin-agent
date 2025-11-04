@@ -5,16 +5,17 @@ from __future__ import annotations
 import csv
 import json
 import sys
-from typing import IO, Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import IO
 
 from fin_cli.shared.logging import Logger
 
-from .types import QueryResult, SchemaOverview, SavedQuerySummary
+from .types import QueryResult, SavedQuerySummary, SchemaOverview
 
 try:  # Rich is an optional runtime dependency in some contexts
+    from rich import box
     from rich.console import Console
     from rich.table import Table
-    from rich import box
 except ImportError:  # pragma: no cover - should not occur in standard installs
     Console = None  # type: ignore[assignment]
     Table = None  # type: ignore[assignment]
@@ -152,7 +153,10 @@ def render_schema_overview(
         for table in overview.tables:
             print(f"Table: {table.name}", file=output_stream)
             for name, column_type, not_null in table.columns:
-                print(f"  {name:<24} {column_type:<12} {'NOT NULL' if not_null else ''}", file=output_stream)
+                print(
+                    f"  {name:<24} {column_type:<12} {'NOT NULL' if not_null else ''}",
+                    file=output_stream,
+                )
             if table.indexes:
                 print("  Indexes:", ", ".join(table.indexes), file=output_stream)
             if table.foreign_keys:
@@ -173,7 +177,11 @@ def _render_table(result: QueryResult, *, logger: Logger, stream: IO[str]) -> No
         if result.description:
             console.print(f"[bold]{result.description}[/bold]")
 
-        table = Table(box=box.SIMPLE_HEAVY if box else None, show_header=bool(result.columns), header_style="bold")
+        table = Table(
+            box=box.SIMPLE_HEAVY if box else None,
+            show_header=bool(result.columns),
+            header_style="bold",
+        )
         for column in result.columns:
             table.add_column(column or "")
 
@@ -205,7 +213,9 @@ def _render_json(result: QueryResult, *, stream: IO[str]) -> None:
     records: list[dict[str, object]] = []
     if result.columns:
         for row in result.rows:
-            records.append({column: _convert_json_value(value) for column, value in zip(result.columns, row)})
+            records.append(
+                {column: _convert_json_value(value) for column, value in zip(result.columns, row)}
+            )
     else:
         for row in result.rows:
             records.append({"values": list(row)})

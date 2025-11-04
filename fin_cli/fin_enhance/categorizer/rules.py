@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import sqlite3
 import json
+import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from fin_cli.shared import models
 

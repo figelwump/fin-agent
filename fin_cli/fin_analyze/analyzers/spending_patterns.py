@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
 
 try:
     import pandas as pd  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional dependency
     pd = None  # type: ignore[assignment]
 
+from ...shared.dataframe import build_window_frames
 from ..metrics import safe_float
 from ..types import AnalysisContext, AnalysisError, AnalysisResult, TableSeries
-from ...shared.dataframe import build_window_frames
 
 _GROUP_CHOICES = {"day", "week", "date"}
 _WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -34,7 +34,9 @@ def analyze(context: AnalysisContext) -> AnalysisResult:
     frames = build_window_frames(context)
     frame = frames.frame
     if frame.empty:
-        raise AnalysisError("No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet.")
+        raise AnalysisError(
+            "No transactions available for the selected window. Suggestion: Try using a longer time period (e.g., 6m, 12m, 24m, 36m, or all) or ask the user if they have imported any transactions yet."
+        )
 
     group_by = (context.options.get("group_by") or "day").lower()
     if group_by not in _GROUP_CHOICES:
@@ -90,7 +92,7 @@ def _summarise(frame: pd.DataFrame | None, group_by: str) -> dict[str, tuple[flo
         key_series = working["weekday"].fillna("Unknown")
     elif group_by == "week":
         iso = working["date"].dt.isocalendar()
-        key_series = (iso.year.astype(str) + "-W" + iso.week.astype(str).str.zfill(2))
+        key_series = iso.year.astype(str) + "-W" + iso.week.astype(str).str.zfill(2)
     else:  # date
         key_series = working["date"].dt.date.astype(str)
 

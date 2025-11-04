@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import importlib.resources as pkg_resources
 import re
 import sys
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Tuple
+from typing import Any
 
 import click
 import yaml
 
-import importlib.resources as pkg_resources
-
 from fin_cli.fin_extract.parsers.pdf_loader import load_pdf_document_with_engine
+
 
 def _luhn_checksum(number: str) -> bool:
     digits = [int(ch) for ch in number if ch.isdigit()]
@@ -37,12 +38,12 @@ def _luhn_checksum(number: str) -> bool:
 class ScrubStats:
     """Collects replacement counts for auditing."""
 
-    counts: Dict[str, int] = field(default_factory=dict)
+    counts: dict[str, int] = field(default_factory=dict)
 
     def increment(self, key: str) -> None:
         self.counts[key] = self.counts.get(key, 0) + 1
 
-    def merge(self, other: "ScrubStats") -> None:
+    def merge(self, other: ScrubStats) -> None:
         for key, value in other.counts.items():
             self.counts[key] = self.counts.get(key, 0) + value
 
@@ -50,7 +51,9 @@ class ScrubStats:
 class RegexRule:
     """Applies a compiled regex and replacement callback."""
 
-    def __init__(self, pattern: re.Pattern[str], handler: Callable[[re.Match[str], ScrubStats], str]):
+    def __init__(
+        self, pattern: re.Pattern[str], handler: Callable[[re.Match[str], ScrubStats], str]
+    ):
         self.pattern = pattern
         self.handler = handler
 
@@ -75,9 +78,7 @@ _STREET_PATTERN = re.compile(
 _CITY_STATE_PATTERN = re.compile(
     r"\b[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*(?:,\s*|\s+)[A-Z]{2}\s*\d{5}(?:-\d{4})?\b"
 )
-_NAME_PATTERN = re.compile(
-    r"\b(?:[A-Z][a-z]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z]+|[A-Z]{2,})){1,2}\b"
-)
+_NAME_PATTERN = re.compile(r"\b(?:[A-Z][a-z]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z]+|[A-Z]{2,})){1,2}\b")
 _DEFAULT_TRANSACTION_PATTERNS = [
     re.compile(r"^\s*\d{1,2}/\d{1,2}(?:\s+\d{1,2}/\d{1,2})?\s+.+?\s+[-\$\(\)0-9.,]+$"),
     re.compile(
@@ -92,17 +93,17 @@ CONFIG_DIR = Path.home() / ".finagent"
 USER_CONFIG_PATH = CONFIG_DIR / "fin-scrub.yaml"
 DEFAULT_CONFIG_FILE = "default_config.yaml"
 
-TRANSACTION_PATTERNS: List[re.Pattern[str]] = []
-PAGE_HEADER_PATTERNS: List[re.Pattern[str]] = []
-PAGE_FOOTER_PATTERNS: List[re.Pattern[str]] = []
-PLACEHOLDERS: Dict[str, str] = {}
-SCRUBADUB_PLACEHOLDERS: Dict[str, Tuple[str, str, str]] = {}
+TRANSACTION_PATTERNS: list[re.Pattern[str]] = []
+PAGE_HEADER_PATTERNS: list[re.Pattern[str]] = []
+PAGE_FOOTER_PATTERNS: list[re.Pattern[str]] = []
+PLACEHOLDERS: dict[str, str] = {}
+SCRUBADUB_PLACEHOLDERS: dict[str, tuple[str, str, str]] = {}
 DISABLED_FILTH_TYPES: set[str] = set()
 NAME_SKIP_WORDS: set[str] = set()
-REGEX_RULES: List["RegexRule"] = []
-DETECTORS: Dict[str, bool] = {}
+REGEX_RULES: list[RegexRule] = []
+DETECTORS: dict[str, bool] = {}
 
-DEFAULT_PLACEHOLDERS: Dict[str, str] = {
+DEFAULT_PLACEHOLDERS: dict[str, str] = {
     "NAME": "[NAME]",
     "ADDRESS": "[ADDRESS]",
     "ACCOUNT_NUMBER": "[ACCOUNT_NUMBER]",
@@ -119,7 +120,7 @@ DEFAULT_PLACEHOLDERS: Dict[str, str] = {
     "IP": "[IP]",
 }
 
-DEFAULT_DETECTORS: Dict[str, bool] = {
+DEFAULT_DETECTORS: dict[str, bool] = {
     "scrub_name": True,
     "scrub_address": True,
     "scrub_email": True,
@@ -196,12 +197,11 @@ DEFAULT_NAME_SKIP_WORDS = {
     "inc",
     "corp",
     "llc",
-    "service",
     "health",
     "autopay",
 }
 
-DEFAULT_FILTH_PLACEHOLDERS: Dict[str, str] = {
+DEFAULT_FILTH_PLACEHOLDERS: dict[str, str] = {
     "email": "EMAIL",
     "name": "NAME",
     "address": "ADDRESS",
@@ -232,18 +232,20 @@ def _compile_pattern_entry(entry: Any) -> re.Pattern[str]:
     raise click.ClickException("Regex pattern entries must be strings or mappings")
 
 
-def _compile_pattern_list(entries: Any, default_patterns: List[re.Pattern[str]]) -> List[re.Pattern[str]]:
+def _compile_pattern_list(
+    entries: Any, default_patterns: list[re.Pattern[str]]
+) -> list[re.Pattern[str]]:
     if not entries:
         return default_patterns
     if not isinstance(entries, list):
         entries = [entries]
-    compiled: List[re.Pattern[str]] = []
+    compiled: list[re.Pattern[str]] = []
     for entry in entries:
         compiled.append(_compile_pattern_entry(entry))
     return compiled or default_patterns
 
 
-def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     for key, value in override.items():
         if key in base and isinstance(base[key], dict) and isinstance(value, dict):
             base[key] = _deep_merge(base[key], value)
@@ -254,7 +256,7 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
     return base
 
 
-def _load_yaml_file(path: Path) -> Dict[str, Any]:
+def _load_yaml_file(path: Path) -> dict[str, Any]:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
@@ -266,9 +268,13 @@ def _load_yaml_file(path: Path) -> Dict[str, Any]:
     return raw
 
 
-def _load_default_config() -> Dict[str, Any]:
+def _load_default_config() -> dict[str, Any]:
     try:
-        data = pkg_resources.files(__package__).joinpath(DEFAULT_CONFIG_FILE).read_text(encoding="utf-8")
+        data = (
+            pkg_resources.files(__package__)
+            .joinpath(DEFAULT_CONFIG_FILE)
+            .read_text(encoding="utf-8")
+        )
     except FileNotFoundError as exc:
         raise click.ClickException("Missing bundled fin-scrub default configuration") from exc
     except AttributeError:
@@ -294,15 +300,21 @@ def _render_placeholder(name: str, **kwargs: Any) -> str:
     return template
 
 
-def _configure_runtime(config: Dict[str, Any]) -> None:
+def _configure_runtime(config: dict[str, Any]) -> None:
     global TRANSACTION_PATTERNS, PAGE_HEADER_PATTERNS, PAGE_FOOTER_PATTERNS
     global PLACEHOLDERS, SCRUBADUB_PLACEHOLDERS, NAME_SKIP_WORDS, REGEX_RULES
     global DETECTORS, DISABLED_FILTH_TYPES
 
-    TRANSACTION_PATTERNS = _compile_pattern_list(config.get("transaction_markers"), _DEFAULT_TRANSACTION_PATTERNS)
+    TRANSACTION_PATTERNS = _compile_pattern_list(
+        config.get("transaction_markers"), _DEFAULT_TRANSACTION_PATTERNS
+    )
     page_reset = config.get("page_reset_markers", {}) or {}
-    PAGE_HEADER_PATTERNS = _compile_pattern_list(page_reset.get("headers"), _DEFAULT_PAGE_HEADER_PATTERNS)
-    PAGE_FOOTER_PATTERNS = _compile_pattern_list(page_reset.get("footers"), _DEFAULT_PAGE_FOOTER_PATTERNS)
+    PAGE_HEADER_PATTERNS = _compile_pattern_list(
+        page_reset.get("headers"), _DEFAULT_PAGE_HEADER_PATTERNS
+    )
+    PAGE_FOOTER_PATTERNS = _compile_pattern_list(
+        page_reset.get("footers"), _DEFAULT_PAGE_FOOTER_PATTERNS
+    )
 
     placeholders_cfg = config.get("placeholders", {}) or {}
     placeholders = deepcopy(DEFAULT_PLACEHOLDERS)
@@ -310,11 +322,13 @@ def _configure_runtime(config: Dict[str, Any]) -> None:
     PLACEHOLDERS = placeholders
 
     detectors_cfg = deepcopy(DEFAULT_DETECTORS)
-    detectors_cfg.update({key: bool(value) for key, value in (config.get("detectors") or {}).items()})
+    detectors_cfg.update(
+        {key: bool(value) for key, value in (config.get("detectors") or {}).items()}
+    )
     DETECTORS = detectors_cfg
 
     skip_words = set(DEFAULT_NAME_SKIP_WORDS)
-    for word in (config.get("skip_words", {}).get("name", []) or []):
+    for word in config.get("skip_words", {}).get("name", []) or []:
         skip_words.add(str(word).lower())
     NAME_SKIP_WORDS = skip_words
 
@@ -332,7 +346,7 @@ def _configure_runtime(config: Dict[str, Any]) -> None:
 
     filth_map_config = deepcopy(DEFAULT_FILTH_PLACEHOLDERS)
     filth_map_config.update(config.get("filth_placeholders", {}) or {})
-    mapping: Dict[str, Tuple[str, str, str]] = {}
+    mapping: dict[str, tuple[str, str, str]] = {}
     for filth_type, placeholder_name in filth_map_config.items():
         if filth_type in DISABLED_FILTH_TYPES:
             continue
@@ -343,7 +357,7 @@ def _configure_runtime(config: Dict[str, Any]) -> None:
         mapping["default"] = (_render_placeholder("PII"), "PII", "PII")
     SCRUBADUB_PLACEHOLDERS = mapping
 
-    rules: List[RegexRule] = [
+    rules: list[RegexRule] = [
         RegexRule(_CARD_PATTERN, _handle_card),
         RegexRule(_ROUTING_PATTERN, _handle_routing),
         RegexRule(_ACCOUNT_PATTERN, _handle_account),
@@ -353,8 +367,12 @@ def _configure_runtime(config: Dict[str, Any]) -> None:
     if DETECTORS.get("scrub_address", True):
         rules.extend(
             [
-                RegexRule(_STREET_PATTERN, _handle_simple(_render_placeholder("ADDRESS"), "ADDRESS")),
-                RegexRule(_CITY_STATE_PATTERN, _handle_simple(_render_placeholder("ADDRESS"), "ADDRESS")),
+                RegexRule(
+                    _STREET_PATTERN, _handle_simple(_render_placeholder("ADDRESS"), "ADDRESS")
+                ),
+                RegexRule(
+                    _CITY_STATE_PATTERN, _handle_simple(_render_placeholder("ADDRESS"), "ADDRESS")
+                ),
             ]
         )
 
@@ -365,7 +383,9 @@ def _configure_runtime(config: Dict[str, Any]) -> None:
         rules.append(RegexRule(_SSN_PATTERN, _handle_simple(_render_placeholder("SSN"), "SSN")))
 
     if DETECTORS.get("scrub_email", True):
-        rules.append(RegexRule(_EMAIL_PATTERN, _handle_simple(_render_placeholder("EMAIL"), "EMAIL")))
+        rules.append(
+            RegexRule(_EMAIL_PATTERN, _handle_simple(_render_placeholder("EMAIL"), "EMAIL"))
+        )
 
     if DETECTORS.get("scrub_url", True):
         rules.append(RegexRule(_URL_PATTERN, _handle_simple(_render_placeholder("URL"), "URL")))
@@ -374,9 +394,13 @@ def _configure_runtime(config: Dict[str, Any]) -> None:
         rules.append(RegexRule(_CUSTOMER_ID_PATTERN, _handle_customer_id))
 
     if DETECTORS.get("scrub_phone", False):
-        rules.append(RegexRule(_PHONE_PATTERN, _handle_simple(_render_placeholder("PHONE_NUMBER"), "PHONE_NUMBER")))
+        rules.append(
+            RegexRule(
+                _PHONE_PATTERN, _handle_simple(_render_placeholder("PHONE_NUMBER"), "PHONE_NUMBER")
+            )
+        )
 
-    for entry in (config.get("custom_regex") or []):
+    for entry in config.get("custom_regex") or []:
         pattern_entry = entry.get("pattern")
         if not pattern_entry:
             raise click.ClickException("custom_regex entries require a 'pattern'")
@@ -386,7 +410,9 @@ def _configure_runtime(config: Dict[str, Any]) -> None:
         if placeholder_name and not replacement:
             replacement = _render_placeholder(str(placeholder_name).upper())
         if not replacement:
-            raise click.ClickException("custom_regex entries require a 'replacement' or 'placeholder'")
+            raise click.ClickException(
+                "custom_regex entries require a 'replacement' or 'placeholder'"
+            )
         stat_key = str(entry.get("stat") or placeholder_name or "CUSTOM")
 
         def _make_handler(rep: str, stat: str) -> Callable[[re.Match[str], ScrubStats], str]:
@@ -606,7 +632,9 @@ def _scrub_text(raw_text: str, stats: ScrubStats) -> str:
 
 
 def _read_pdf(path: Path, engine: str) -> str:
-    document = load_pdf_document_with_engine(path=path, engine=engine, enable_camelot_fallback=False)
+    document = load_pdf_document_with_engine(
+        path=path, engine=engine, enable_camelot_fallback=False
+    )
     return document.text
 
 
@@ -630,7 +658,9 @@ def _derive_scrubbed_filename(source: Path | None) -> str:
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument("input_path", type=click.Path(path_type=Path), required=False)
-@click.option("--output", "output_path", type=click.Path(path_type=Path), help="Write scrubbed text to file.")
+@click.option(
+    "--output", "output_path", type=click.Path(path_type=Path), help="Write scrubbed text to file."
+)
 @click.option(
     "--output-dir",
     "output_dir",
@@ -638,7 +668,9 @@ def _derive_scrubbed_filename(source: Path | None) -> str:
     help="Directory where the scrubbed file should be written using an auto-generated name.",
 )
 @click.option("--stdout", "use_stdout", is_flag=True, help="Write scrubbed text to stdout.")
-@click.option("--stdin", "use_stdin", is_flag=True, help="Read raw text from stdin instead of a file.")
+@click.option(
+    "--stdin", "use_stdin", is_flag=True, help="Read raw text from stdin instead of a file."
+)
 @click.option(
     "--engine",
     type=click.Choice(["auto", "pdfplumber"], case_sensitive=False),
@@ -647,7 +679,12 @@ def _derive_scrubbed_filename(source: Path | None) -> str:
     help="PDF parsing engine to use when reading PDFs (auto uses pdfplumber with Camelot fallback).",
 )
 @click.option("--report", is_flag=True, help="Emit counts of redacted entities to stderr.")
-@click.option("--config", "config_path", type=click.Path(path_type=Path), help="Path to a YAML configuration file overriding defaults.")
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(path_type=Path),
+    help="Path to a YAML configuration file overriding defaults.",
+)
 def main(
     input_path: Path | None,
     output_path: Path | None,
