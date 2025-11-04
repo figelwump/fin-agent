@@ -20,7 +20,7 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 ## Prerequisites
 
 - **Python 3.10 or later** 
-- **Claude Code** (for skills workflow) - [Install Claude Code](https://docs.claude.com/en/docs/claude-code)
+- **Claude Code** (for skills workflow)
 - **Optional**: Homebrew (for macOS users installing pipx)
 
 ## Skills Summary
@@ -38,7 +38,11 @@ Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts
 
 Choose one of the following installation methods:
 
-#### Option A: Global/isolated setup with pipx (recommended)
+#### Option A: Global/isolated setup with pipx or uv
+
+Use this method if you just want to install the CLI commands globally and don't want to edit them.
+
+**Using pipx:**
 
 Install pipx (one time):
 - **macOS with Homebrew**: `brew install pipx && pipx ensurepath`
@@ -52,6 +56,18 @@ pipx install '.[all]'
 ```
 
 Pipx creates a dedicated venv and exposes the executables (`fin-scrub`, `fin-query`, etc.) on your PATH without activating `.venv`.
+
+**Using uv (faster alternative):**
+
+```bash
+# Install uv once (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+cd /path/to/fin-agent
+uv tool install '.[all]'
+```
+
+Like pipx, `uv tool` creates an isolated environment and exposes CLI commands globally.
 
 #### Option B: Local dev (editable install)
 
@@ -132,9 +148,16 @@ Here's a typical end-to-end workflow:
 
 **1. Install (one time)**
 
+Using pipx:
 ```bash
 brew install pipx && pipx ensurepath
 cd fin-agent && pipx install '.[all]'
+```
+
+Or using uv (faster):
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+cd fin-agent && uv tool install '.[all]'
 ```
 
 **2. Open Claude Code in this directory**
@@ -245,9 +268,11 @@ Analytical rollups on top of the SQLite ledger.
 
 ## Upgrading
 
-### pipx installs
-- Reinstall from the repo: `pipx install --force '.[all]'`
-- Upgrade from PyPI (once published): `pipx upgrade fin-cli` (add `--include-deps` if dependencies changed)
+### pipx or uv tool installs
+- **pipx**: Reinstall from the repo: `pipx install --force '.[all]'`
+- **pipx**: Upgrade from PyPI (once published): `pipx upgrade fin-cli` (add `--include-deps` if dependencies changed)
+- **uv**: Reinstall from the repo: `uv tool install --force '.[all]'`
+- **uv**: Upgrade from PyPI (once published): `uv tool upgrade fin-cli`
 
 ### Editable venv installs
 - Pull the latest branch (`git pull`); editable installs pick up code changes instantly
