@@ -76,9 +76,22 @@ python3 -m pip install -e .[dev,all]
 - When `.venv` is **deactivated**: Commands fall back to the pipx-installed versions (if any).
 - Skills automatically use whichever version is first in `PATH`.
 
-To deactivate the venv:
+#### Option C: Local dev with uv (fast dependency resolver)
+
+If you use [uv](https://github.com/astral-sh/uv), you can let it manage the virtual environment and dependency installation:
+
 ```bash
-deactivate
+# Install uv once (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+cd /path/to/fin-agent
+
+# Create and activate the project venv
+uv venv .venv
+source .venv/bin/activate
+
+# Install editable with dev extras using uv's pip shim
+uv pip install -e '.[dev,all]'
 ```
 
 ### 2. Verify Installation
