@@ -346,6 +346,28 @@ black --check fin_cli tests
 ruff check fin_cli tests
 ```
 
+
+## Testing
+
+Run the full suite from the repo venv:
+
+```bash
+./.venv/bin/python -m pytest
+```
+
+Useful subsets during development:
+
+```bash
+# CLI regressions
+./.venv/bin/python -m pytest tests/fin_query/test_cli.py tests/fin_edit/test_fin_edit.py
+
+# Statement-processor pipeline smoke test
+./.venv/bin/python -m pytest tests/statement_processor/test_pipeline_smoke.py
+```
+
+The pipeline smoke test fabricates scrubbed text and relies on the bundled skill scripts under `.claude/skills/statement-processor/`. Synthetic fixtures live in `tests/fixtures/`, including `scrubbed/sample_raw_statement.txt` for fin-scrub.
+
+
 ## Troubleshooting
 
 ### PEP 668 / externally-managed-environment error

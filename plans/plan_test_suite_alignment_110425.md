@@ -19,8 +19,8 @@
 - [x] Added an integration smoke test (`tests/statement_processor/test_pipeline_smoke.py`) that runs preprocess → postprocess → categorize with synthetic scrubbed input and ensures prompts/enriched outputs are generated.
 
 ## Phase 5 – Validation & tooling
-- [ ] Run `pytest` (full suite + targeted markers) after removals/additions and capture runtime deltas for historical notes.
-- [ ] Update documentation (README/testing guidelines) with new fixtures, commands, and how to run skill smoke + CLI suites.
+- [x] Ran `./.venv/bin/python -m pytest` (≈1.8s, 113 tests) for updated baseline after suite changes.
+- [x] Updated README testing section with pytest commands, skill smoke guidance, and fixture references.
 
 ## Notes & Open Questions
 - Synthetic scrubbed text should be generated from deterministic sample data (e.g. seeded transactions) and checked into `tests/fixtures`, never sourced from personal ledgers or `~/.finagent` real runs.
