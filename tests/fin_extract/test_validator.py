@@ -2,37 +2,59 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date
-from pathlib import Path
-
-import pytest
-
 from fin_cli.fin_extract.extractors.bofa import BankOfAmericaExtractor
 from fin_cli.fin_extract.extractors.mercury import MercuryExtractor
-from fin_cli.fin_extract.parsers.pdf_loader import load_pdf_document_with_engine
+from fin_cli.fin_extract.parsers.pdf_loader import PdfTable, PdfDocument
 from fin_cli.fin_extract.types import ExtractedTransaction, ExtractionResult, StatementMetadata
 from fin_cli.fin_extract.validator import validate_extraction
 
 
-def _load_bofa_result(pdf_name: str) -> ExtractionResult:
-    pytest.importorskip("pdfplumber")
-    pdf_path = Path("statements/bofa") / pdf_name
-    if not pdf_path.exists():
-        pytest.skip("BofA sample statements not committed")
-    document = load_pdf_document_with_engine(pdf_path, "pdfplumber")
-    return BankOfAmericaExtractor().extract(document)
+def _bofa_document() -> PdfDocument:
+    return PdfDocument(
+        text="Statement Period: 09/01/2025 - 09/30/2025",
+        tables=[
+            PdfTable(
+                headers=(
+                    "Date",
+                    "Description",
+                    "Withdrawals and Other Debits",
+                    "Deposits and Other Credits",
+                ),
+                rows=[
+                    ("09/03", "Trader Joe's #1234", "-150.20", "", ""),
+                    ("09/05", "Stripe Payout", "", "2500.00", ""),
+                ],
+            )
+        ],
+    )
 
 
-def _load_mercury_result(pdf_name: str) -> ExtractionResult:
-    pytest.importorskip("pdfplumber")
-    pdf_path = Path("statements/mercury") / pdf_name
-    if not pdf_path.exists():
-        pytest.skip("Mercury sample statements not committed")
-    document = load_pdf_document_with_engine(pdf_path, "pdfplumber")
-    return MercuryExtractor().extract(document)
+def _mercury_document() -> PdfDocument:
+    return PdfDocument(
+        text="Statement Period: September 1, 2025 - September 30, 2025",
+        tables=[
+            PdfTable(
+                headers=("Date", "Description", "Money In", "Money Out", "Balance"),
+                rows=[
+                    ("09/07/2025", "AWS Marketplace", "", "320.45", ""),
+                    ("09/09/2025", "Team Lunch", "", "145.20", ""),
+                    ("", "San Mateo, CA", "", "", ""),
+                ],
+            )
+        ],
+    )
+
+
+def _load_bofa_result() -> ExtractionResult:
+    return BankOfAmericaExtractor().extract(_bofa_document())
+
+
+def _load_mercury_result() -> ExtractionResult:
+    return MercuryExtractor().extract(_mercury_document())
 
 
 def test_validator_accepts_bofa_sample() -> None:
-    result = _load_bofa_result("eStmt_2025-09-22.pdf")
+    result = _load_bofa_result()
 
     report = validate_extraction(result)
 
@@ -41,7 +63,7 @@ def test_validator_accepts_bofa_sample() -> None:
 
 
 def test_validator_accepts_mercury_sample() -> None:
-    result = _load_mercury_result("vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-05.pdf")
+    result = _load_mercury_result()
 
     report = validate_extraction(result)
 
@@ -50,7 +72,7 @@ def test_validator_accepts_mercury_sample() -> None:
 
 
 def test_validator_flags_summary_row_leak() -> None:
-    base = _load_bofa_result("eStmt_2025-09-22.pdf")
+    base = _load_bofa_result()
     mutated = deepcopy(base)
     mutated.transactions.append(
         ExtractedTransaction(
@@ -69,7 +91,7 @@ def test_validator_flags_summary_row_leak() -> None:
 
 
 def test_validator_flags_mercury_credit_row() -> None:
-    base = _load_mercury_result("vishal-kapur-and-sneha-kapur-2550-monthly-statement-2025-05.pdf")
+    base = _load_mercury_result()
     mutated = deepcopy(base)
     mutated.transactions.append(
         ExtractedTransaction(
