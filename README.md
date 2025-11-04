@@ -194,8 +194,8 @@ Below are example prompts that will trigger these skills, the actions each skill
 ### Process a new statement
 
 - **Skill**: statement-processor
-- **Prompt**: `import ~/Downloads/chase-2025-09.pdf`
-  - **Note**: Do not use Claude Code's "@" mention syntax. This will import the file natively and CC will not invoke the skill (and it may read the PDF statement which defeats the purpose of fin-scrub)
+- **Example prompt**: `import ~/Downloads/chase-2025-09.pdf` or `import all statements in ~/Downloads/bofa`
+  - **Note**: Do NOT use Claude Code's "@" mention syntax to import statements. This will import the file natively and CC will not invoke the skill (and it may read the PDF statement which defeats the purpose of fin-scrub)
 - **Workflow**: `fin-scrub` scrubs PII → transactions extracted from the scrubbed text using the LLM → enrich with cached merchant patterns
 - If uncategorized transactions remain, then the `transaction-categorizer` skill will be invoked.
 - **Result**: Transactions added to the ledger, new merchant patterns learned, and a confirmation summary returned to the user.
@@ -204,21 +204,21 @@ Below are example prompts that will trigger these skills, the actions each skill
 ### Triage uncategorized spend
 
 - **Skill**: transaction-categorizer
-- **Prompt**: `Categorize any uncategorized transactions.`
+- **Example prompt**: `Categorize any uncategorized transactions.`
 - **Workflow**: Queries the local database for uncategorized transactions → attempts to categorize them automatically via the LLM (the prompt grounds the categorizations in the existing taxonomy)
 - If any transactions could not be categorized with a high confidence, then the skill interactively asks the user for categorization confirmations
 - **Result**: Category metadata added to all uncategorized transactions in the DB
 
-### Monthly spending review
+### Spending analysis
 
 - **Skill**: spending-analyzer
-- **Prompt**: `Give me a September 2025 spending report with category breakdown and subscriptions.`
+- **Example prompt**: `Categorize my spending over the past 12 months` or `What subscriptions do I currently have?`
 - **Workflow**: Query the database to retrieve transactions over the given time period, and analyze them in various ways, including category breakdown, subscriptions detection, unusual spend detection, trends, etc.
 
 ### Answer ledger questions
 
 - **Skill**: ledger-query
-- **Prompt**: `How much did we spend at Costco in 2025?`
+- **Example prompt**: `How much did we spend at Costco in 2025?` or `What transactions are in the fitness category?`
 - **Workflow**: Uses `fin-query` where possible to retrieve the info to answer the user's question. Typically used for more adhoc questions rather than full analyses.
 
 ### Integrating Skills into Another Repository
