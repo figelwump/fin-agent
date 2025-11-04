@@ -9,8 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fin_cli.shared import models
-
-from .llm_client import merchant_pattern_key
+from fin_cli.shared.merchants import merchant_pattern_key
 
 
 @dataclass(slots=True)

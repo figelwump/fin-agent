@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fin_cli.shared import models
+from fin_cli.shared.merchants import merchant_pattern_key
 
 from .categorizer.hybrid import (
     CategoryProposal,
@@ -16,7 +17,6 @@ from .categorizer.hybrid import (
     ReviewSuggestion,
     TransactionReview,
 )
-from .categorizer.llm_client import merchant_pattern_key
 from .pipeline import ReviewQueue
 
 

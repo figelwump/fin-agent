@@ -5,11 +5,11 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from fin_cli.fin_enhance.categorizer.llm_client import merchant_pattern_key
 from fin_cli.fin_enhance.main import main as enhance_cli
 from fin_cli.shared import models, paths
 from fin_cli.shared.config import load_config
 from fin_cli.shared.database import connect
+from fin_cli.shared.merchants import merchant_pattern_key
 
 
 def _prepare_db(db_path: Path) -> None:
