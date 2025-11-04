@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from click.testing import CliRunner
+import re
 
 from fin_cli.fin_edit.main import main as edit_cli
 from fin_cli.shared import models, paths
@@ -614,8 +615,9 @@ def test_delete_transactions_preview_then_apply(tmp_path: Path) -> None:
         env=env,
     )
     assert result.exit_code == 0, result.output
-    assert "[dry-run]" in result.output
-    assert f"id={txn_ids[0]}" in result.output
+    preview_output = _strip_ansi(result.output)
+    assert "[dry-run]" in preview_output
+    assert f"id={txn_ids[0]}" in preview_output
 
     with connect(config, read_only=True, apply_migrations=False) as connection:
         remaining = connection.execute(
@@ -640,7 +642,8 @@ def test_delete_transactions_preview_then_apply(tmp_path: Path) -> None:
         env=env,
     )
     assert result.exit_code == 0, result.output
-    assert "Deleted 2 transaction(s)." in result.output
+    apply_output = _strip_ansi(result.output)
+    assert "Deleted 2 transaction(s)." in apply_output
 
     with connect(config, read_only=True, apply_migrations=False) as connection:
         remaining = connection.execute(
@@ -669,3 +672,8 @@ def test_delete_transactions_missing_id(tmp_path: Path) -> None:
     )
     assert result.exit_code != 0
     assert "Transactions not found" in result.output
+ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+
+def _strip_ansi(value: str) -> str:
+    return ANSI_RE.sub("", value)
