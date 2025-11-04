@@ -12,8 +12,8 @@
 - [x] `fin-edit`: added CLI tests (`tests/fin_edit/test_fin_edit.py`) for `--create-if-missing`, invalid metadata errors, `--apply` + `--dry-run` precedence, and selector validation.
 
 ## Phase 3 – Shared library regression tests
-- [ ] Add tests for `fin_cli.shared.cli` (`common_cli_options`, `handle_cli_errors`) ensuring dry-run defaults, verbosity toggles, and error wrapping remain intact.
-- [ ] Backfill `fin_cli.shared.importers` unit tests for CSV/enriched loaders (including BOM handling, missing columns, bad JSON blobs) without going through CLI layers.
+- [x] Added tests for `fin_cli.shared.cli` (`common_cli_options`, `handle_cli_errors`) ensuring dry-run defaults, verbosity toggles, and error wrapping remain intact.
+- [x] Backfilled `fin_cli.shared.importers` unit tests for CSV/enriched loaders (BOM handling, missing columns, invalid metadata) without going through CLI layers.
 
 ## Phase 4 – Skill workflow smoke tests
 - [ ] Build an integration smoke test that fabricates a scrubbed text transcript (based on `.claude/skills/statement-processor` prompt expectations) and runs preprocess → postprocess → categorize scripts end-to-end, confirming assumptions about scrub output remain valid.
@@ -31,3 +31,4 @@
 - 2025-11-04: Added `fin-query` CLI assertions for `sql` TSV output, empty/malformed params, saved query catalog, and `schema` JSON output under DB overrides.
 - 2025-11-04: Added fin-analyze CLI coverage for help flows and period validation errors.
 - 2025-11-04: Added fin-edit CLI coverage for create-if-missing, metadata validation, dry-run precedence, and selector errors.
+- 2025-11-04: Added shared CLI/importer regression tests to guard decorators and CSV parsing helpers.
