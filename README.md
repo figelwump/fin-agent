@@ -25,6 +25,8 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 
 ## Skills Summary
 
+Some notes on Claude Skills I put together while working on this project: https://vishalkapur.com/posts/2025-11-06-notes-on-claude-skills
+
 - **statement-processor** – Scrub bank/credit card PDF statements, build LLM prompts to extract transaction data, and import transactions into a local sqlite DB.
 - **transaction-categorizer** – Bulk-categorize outstanding transactions using the agent's LLM, learn merchant patterns, and run guided manual review when needed.
 - **spending-analyzer** – Run analytical reports (trend, subscription, merchant activity) and assemble summaries for users.

@@ -1,8 +1,7 @@
-import { query } from "@anthropic-ai/claude-code";
-import type { HookJSONOutput } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { HookJSONOutput } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "path";
 import { FIN_AGENT_PROMPT } from "./fin-agent-prompt";
-import { customMCPServer } from "./custom-tools";
 import type { SDKMessage, SDKUserMessage } from "./types";
 
 function buildVenvEnv(baseEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -35,6 +34,7 @@ export interface CCQueryOptions {
   mcpServers?: any;
   hooks?: any;
   env?: NodeJS.ProcessEnv;
+  settingSources?: string[];
 }
 
 export class CCClient {
@@ -43,22 +43,21 @@ export class CCClient {
   constructor(options?: Partial<CCQueryOptions>) {
     this.defaultOptions = {
       maxTurns: 100,
-      cwd: path.join(process.cwd(), 'agent'),
+      cwd: process.cwd(),
       model: "sonnet",
       includePartialMessages: true,
       allowedTools: [
         "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write", "NotebookEdit",
         "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash", 
-        "mcp__finance__extract_statement", "mcp__finance__bulk_import_statements", "mcp__finance__import_transactions", "mcp__finance__analyze_spending", "mcp__finance__fin_query_sample", "mcp__finance__fin_query_list_saved", "mcp__finance__fin_query_saved", "mcp__finance__fin_query_schema", "mcp__finance__fin_query_sql",
+        "Skill",
       ],
       appendSystemPrompt: FIN_AGENT_PROMPT,
-      mcpServers: {
-        "finance": customMCPServer
-      },
+      settingSources: ["project", "user"], // Load project and user-level skills
       hooks: {
         PreToolUse: [
           {
             matcher: "Write|Edit|MultiEdit",
+            // Only allow file writes/edits to paths under ~/.finagent; block all others, regardless of file type.
             hooks: [
               async (input: any): Promise<HookJSONOutput> => {
                 const toolName = input.tool_name;
@@ -68,6 +67,7 @@ export class CCClient {
                   return { continue: true };
                 }
 
+                // Normalize path (handle tilde or relative paths)
                 let filePath = '';
                 if (toolName === 'Write' || toolName === 'Edit') {
                   filePath = toolInput.file_path || '';
@@ -75,17 +75,23 @@ export class CCClient {
                   filePath = toolInput.file_path || '';
                 }
 
-                const ext = path.extname(filePath).toLowerCase();
-                if (ext === '.js' || ext === '.ts' || ext === '.py') {
-                  const customScriptsPath = path.join(process.cwd(), 'agent', 'custom_scripts');
+                // Resolve home directory if ~ is used
+                let homeDir = process.env.HOME || process.env.USERPROFILE || '';
+                const normalizedFinagentPath = path.resolve(homeDir, '.finagent');
+                let normalizedFilePath: string;
+                if (filePath.startsWith('~')) {
+                  // Expand tilde to home directory
+                  normalizedFilePath = path.resolve(homeDir, filePath.slice(1));
+                } else {
+                  normalizedFilePath = path.resolve(filePath);
+                }
 
-                  if (!filePath.startsWith(customScriptsPath)) {
-                    return {
-                      decision: 'block',
-                      stopReason: `Script files (.js, .ts, .py) must be written to the custom_scripts directory. Please use the path: ${customScriptsPath}/${path.basename(filePath)}`,
-                      continue: false
-                    };
-                  }
+                if (!normalizedFilePath.startsWith(normalizedFinagentPath + path.sep)) {
+                  return {
+                    decision: 'block',
+                    stopReason: `Writes and edits are only allowed inside the ~/.finagent directory. Please use a path under: ${normalizedFinagentPath}/`,
+                    continue: false
+                  };
                 }
 
                 return { continue: true };

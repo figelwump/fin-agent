@@ -88,7 +88,7 @@ const server = Bun.serve({
     }
 
     if (url.pathname === '/') {
-      const file = Bun.file('./client/index.html');
+      const file = Bun.file('./web_client/index.html');
       return new Response(file, {
         headers: {
           'Content-Type': 'text/html',
@@ -408,7 +408,7 @@ const server = Bun.serve({
       }
     }
 
-    if (url.pathname.startsWith('/client/') && url.pathname.endsWith('.css')) {
+    if (url.pathname.startsWith('/web_client/') && url.pathname.endsWith('.css')) {
       const filePath = `.${url.pathname}`;
       const file = Bun.file(filePath);
 
@@ -440,7 +440,7 @@ const server = Bun.serve({
       }
     }
 
-    if (url.pathname.startsWith('/client/') && (url.pathname.endsWith('.tsx') || url.pathname.endsWith('.ts'))) {
+    if (url.pathname.startsWith('/web_client/') && (url.pathname.endsWith('.tsx') || url.pathname.endsWith('.ts'))) {
       const filePath = `.${url.pathname}`;
       const file = Bun.file(filePath);
 
@@ -467,8 +467,8 @@ const server = Bun.serve({
       }
     }
 
-    // Serve other static assets under /client/ (e.g., .yaml, .json)
-    if (url.pathname.startsWith('/client/')) {
+    // Serve other static assets under /web_client/ (e.g., .yaml, .json)
+    if (url.pathname.startsWith('/web_client/')) {
       const filePath = `.${url.pathname}`;
       const file = Bun.file(filePath);
       if (await file.exists()) {
