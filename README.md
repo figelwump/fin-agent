@@ -166,7 +166,7 @@ To use the skills workflow:
 
 ### 5. Run Web Client (optional)
 
-The repository includes a lightweight web agent UI in `web_client/` built on the Claude Agent SDK. The web UI provides an equivalent interface to the CLI workflow with the same skills.
+The repository includes a lightweight web agent UI in `web_client/` built on the Claude Agent SDK (largely based on Anthropic's demo [email-agent](https://github.com/anthropics/claude-agent-sdk-demos/tree/main/email-agent)). The web UI provides an equivalent interface to the CLI workflow with the same skills.
 
 #### Running the Web UI
 

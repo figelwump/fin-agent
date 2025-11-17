@@ -1,6 +1,6 @@
 # Web Agent UI
 
-The `web_client/` directory hosts a lightweight React front end for the local web agent. The UI is **skills-only** and powered by the [Claude Agent SDK](https://docs.claude.com/en/docs/agents-and-tools/overview), using skills directly from `.claude/skills/` and `~/.claude/skills/`. Key views include the chat interface, statement import helpers, and suggested prompts for the fin-cli skills.
+The `web_client/` directory hosts a lightweight React front end for the local web agent. The UI is powered by the [Claude Agent SDK](https://docs.claude.com/en/docs/agents-and-tools/overview), using skills directly from `.claude/skills/` and `~/.claude/skills/`. 
 
 ## Features
 - Launch the assistant UI with `bun run dev`.
