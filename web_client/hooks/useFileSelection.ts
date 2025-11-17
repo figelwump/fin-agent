@@ -4,6 +4,8 @@ export interface SelectedEntry {
   file: File;
   /** Path relative to the selected directory; defaults to file.name for loose files. */
   relativePath: string;
+  /** Absolute path if the browser/runtime exposed it (e.g., Electron, specialized browsers). */
+  absolutePath?: string;
 }
 
 interface UseFileSelectionOptions {
@@ -40,6 +42,20 @@ export function useFileSelection(options: UseFileSelectionOptions = {}): UseFile
     return allowed.some((ext) => lower.endsWith(ext));
   }, [allowed]);
 
+  const deriveAbsolutePath = useCallback((file: File): string | undefined => {
+    const fileWithPath = file as File & { path?: string; fullPath?: string };
+    const candidates = [fileWithPath.path, fileWithPath.fullPath];
+
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const trimmed = candidate.trim();
+      if (!trimmed || /fakepath/i.test(trimmed)) continue;
+      return trimmed;
+    }
+
+    return undefined;
+  }, []);
+
   const processFiles = useCallback((files: File[]) => {
     const processed: SelectedEntry[] = [];
     for (const file of files) {
@@ -47,10 +63,10 @@ export function useFileSelection(options: UseFileSelectionOptions = {}): UseFile
       const relative = (file as any).webkitRelativePath && (file as any).webkitRelativePath.length > 0
         ? (file as any).webkitRelativePath
         : file.name;
-      processed.push({ file, relativePath: relative });
+      processed.push({ file, relativePath: relative, absolutePath: deriveAbsolutePath(file) });
     }
     return processed;
-  }, [validateFile]);
+  }, [deriveAbsolutePath, validateFile]);
 
   const syncState = useCallback((processed: SelectedEntry[], originalCount: number) => {
     setEntries(processed);
@@ -112,7 +128,7 @@ export function useFileSelection(options: UseFileSelectionOptions = {}): UseFile
             const fileHandle = entry as FileSystemFileHandle;
             const file = await fileHandle.getFile();
             if (!validateFile(file)) continue;
-            collected.push({ file, relativePath: `${prefix}${entryName}` });
+            collected.push({ file, relativePath: `${prefix}${entryName}`, absolutePath: deriveAbsolutePath(file) });
           } else if (entry.kind === 'directory') {
             await traverse(entry as FileSystemDirectoryHandle, `${prefix}${entryName}/`);
           }
@@ -129,7 +145,7 @@ export function useFileSelection(options: UseFileSelectionOptions = {}): UseFile
       setError('Unable to access the selected directory.');
       return [];
     }
-  }, [selectViaInput, syncState, validateFile]);
+  }, [deriveAbsolutePath, selectViaInput, syncState, validateFile]);
 
   const pickWithFilePicker = useCallback(async () => {
     const anyWindow = window as any;

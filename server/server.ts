@@ -408,6 +408,68 @@ const server = Bun.serve({
       }
     }
 
+    if (url.pathname === '/api/import/stage' && req.method === 'POST') {
+      let stagingDir: string | undefined;
+      try {
+        const formData = await req.formData();
+        const fileEntries = formData.getAll('files');
+
+        if (fileEntries.length === 0) {
+          return new Response(JSON.stringify({ error: 'No files uploaded.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        stagingDir = getImportsStagingDir(`staged-${timestamp}`);
+
+        const storedPaths: string[] = [];
+        const skipped: string[] = [];
+
+        for (let idx = 0; idx < fileEntries.length; idx++) {
+          const entry = fileEntries[idx];
+          if (!(entry instanceof File)) {
+            skipped.push(`non-file-${idx}`);
+            continue;
+          }
+
+          const providedName = entry.name || `upload-${idx}`;
+          const relativePath = sanitiseRelativePath(providedName);
+          const destination = path.join(stagingDir, relativePath);
+
+          await writeUploadedFile(destination, entry);
+          storedPaths.push(destination);
+        }
+
+        if (storedPaths.length === 0) {
+          return new Response(JSON.stringify({ error: 'Uploaded files could not be processed.', skipped }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+
+        return new Response(JSON.stringify({ stagingDir, storedPaths, skipped }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      } catch (error: any) {
+        console.error('Import staging error:', error);
+        if (stagingDir) {
+          await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {
+            // ignore cleanup failure
+          });
+        }
+        return new Response(JSON.stringify({
+          error: 'Failed to stage files.',
+          detail: error?.message ?? String(error),
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+    }
+
     if (url.pathname.startsWith('/web_client/') && url.pathname.endsWith('.css')) {
       const filePath = `.${url.pathname}`;
       const file = Bun.file(filePath);

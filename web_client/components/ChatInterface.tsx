@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
-import { Message, ImportSummaryBlock, ImportProgressBlock, StructuredPrompt } from './message/types';
-import { Send, Wifi, WifiOff, RefreshCw, Mail, Clock } from 'lucide-react';
+import { Message, StructuredPrompt } from './message/types';
+import { Send } from 'lucide-react';
 import { SuggestedQueries } from './dashboard/SuggestedQueries';
 import { ImportStatementsButton } from './dashboard/ImportStatementsButton';
 import { useFileSelection, SelectionMode, SelectedEntry } from '../hooks/useFileSelection';
@@ -16,11 +16,16 @@ interface ChatInterfaceProps {
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
+type ResolvedStatementPath = {
+  path: string;
+  label: string;
+  source: 'absolute' | 'staged';
+};
+
 export function ChatInterface({ isConnected, sendMessage, messages, setMessages, sessionId, isLoading, setIsLoading }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [showPickerMenu, setShowPickerMenu] = useState(false);
-  const progressMessageIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pickerAnchorRef = useRef<HTMLDivElement>(null);
   const {
@@ -89,161 +94,112 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     setMessages((prev) => [...prev, message]);
   };
 
-  const updateAssistantText = (id: string, text: string) => {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.id !== id) return msg;
-        if (msg.type !== 'assistant') return msg;
-        return {
-          ...msg,
-          content: [{ type: 'text', text }],
-          timestamp: new Date().toISOString(),
-        };
-      })
-    );
+  const isAbsolutePathValue = (value: string | undefined): boolean => {
+    if (!value) return false;
+    return value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
   };
 
-  const appendImportSummary = (data: ImportSummaryBlock['data']) => {
-    const message: Message = {
-      id: Date.now().toString(),
-      type: 'assistant',
-      content: [{ type: 'import_summary', data }],
-      timestamp: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, message]);
-  };
-
-  const appendProgressMessage = (data: ImportProgressBlock['data']) => {
-    const message: Message = {
-      id: Date.now().toString(),
-      type: 'assistant',
-      content: [{ type: 'import_progress', data }],
-      timestamp: new Date().toISOString(),
-    };
-    progressMessageIdRef.current = message.id;
-    setMessages((prev) => [...prev, message]);
-  };
-
-  const updateProgressMessage = (data: ImportProgressBlock['data']) => {
-    const id = progressMessageIdRef.current;
-    if (!id) return;
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.id !== id || msg.type !== 'assistant') return msg;
-        return {
-          ...msg,
-          content: [{ type: 'import_progress', data }],
-          timestamp: new Date().toISOString(),
-        };
-      })
-    );
-  };
-
-  const runImportFlow = async (entries: SelectedEntry[]) => {
-    if (!entries.length) return;
-
-    const listed = entries.slice(0, 3).map((entry) => entry.relativePath);
-    const remaining = entries.length - listed.length;
-    const introLines = [
-      `Queued ${entries.length} file${entries.length === 1 ? '' : 's'} for import:`,
-      ...listed.map((path) => `• ${path}`),
-      remaining > 0 ? `…and ${remaining} more.` : undefined,
-    ].filter(Boolean);
-    const filePaths = entries.map((entry) => entry.relativePath);
-    appendProgressMessage({
-      stage: 'uploading',
-      message: `${introLines.join('\n')}`,
-      files: filePaths,
+  const collectAbsolutePaths = (entries: SelectedEntry[]): ResolvedStatementPath[] | null => {
+    const resolved: ResolvedStatementPath[] = [];
+    entries.forEach((entry, index) => {
+      const absoluteCandidate = entry.absolutePath && isAbsolutePathValue(entry.absolutePath)
+        ? entry.absolutePath.trim()
+        : null;
+      if (!absoluteCandidate) {
+        return;
+      }
+      const label = entry.relativePath ?? entry.file.name ?? `statement-${index + 1}`;
+      resolved.push({ path: absoluteCandidate, label, source: 'absolute' });
     });
 
+    return resolved.length === entries.length && resolved.length > 0 ? resolved : null;
+  };
+
+  const stageEntriesRemotely = async (entries: SelectedEntry[]) => {
     const formData = new FormData();
-    entries.forEach((entry) => {
-      formData.append('files', entry.file, entry.relativePath);
+    entries.forEach((entry, index) => {
+      const label = entry.relativePath ?? entry.file.name ?? `statement-${index + 1}`;
+      formData.append('files', entry.file, label);
     });
-    formData.append('autoApprove', 'false');
 
-    let processingTimer: number | undefined;
-    try {
-      if (typeof window !== 'undefined') {
-        processingTimer = window.setTimeout(() => {
-          updateProgressMessage({
-            stage: 'processing',
-            message: 'Processing statements… this may take a minute.',
-            files: filePaths,
-          });
-        }, 1500);
-      }
-      const response = await fetch('/api/bulk-import', {
-        method: 'POST',
-        body: formData,
-      });
-      const payload = await response.json();
+    const response = await fetch('/api/import/stage', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        const errorText = typeof payload?.error === 'string'
-          ? payload.error
-          : 'Bulk import failed. Please check server logs.';
-        throw new Error(errorText);
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Server is missing the /api/import/stage endpoint. Restart `bun run server/server.ts` with the latest code and try again.');
       }
 
-      const { stagingDir, skipped = [], summary } = payload as any;
-
-      const csvCount = Array.isArray(summary?.csvPaths) ? summary.csvPaths.length : 0;
-      const reviewPath = summary?.reviewPath ?? null;
-      const unsupported = Array.isArray(summary?.unsupported) ? summary.unsupported : [];
-      const missing = Array.isArray(summary?.missing) ? summary.missing : [];
-      const transactions = Array.isArray(summary?.transactionsPreview) ? summary.transactionsPreview : [];
-      const reviewItems = Array.isArray(summary?.reviewItems) ? summary.reviewItems : [];
-      const steps = Array.isArray(summary?.steps) ? summary.steps : [];
-      const extractionErrors = Array.isArray(summary?.extraction)
-        ? summary.extraction
-            .filter((entry: any) => entry.status === 'error')
-            .map((entry: any) => `${entry.sourcePath}: ${entry.error ?? entry.stderr ?? 'Unknown error'}`)
-        : [];
-
-      const summaryData = {
-        csvCount,
-        stagingDir,
-        reviewPath,
-        unsupported,
-        missing,
-        skippedUploads: skipped,
-        extractionErrors,
-        transactions,
-        reviewItems,
-        steps,
-      };
-
-      appendImportSummary(summaryData);
-
-      if (progressMessageIdRef.current) {
-        updateProgressMessage({
-          stage: 'completed',
-          message: steps.length
-            ? steps.map((step: any) => `${step.name}: ${(step.durationMs / 1000).toFixed(1)}s`).join('\n')
-            : 'Finished.',
-          files: filePaths,
-        });
-        progressMessageIdRef.current = null;
-      }
-    } catch (err: any) {
-      const detail = err?.message ?? 'Unknown error';
-      if (progressMessageIdRef.current) {
-        updateProgressMessage({
-          stage: 'error',
-          message: detail,
-          files: filePaths,
-        });
-        progressMessageIdRef.current = null;
-      } else {
-        appendAssistantText(`Bulk import failed: ${detail}`);
-      }
-    } finally {
-      if (processingTimer) {
-        clearTimeout(processingTimer);
-      }
-      resetSelection();
+      const message = typeof payload?.error === 'string'
+        ? payload.error
+        : `Failed to stage selected files (HTTP ${response.status}). Check server logs.`;
+      throw new Error(message);
     }
+
+    const storedPaths: string[] = Array.isArray(payload?.storedPaths) ? payload.storedPaths : [];
+    if (!storedPaths.length) {
+      throw new Error('The server did not return any staged file paths.');
+    }
+
+    const resolved = storedPaths.map((path, index) => ({
+      path,
+      label: entries[index]?.relativePath ?? entries[index]?.file.name ?? path,
+      source: 'staged' as const,
+    }));
+
+    return {
+      resolved,
+      stagingDir: typeof payload?.stagingDir === 'string' ? payload.stagingDir : null,
+      skipped: Array.isArray(payload?.skipped) ? payload.skipped : [],
+    };
+  };
+
+  const sendStatementProcessorRequest = (
+    paths: ResolvedStatementPath[],
+    options?: { staged?: boolean; stagingDir?: string | null }
+  ) => {
+    if (!paths.length) {
+      appendAssistantText('No usable filesystem paths were provided.');
+      return;
+    }
+
+    const displayLines = paths.map((entry) => {
+      const suffix = entry.source === 'staged' ? ' (staged copy)' : '';
+      return `• ${entry.path}${suffix}`;
+    });
+    const displayText = paths.length === 1
+      ? `Import statement: ${paths[0].path}${paths[0].source === 'staged' ? ' (staged copy)' : ''}`
+      : `Import statements:\n${displayLines.join('\n')}`;
+
+    const numberedLines = paths.map((entry, index) => {
+      const suffix = entry.source === 'staged' ? ' (staged copy)' : '';
+      return `${index + 1}. ${entry.path}${suffix}`;
+    });
+
+    const agentLines = [
+      'Please invoke the statement-processor skill to import the following statements.',
+      'Use the provided filesystem paths directly; the files already exist on this machine.',
+      ...numberedLines,
+    ];
+
+    if (options?.staged && options.stagingDir) {
+      agentLines.push(`The files above were staged under ${options.stagingDir}.`);
+    }
+
+    dispatchPrompt({
+      displayText,
+      agentText: agentLines.join('\n'),
+      metadata: {
+        intent: 'statement_import',
+        fileCount: paths.length,
+        files: paths.map((entry) => entry.path),
+        staged: !!options?.staged,
+        stagingDir: options?.stagingDir ?? undefined,
+      },
+    });
   };
 
   const runSelection = async (mode: SelectionMode) => {
@@ -253,16 +209,35 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     try {
       const entries = await selectFiles(mode);
       if (!entries.length) {
-        setIsImporting(false);
         return;
       }
-      await runImportFlow(entries);
+
+      const absolutePaths = collectAbsolutePaths(entries);
+      if (absolutePaths) {
+        sendStatementProcessorRequest(absolutePaths);
+        return;
+      }
+
+      appendAssistantText('Staging selected files so the statement-processor can access them…');
+      const staged = await stageEntriesRemotely(entries);
+      if (staged.skipped.length) {
+        appendAssistantText(`Some uploads were skipped: ${staged.skipped.join(', ')}`);
+      }
+      sendStatementProcessorRequest(staged.resolved, { staged: true, stagingDir: staged.stagingDir });
+    } catch (error: any) {
+      const detail = error?.message ?? 'Failed to prepare selected files.';
+      appendAssistantText(detail);
     } finally {
+      resetSelection();
       setIsImporting(false);
     }
   };
 
   const handleRequestImport = async () => {
+    if (!isConnected) {
+      appendAssistantText('Connect to the Fin Agent server before importing statements.');
+      return;
+    }
     if (isImporting || isSelecting) return;
     if (canPickFiles && canPickDirectories) {
       setShowPickerMenu((prev) => !prev);
@@ -325,7 +300,6 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
             <div className="relative flex md:items-start" ref={pickerAnchorRef}>
               <ImportStatementsButton
                 onRequestImport={handleRequestImport}
-                disabled={!isConnected}
                 isLoading={isImporting || isSelecting}
               />
               {showPickerMenu && (
