@@ -56,7 +56,7 @@ fin-agent/
 
 ## Quickstart
 
-### 1. Install the CLI or Web Client
+### 1. Install the CLI
 
 Choose one of the following installation methods:
 
@@ -132,22 +132,6 @@ source .venv/bin/activate
 uv pip install -e '.[dev,all]'
 ```
 
-#### Option D: Web Client
-
-The repository includes a lightweight web agent UI in `web_client/` built on the Claude Agent SDK. The web UI provides an equivalent interface to the CLI workflow with the same skills.
-
-##### Running the Web UI
-
-```bash
-cd web_client
-bun install
-bun run dev
-```
-
-Open `http://localhost:3000` to interact with the UI. The dev server proxies API calls to the Bun backend.
-
-See `web_client/README.md` for more details on the web client architecture and code layout.
-
 ### 2. Verify Installation
 
 Confirm the CLI tools are available:
@@ -179,6 +163,22 @@ The database is **automatically created** on first use.
 To use the skills workflow:
 - Work from this repository and run Claude Code here, or
 - Copy `.claude/skills/<name>` directories into another project's `.claude/skills/` (or `~/.claude/skills/`) to reuse the workflows.
+
+### 5. Run Web Client (optional)
+
+The repository includes a lightweight web agent UI in `web_client/` built on the Claude Agent SDK. The web UI provides an equivalent interface to the CLI workflow with the same skills.
+
+#### Running the Web UI
+
+```bash
+cd web_client
+bun install
+bun run dev
+```
+
+Open `http://localhost:3000` to interact with the UI. The dev server proxies API calls to the Bun backend.
+
+See `web_client/README.md` for more details on the web client architecture and code layout.
 
 ## Complete Workflow Example
 
