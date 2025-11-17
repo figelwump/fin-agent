@@ -1,3 +1,20 @@
+/**
+   * @deprecated This file contains legacy MCP tool wrappers that are no longer used.
+   *
+   * As of the Skills migration (Nov 2024), the web client uses Claude Agent SDK Skills
+   * instead of MCP-wrapped CLI tools. Skills are loaded from `.claude/skills/` and
+   * provide step-by-step workflows for:
+   * - statement-processor
+   * - transaction-categorizer
+   * - spending-analyzer
+   * - ledger-query
+   *
+   * This file is kept for reference and potential rollback only.
+   * To rollback: restore `@anthropic-ai/claude-code` in package.json, re-import
+   * customMCPServer in cc-client.ts, and add `mcpServers: { finance: customMCPServer }`
+   * to the SDK options.
+   */
+  
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-code";
 import { z } from "zod";
 import * as path from "path";

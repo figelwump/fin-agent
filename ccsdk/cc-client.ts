@@ -31,7 +31,6 @@ export interface CCQueryOptions {
   includePartialMessages?: boolean;
   allowedTools?: string[];
   appendSystemPrompt?: string;
-  mcpServers?: any;
   hooks?: any;
   env?: NodeJS.ProcessEnv;
   settingSources?: string[];

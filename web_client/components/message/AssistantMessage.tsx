@@ -293,6 +293,21 @@ function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
           </div>
         );
         
+      case 'Skill':
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center">
+              <span className="text-xs font-semibold text-indigo-700 mr-2">Skill:</span>
+              <span className="text-sm font-mono bg-indigo-50 text-indigo-900 px-2 py-1 rounded">
+                {input.skill}
+              </span>
+            </div>
+            <div className="text-xs text-gray-600 italic mt-1">
+              Following skill-specific workflow...
+            </div>
+          </div>
+        );
+
       default:
         // Fallback to raw JSON for unknown tools
         return (
