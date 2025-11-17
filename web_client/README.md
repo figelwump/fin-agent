@@ -1,17 +1,12 @@
 # Web Agent UI
 
-The `client/` directory hosts a lightweight React front end for the local web agent. Key views include the chat interface, statement import helpers, and suggested prompts for the fin-cli skills.
+The `web_client/` directory hosts a lightweight React front end for the local web agent. The UI is **skills-only** and powered by the [Claude Agent SDK](https://docs.claude.com/en/docs/agents-and-tools/overview), using skills directly from `.claude/skills/` and `~/.claude/skills/`. Key views include the chat interface, statement import helpers, and suggested prompts for the fin-cli skills.
 
 ## Features
-- Launch the assistant UI against the Bun server (`bun run server/server.ts`).
-- Import statements via the local file picker; the workflow still routes through the `statement-processor` skill.
+- Launch the assistant UI with `bun run dev`.
+- The agent uses Claude Skills directly (statement-processor, transaction-categorizer, spending-analyzer, ledger-query).
+- Import statements via the local file picker; the workflow routes through the `statement-processor` skill.
 - Review recent messages, suggested prompts, and in-progress operations (imports, analysis requests, etc.).
-
-## Plaid Integration
-The open-source build omits the Plaid Link UI. The underlying Plaid server routes remain for future opt-in use, but the front end no longer renders a “Connect Bank” button. If you need Plaid ingestion:
-1. Re-enable the components under `client/components/dashboard/` from history (see `ConnectedPlaidAccounts` and `PlaidLinkButton`).
-2. Configure credentials via environment variables (`PLAID_CLIENT_ID`, `PLAID_SECRET`, etc.) and restart the Bun server.
-3. Make sure the user-facing copy explains that Plaid imports are optional and require explicit consent.
 
 ## Local Development
 ```bash
@@ -20,9 +15,34 @@ bun run dev
 ```
 Open `http://localhost:3000` to interact with the UI. The dev server proxies API calls to the Bun backend.
 
+## Code Layout
+
+```
+web_client/
+├── client/                  # React frontend
+│   ├── src/
+│   │   ├── components/     # React components (chat interface, messages, tool displays)
+│   │   ├── hooks/          # React hooks for WebSocket and state management
+│   │   ├── lib/            # Utilities and helpers
+│   │   └── App.tsx         # Main app component
+│   └── public/             # Static assets
+├── server/                  # Bun backend
+│   ├── server.ts           # Main server entry point (WebSocket + HTTP routes)
+│   └── routes/             # API route handlers
+├── ccsdk/                   # Claude Agent SDK integration
+│   ├── cc-client.ts        # SDK initialization and configuration
+│   ├── fin-agent-prompt.ts # System prompt for financial domain
+│   └── session.ts          # WebSocket session management and streaming
+└── package.json            # Dependencies (@anthropic-ai/claude-agent-sdk, etc.)
+```
+
+**Key components:**
+- **ccsdk/cc-client.ts**: Configures Claude Agent SDK with skills loading (`settingSources: ["project", "user"]`), sets working directory to repo root, and manages tool permissions.
+- **ccsdk/session.ts**: Handles WebSocket protocol for streaming assistant messages, tool use events, and skill activations to the frontend.
+- **client/src/components**: React UI components for rendering chat messages, tool invocations (including `Skill` tool badges), and statement import workflows.
+- **server/server.ts**: Bun server that manages WebSocket connections and proxies requests to the Claude Agent SDK.
+
 ## Testing
 ```bash
 bun test
 ```
-
-> Tip: keep the UI aligned with the skills-first workflow documented in the repository root README. Avoid reintroducing Plaid UI affordances unless the user explicitly opts in.

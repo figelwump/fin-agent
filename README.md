@@ -6,6 +6,8 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 
 - [Prerequisites](#prerequisites)
 - [Skills Summary](#skills-summary)
+- [Web Agent UI](#web-agent-ui)
+- [Codebase Structure](#codebase-structure)
 - [Quickstart](#quickstart)
 - [Complete Workflow Example](#complete-workflow-example)
 - [Usage Examples](#usage-examples)
@@ -34,9 +36,28 @@ Some notes on Claude Skills I put together while working on this project: https:
 
 Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts, and references. Skills will be loaded by Claude Code. Multiple skills can be chained together (for example, importing a statement and categorizing uncategorized transactions). More details on how skills work: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview
 
+## Codebase Structure
+
+```
+fin-agent/
+├── .claude/skills/          # Claude Agent Skills (statement-processor, transaction-categorizer, etc.)
+├── fin_cli/                 # Python CLI package (fin-scrub, fin-query, fin-edit, fin-analyze)
+│   ├── fin_scrub/          # PII redaction for statements
+│   ├── fin_query/          # Read-only ledger queries
+│   ├── fin_edit/           # Write operations (imports, categorization)
+│   └── fin_analyze/        # Analytical reports and summaries
+├── web_client/              # Web UI for Claude Agent SDK
+│   ├── client/             # React frontend
+│   ├── server/             # Bun backend server
+│   └── ccsdk/              # Claude Agent SDK integration
+├── tests/                   # Test suite for fin_cli
+├── plans/                   # Implementation plans and documentation
+└── pyproject.toml          # Python package configuration
+```
+
 ## Quickstart
 
-### 1. Install the CLI
+### 1. Install the CLI or Web Client
 
 Choose one of the following installation methods:
 
@@ -111,6 +132,22 @@ source .venv/bin/activate
 # Install editable with dev extras using uv's pip shim
 uv pip install -e '.[dev,all]'
 ```
+
+#### Option D: Web Client
+
+The repository includes a lightweight web agent UI in `web_client/` built on the Claude Agent SDK. The web UI provides an equivalent interface to the CLI workflow with the same skills.
+
+### Running the Web UI
+
+```bash
+cd web_client
+bun install
+bun run dev
+```
+
+Open `http://localhost:3000` to interact with the UI. The dev server proxies API calls to the Bun backend.
+
+See `web_client/README.md` for more details on the web client architecture and code layout.
 
 ### 2. Verify Installation
 
@@ -455,10 +492,6 @@ The original extraction pipeline remains available but is no longer part of the 
 - `fin-export` – Markdown/JSON report generator built on the legacy analyzer stack.
 
 Legacy commands remain in the source tree (invoke via `python -m fin_cli.fin_extract`, etc.) but no longer install as standalone executables; future development focuses on the skills-first workflow above.
-
-## Web Agent & ccsdk
-
-The repository still includes a lightweight web agent in `ccsdk/` and associated MCP tools. They’re useful for demonstrations of the Claude Agent SDK and a simple local UI, but the recommended flow remains the CLI + skills. The open-source web UI no longer surfaces Plaid Link; backend Plaid routes remain for teams who want to wire their own consented import experience.
 
 ## License
 

@@ -67,10 +67,12 @@ Goal: Migrate the local web client to use Claude Agent SDK Skills directly (skil
 - [ ] Repo-root execution check
   - [ ] Confirm `pwd` within Bash tool equals repo root; ensure `$SKILL_ROOT` references resolve
 
-## Phase 6 — Docs & handoff
-- [ ] Update `web_client/README.md` to say the UI is skills-only
-- [ ] Update root `README.md` to note web UI now uses Claude Skills directly; leave Plaid backend routes as-is
-- [ ] Add deprecation note for MCP wrappers with rollback instructions
+## Phase 6 — Docs & handoff ✅
+- [x] Update `web_client/README.md` to say the UI is skills-only
+- [x] Update root `README.md` to note web UI now uses Claude Skills directly; leave Plaid backend routes as-is
+- [ ] Add deprecation note for MCP wrappers with rollback instructions (skipped per user request)
+
+**Notes:** Updated web_client/README.md to state it's skills-only and powered by Claude Agent SDK. Updated root README.md Web Agent section to clarify it uses Skills directly, no MCP wrappers.
 
 ## Rollback (if needed)
 - Keep a branch with MCP-enabled `allowedTools` and `mcpServers` wiring. Revert by reinstalling `@anthropic-ai/claude-code`, restoring `allowedTools` entries, and re-enabling `customMCPServer`.
