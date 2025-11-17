@@ -1,4 +1,5 @@
 SELECT
+    t.id,
     t.date,
     t.merchant,
     t.original_description,

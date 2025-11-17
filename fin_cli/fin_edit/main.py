@@ -60,6 +60,37 @@ def _effective_dry_run(cli_ctx: CLIContext, apply: bool) -> bool:
     return cli_ctx.dry_run or (not apply)
 
 
+def _sanitize_where_clause(where_clause: str) -> str:
+    clause = where_clause.strip()
+    if not clause:
+        raise click.ClickException("--where clause cannot be empty.")
+    if ";" in clause:
+        raise click.ClickException("Semicolons are not allowed in --where clauses.")
+    return clause
+
+
+def _fetch_transactions_for_where(
+    connection: sqlite3.Connection, where_clause: str
+) -> list[sqlite3.Row]:
+    query = f"""
+        SELECT
+            t.id,
+            t.date,
+            t.merchant,
+            t.amount,
+            c.category,
+            c.subcategory,
+            a.name AS account_name,
+            a.institution AS institution
+        FROM transactions t
+        LEFT JOIN categories c ON c.id = t.category_id
+        LEFT JOIN accounts a ON a.id = t.account_id
+        WHERE {where_clause}
+        ORDER BY t.date ASC, t.id ASC
+    """
+    return connection.execute(query).fetchall()
+
+
 @click.group(help="Edit utilities for updating categories and merchant patterns.")
 @click.option("--apply", is_flag=True, help="Perform writes (default is preview only).")
 @common_cli_options()  # migrations run automatically for write-capable tool
@@ -103,11 +134,17 @@ def main(apply: bool, cli_ctx: CLIContext) -> None:
     is_flag=True,
     help="Create the category/subcategory if it does not exist.",
 )
+@click.option(
+    "--where",
+    type=str,
+    help="SQL WHERE clause to target multiple transactions (mutually exclusive with --transaction-id/--fingerprint).",
+)
 @pass_cli_context
 def set_category(
     cli_ctx: CLIContext,
     transaction_id: int | None,
     fingerprint: str | None,
+    where: str | None,
     category: str,
     subcategory: str,
     confidence: float,
@@ -116,8 +153,13 @@ def set_category(
 ) -> None:
     """Assign a category to a transaction by id or fingerprint."""
 
-    if bool(transaction_id is not None) == bool(fingerprint):
-        raise click.ClickException("Provide exactly one of --transaction-id or --fingerprint.")
+    selectors = [transaction_id is not None, fingerprint is not None, bool(where)]
+    if sum(selectors) != 1:
+        raise click.ClickException(
+            "Provide exactly one of --transaction-id, --fingerprint, or --where."
+        )
+
+    where_clause = _sanitize_where_clause(where) if where else None
 
     apply_flag = bool(cli_ctx.state.get("apply_flag"))
     preview = _effective_dry_run(cli_ctx, apply_flag)
@@ -145,11 +187,21 @@ def set_category(
                     f"Created category '{category} > {subcategory}' (id={cat_id})."
                 )
 
-        target_desc = (
-            f"transaction id={transaction_id}"
-            if transaction_id is not None
-            else f"fingerprint={fingerprint}"
-        )
+        if where_clause:
+            target_desc = f"transactions matching WHERE ({where_clause})"
+        elif transaction_id is not None:
+            target_desc = f"transaction id={transaction_id}"
+        else:
+            target_desc = f"fingerprint={fingerprint}"
+
+        matched_rows: list[sqlite3.Row] | None = None
+        if where_clause is not None:
+            matched_rows = _fetch_transactions_for_where(connection, where_clause)
+            if not matched_rows:
+                raise click.ClickException("No transactions matched the provided --where clause.")
+            cli_ctx.logger.info(f"Matched {len(matched_rows)} transaction(s) via --where filter:")
+            for row in matched_rows:
+                cli_ctx.logger.info(_format_transaction_summary(row))
 
         if preview:
             cli_ctx.logger.info(
@@ -158,7 +210,23 @@ def set_category(
             return
 
         # Apply update
-        if transaction_id is not None:
+        if where_clause is not None:
+            cursor = connection.execute(
+                f"""
+                UPDATE transactions
+                SET category_id = ?,
+                    categorization_confidence = ?,
+                    categorization_method = ?
+                WHERE {where_clause}
+                """,
+                (cat_id, confidence, method),
+            )
+            if cursor.rowcount == 0:
+                raise click.ClickException("No rows were updated. Check your --where clause.")
+            cli_ctx.logger.success(
+                f"Updated {cursor.rowcount} transaction(s) -> '{category} > {subcategory}' (confidence={confidence}, method='{method}')."
+            )
+        elif transaction_id is not None:
             cursor = connection.execute(
                 """
                 UPDATE transactions

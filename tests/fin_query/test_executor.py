@@ -262,7 +262,8 @@ def test_run_merchant_search_query(tmp_path) -> None:
 
     assert result.description == "Transactions matching merchants via SQL LIKE patterns."
     assert result.limit_applied is True
-    assert any(row[1] == "Amazon" for row in result.rows)
+    assert result.columns[0] == "id"
+    assert any(row[result.columns.index("merchant")] == "Amazon" for row in result.rows)
 
 
 def test_run_category_transactions_query(tmp_path) -> None:

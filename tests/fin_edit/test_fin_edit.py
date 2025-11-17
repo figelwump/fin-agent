@@ -257,6 +257,110 @@ def test_set_category_create_if_missing(tmp_path: Path) -> None:
         assert txn_row["categorization_method"] == "claude:interactive"
 
 
+def test_set_category_where_bulk_update(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+    config = load_config(env=env)
+
+    with connect(config) as connection:
+        cat_id = models.get_or_create_category(
+            connection,
+            category="Shopping",
+            subcategory="Online Retail",
+            auto_generated=False,
+            user_approved=True,
+        )
+        for merchant in ["AMAZON MKTPLACE PMTS", "AMAZON PRIME"]:
+            txn = models.Transaction(
+                date=date(2025, 9, 10),
+                merchant=merchant,
+                amount=-25.00,
+                account_id=1,
+                original_description=merchant,
+            )
+            assert models.insert_transaction(connection, txn) is True
+
+    runner = CliRunner()
+    where_clause = "merchant LIKE 'AMAZON%'"
+
+    # Preview
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "set-category",
+            "--where",
+            where_clause,
+            "--category",
+            "Shopping",
+            "--subcategory",
+            "Online Retail",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    # Apply
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "set-category",
+            "--where",
+            where_clause,
+            "--category",
+            "Shopping",
+            "--subcategory",
+            "Online Retail",
+            "--confidence",
+            "0.85",
+            "--method",
+            "agent:bulk",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(config, read_only=True, apply_migrations=False) as connection:
+        rows = connection.execute(
+            "SELECT category_id, categorization_method FROM transactions WHERE merchant LIKE 'AMAZON%'"
+        ).fetchall()
+        assert len(rows) == 2
+        assert all(row["category_id"] == cat_id for row in rows)
+        assert all(row["categorization_method"] == "agent:bulk" for row in rows)
+
+
+def test_set_category_where_conflicts_with_other_selectors(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    _prepare_db(db_path)
+    env = {paths.DATABASE_PATH_ENV: str(db_path)}
+
+    runner = CliRunner()
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "set-category",
+            "--transaction-id",
+            "1",
+            "--where",
+            "merchant LIKE 'AMAZON%'",
+            "--category",
+            "Shopping",
+            "--subcategory",
+            "Online Retail",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    assert "Provide exactly one" in result.output
+
+
 def test_add_merchant_pattern_stores_raw_metadata_when_invalid_json(tmp_path: Path) -> None:
     db_path = tmp_path / "db.sqlite"
     _prepare_db(db_path)

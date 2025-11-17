@@ -6,7 +6,6 @@ Finance agent powered by the `fin-cli` Python toolkit and a catalog of Claude ag
 
 - [Prerequisites](#prerequisites)
 - [Skills Summary](#skills-summary)
-- [Web Agent UI](#web-agent-ui)
 - [Codebase Structure](#codebase-structure)
 - [Quickstart](#quickstart)
 - [Complete Workflow Example](#complete-workflow-example)
@@ -137,7 +136,7 @@ uv pip install -e '.[dev,all]'
 
 The repository includes a lightweight web agent UI in `web_client/` built on the Claude Agent SDK. The web UI provides an equivalent interface to the CLI workflow with the same skills.
 
-### Running the Web UI
+##### Running the Web UI
 
 ```bash
 cd web_client
@@ -282,7 +281,7 @@ Redacts PII from statements before extraction. Key options:
 Write operations for the ledger
 - Dry run by default; use --apply to apply changes.
 - `import-transactions <csv>`: preview/import enriched CSVs (add `--apply`, `--default-confidence`, `--learn-patterns`).
-- `set-category` / `clear-category`: adjust individual transactions by id or fingerprint.
+- `set-category` / `clear-category`: adjust individual transactions by id or fingerprint. `set-category` also accepts `--where "merchant LIKE '%Amazon%'"` to bulk recategorize after you've inspected the matching rows (dry-run preview first, then rerun with `--apply`).
 - `add-merchant-pattern` / `delete-merchant-pattern`: manage learned rules.
 - `delete-transactions`: bulk delete (with preview) using fingerprints or IDs; confirm with `--apply` to perform the removal.
 - Global flags from `common_cli_options` apply (`--db`, `--verbose`, `--dry-run`).
@@ -291,10 +290,11 @@ Write operations for the ledger
 
 Read-only exploration with saved queries and safe SQL.
 - `fin-query saved --list` to enumerate templates from `fin_cli/fin_query/queries/index.yaml`.
-- `fin-query saved merchant_search --param pattern="%Costco%" --limit 20 --format csv`.
+- `fin-query saved merchant_search --param pattern="%Costco%" --limit 20 --format csv` (the first column is always `id`, making it easy to feed the results into `fin-edit set-category`).
 - `fin-query schema --table transactions --format table` to inspect structure.
 - `fin-query sql "SELECT ..."` supports a single SELECT/WITH statement guarded by limits.
 - Most commands emit tables by default; add `--format csv` for agent-friendly output or `--format json` where supported (`saved` queries and `schema`).
+- Typical prompts: “What is Amazon categorized as?” → should run `fin-query saved merchant_search --param pattern=%Amazon% --limit 50 --format csv` so you can review the existing categories before making changes.
 
 ### `fin-analyze`
 

@@ -1,6 +1,6 @@
 ---
 name: transaction-categorizer
-description: Categorize or recategorize transactions (bulk or single) using LLM-first workflow, then interactive review for leftovers.
+description: Categorize new transactions or recategorize existing merchant patterns (bulk or single) using LLM-first workflow, then interactive review for leftovers.
 allowed-tools: Bash, Read, Grep, Glob
 ---
 
@@ -116,6 +116,48 @@ tail -n +2 $WORKDIR/uncategorized-remaining.csv | wc -l
 ```
 
 If any remain after LLM categorization, proceed to Interactive Manual Review below.
+
+## Scenario: Recategorize an existing merchant/pattern
+
+When the user asks to recategorize all transactions for a known merchant (e.g., "make every Amazon charge Shopping > Online Retail"), follow this explicit flow so we keep things auditable and avoid raw SQL:
+
+1. **Inspect the target rows**
+   ```bash
+   fin-query saved merchant_search --param pattern=%AMAZON% --limit 200 --format csv
+   ```
+   The first column is always `id`, so you can confirm exactly which transactions match.
+
+2. **Preview the bulk change** using the `--where` option:
+   ```bash
+   fin-edit set-category \
+     --where "merchant LIKE 'AMAZON%'" \
+     --category "Shopping" \
+     --subcategory "Online Retail" \
+     --confidence 0.95 \
+     --method agent:bulk
+   ```
+   This prints every matching row plus a dry-run summary.
+
+3. **Apply once approved** by rerunning with `--apply`:
+   ```bash
+   fin-edit --apply set-category \
+     --where "merchant LIKE 'AMAZON%'" \
+     --category "Shopping" \
+     --subcategory "Online Retail" \
+     --confidence 0.95 \
+     --method agent:bulk
+   ```
+
+4. **Refresh the merchant pattern** so future imports auto-tag correctly (the command upserts, so re-running it updates the existing rule):
+   ```bash
+   fin-edit --apply add-merchant-pattern \
+     --pattern 'AMAZON%' \
+     --category "Shopping" \
+     --subcategory "Online Retail" \
+     --confidence 0.95
+   ```
+
+This scenario is also appropriate when the user wants to fix or backfill categories for a merchant they previously categorized incorrectly.
 
 ## Interactive Manual Review (only for leftovers after LLM categorization)
 

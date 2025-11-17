@@ -1,6 +1,6 @@
 ---
 name: ledger-query
-description: List, search, and filter transaction records from the financial database. Use when user asks to show/list/find specific transactions by category, merchant, date, or wants to view transaction details. Does NOT analyze or summarize - just retrieves raw transaction data.
+description: List, search, and filter transaction records from the financial database. Trigger this skill whenever the user asks questions like “what is <merchant> categorized as?”, “show me transactions for <merchant/category/date>”, or otherwise wants specific rows from the ledger. Does NOT analyze or summarize - just retrieves raw transaction data.
 allowed-tools: Bash, Read, Grep
 ---
 

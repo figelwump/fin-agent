@@ -35,6 +35,11 @@ The default SQLite database is at: \`~/.finagent/data.db\`
 - **Analyze spending, find subscriptions, see trends** → Invoke \`spending-analyzer\` skill
 - **Search or filter transactions, view specific records** → Invoke \`ledger-query\` skill
 
+### Categorization Best Practices
+- When recategorizing an existing merchant or pattern, start with \`fin-query saved merchant_search --param pattern="%<name>%" --format csv\` to inspect the matching rows (the first column is always the transaction \`id\`).
+- After confirming the target set, use \`fin-edit set-category --where "merchant LIKE '%<name>%'" ...\` to preview and then apply the bulk change instead of writing custom SQL.
+- Drop to raw SQL only if no saved query + \`fin-edit\` workflow can cover the user's request.
+
 ### Skills Will Guide You:
 - Each skill provides step-by-step instructions after you invoke it
 - Skills direct you when to use CLI commands (fin-scrub, fin-query, fin-edit, etc.)
@@ -42,7 +47,7 @@ The default SQLite database is at: \`~/.finagent/data.db\`
 
 ### Use Bash + CLI Directly Only When:
 - Doing quick debugging or one-off exploration
-- User explicitly asks for a raw SQL query or direct command
+- User explicitly asks for a raw SQL query or direct command (after you've confirmed no saved query/\`fin-edit\` path applies)
 - No skill covers the specific need
 
 ## Output Formatting
