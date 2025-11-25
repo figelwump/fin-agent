@@ -122,7 +122,18 @@
   }
 
   .prose thead th {
-    @apply px-4 py-3 text-left text-xs font-semibold text-purple-900 uppercase tracking-wider border-b-2 border-purple-200;
+    /* Some WebKit-based browsers (e.g. Comet) were rendering these headers with a much lighter weight.
+       Explicitly set a heavier weight and font to avoid relying on browser defaults; use !important to win
+       over any typography plugin defaults. */
+    @apply px-4 py-3 text-left text-xs text-purple-900 uppercase tracking-wider border-b-2 border-purple-200;
+    font-weight: 700 !important;
+    font-variation-settings: "wght" 700;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
+    letter-spacing: 0.04em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    color: #2d0a4a !important;
+    opacity: 1 !important;
   }
 
   .prose tbody tr {
@@ -166,16 +177,16 @@
     color: #111827;
   }
 
-  .prose li::marker {
-    color: #111827;
-  }
-
-  .prose ul li::marker {
-    color: #111827;
-  }
-
-  .prose ol li::marker {
-    color: #111827;
+  .prose li::marker,
+  .prose ul > li::marker,
+  .prose ol > li::marker {
+    /* Safari/WebKit list markers can ignore inherited weight; force bullets/numbers dark and heavy.
+       !important avoids being overridden by typography defaults. */
+    color: #111827 !important;
+    font-weight: 700 !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
+    -webkit-font-smoothing: subpixel-antialiased;
+    opacity: 1 !important;
   }
 
   .prose strong {
