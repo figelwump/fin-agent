@@ -1,6 +1,6 @@
-- id: top-categories-30d
+- id: top-categories-6m
   title: Top Spending Categories
-  prompt: Show my top spending categories for the last 30 days.
+  prompt: Show my top spending categories for the last 6 months.
 
 - id: subscriptions
   title: Subscriptions

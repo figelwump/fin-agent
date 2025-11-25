@@ -23,7 +23,7 @@ export function SuggestedQueries({
     let isMounted = true;
     (async () => {
       try {
-        const res = await fetch('/client/config/suggestions.yaml');
+        const res = await fetch('/web_client/config/suggestions.yaml');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
         const doc = YAML.parse(text);
