@@ -319,25 +319,25 @@ function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
   };
   
   return (
-    <div className="mt-2 border border-gray-200 bg-gray-50">
-      <div className="p-2 border-b border-gray-200 bg-white">
+    <div className="mt-3 border border-purple-200 bg-purple-50/50 rounded-xl overflow-hidden shadow-sm">
+      <div className="p-3 border-b border-purple-200 bg-white/60">
         <div className="flex justify-between items-center">
-          <div className="flex items-center">
-            <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              TOOL: {toolUse.name}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-purple-700 uppercase tracking-wider">
+              Tool: {toolUse.name}
             </span>
           </div>
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="text-xs text-gray-600 hover:text-gray-900 font-mono"
+            className="text-xs text-purple-600 hover:text-purple-800 font-medium transition-colors"
           >
             {isExpanded ? '[-]' : '[+]'}
           </button>
         </div>
       </div>
-      
+
       {isExpanded && (
-        <div className="p-2">
+        <div className="p-3">
           {formatToolDisplay()}
         </div>
       )}
@@ -366,13 +366,27 @@ function TextComponent({ text }: { text: TextBlock }) {
 
     // Regular text part - render with markdown
     result.push(
-    <div key={0} className="prose prose-sm max-w-none">
+    <div key={0} className="prose prose-sm max-w-none leading-relaxed prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-li:text-gray-900 prose-ul:text-gray-900 prose-ol:text-gray-900" style={{ color: '#111827' }}>
         <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+            // Customize heading rendering with explicit dark colors
+            h1: ({ node, ...props }) => (
+            <h1 {...props} className="text-xl font-bold mb-3 mt-4" style={{ color: '#111827' }} />
+            ),
+            h2: ({ node, ...props }) => (
+            <h2 {...props} className="text-lg font-bold mb-2 mt-3" style={{ color: '#111827' }} />
+            ),
+            h3: ({ node, ...props }) => (
+            <h3 {...props} className="text-base font-semibold mb-2 mt-2" style={{ color: '#111827' }} />
+            ),
+            // Customize strong/bold text
+            strong: ({ node, ...props }) => (
+            <strong {...props} className="font-semibold" style={{ color: '#111827' }} />
+            ),
             // Customize link rendering
             a: ({ node, ...props }) => (
-            <a {...props} className="text-gray-900 hover:text-gray-600 underline" />
+            <a {...props} className="text-blue-600 hover:text-blue-800 underline font-medium" style={{ color: '#2563eb' }} />
             ),
             // Hide the original markdown table when we rendered a fallback viz for it
             table: ({ node, ...props }) => {
@@ -412,16 +426,19 @@ function TextComponent({ text }: { text: TextBlock }) {
                 </code>
               );
             },
-            // Customize list rendering
+            // Customize list rendering with marker colors
             ul: ({ node, ...props }) => (
-            <ul className="list-disc pl-5 space-y-1" {...props} />
+            <ul className="list-disc pl-5 space-y-1 marker:text-gray-900" style={{ color: '#111827' }} {...props} />
             ),
             ol: ({ node, ...props }) => (
-            <ol className="list-decimal pl-5 space-y-1" {...props} />
+            <ol className="list-decimal pl-5 space-y-1 marker:text-gray-900" style={{ color: '#111827' }} {...props} />
+            ),
+            li: ({ node, ...props }) => (
+            <li className="marker:text-gray-900" style={{ color: '#111827' }} {...props} />
             ),
             // Customize paragraph spacing
             p: ({ node, ...props }) => (
-            <p className="mb-2" {...props} />
+            <p className="mb-2" style={{ color: '#111827' }} {...props} />
             ),
         }}
         >
@@ -434,7 +451,7 @@ function TextComponent({ text }: { text: TextBlock }) {
   };
 
   return (
-    <div className="text-sm text-gray-900">
+    <div className="text-sm text-gray-900" style={{ color: '#111827' }}>
       {processContent(text.text)}
     </div>
   );
@@ -526,22 +543,22 @@ export function AssistantMessage({ message, onSendMessage }: AssistantMessagePro
   const [showMetadata, setShowMetadata] = useState(false);
 
   return (
-    <div className="mb-3 p-3 bg-gray-50 border border-gray-200">
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center">
-          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">ASSISTANT</span>
+    <div className="mb-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-lg max-w-4xl animate-scale-in">
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider">Assistant</span>
           {message.metadata?.model && (
-            <span className="ml-2 px-1 py-0.5 text-xs bg-gray-200 text-gray-600 font-mono">
+            <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 font-medium rounded-full">
               {message.metadata.model}
             </span>
           )}
         </div>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-gray-500">
           {formatTimestamp(message.timestamp)}
         </span>
       </div>
-      
-      <div className="space-y-2">
+
+      <div className="space-y-3">
         {message.content.map((block, index) => {
           if (block.type === 'text') {
             return <TextComponent key={index} text={block} />;
@@ -557,25 +574,25 @@ export function AssistantMessage({ message, onSendMessage }: AssistantMessagePro
       </div>
       
       {message.metadata && (
-        <div className="mt-3">
+        <div className="mt-4 pt-3 border-t border-gray-200">
           <button
             onClick={() => setShowMetadata(!showMetadata)}
-            className="text-xs text-gray-600 hover:text-gray-900 flex items-center font-mono"
+            className="text-xs text-purple-600 hover:text-purple-800 flex items-center font-medium transition-colors"
           >
-            {showMetadata ? '[-]' : '[+]'} 
+            {showMetadata ? '[-]' : '[+]'}
             <span className="ml-1">
               metadata
               {message.metadata.usage && (
-                <span className="ml-1 text-gray-400">
+                <span className="ml-1 text-gray-500">
                   ({message.metadata.usage.input_tokens}↓ / {message.metadata.usage.output_tokens}↑)
                 </span>
               )}
             </span>
           </button>
-          
+
           {showMetadata && (
-            <div className="mt-2 p-2 bg-white border border-gray-200 text-xs">
-              <pre className="overflow-x-auto whitespace-pre-wrap font-mono">
+            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs">
+              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-gray-900">
                 {JSON.stringify(message.metadata, null, 2)}
               </pre>
             </div>

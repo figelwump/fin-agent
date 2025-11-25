@@ -33,3 +33,6 @@ node_modules/
 # Agent logs
 logs/
 .venv-py312/
+
+# Playwright UI snapshots (generated locally by MCP tooling)
+.playwright-mcp/

@@ -23,9 +23,9 @@ export function ImportStatementsButton({
       type="button"
       onClick={onRequestImport}
       disabled={disabled || isLoading}
-      className="inline-flex items-center gap-2 rounded-sm border border-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-blue-600 transition-colors hover:bg-blue-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex items-center gap-2 rounded-full border-2 border-white/80 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white hover:text-purple-600 hover:shadow-lg hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40"
     >
-      <Upload size={14} />
+      <Upload size={16} />
       {isLoading ? 'Preparing…' : 'Import Statements'}
     </button>
   );

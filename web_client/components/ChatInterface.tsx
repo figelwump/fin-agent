@@ -287,33 +287,35 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
   ), [messages]);
   
   return (
-    <div className="flex flex-col h-screen bg-white">
-      <div className="flex-1 overflow-y-auto p-3">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
-            <h1 className="text-lg font-semibold uppercase tracking-wider">Fin Agent</h1>
+    <div className="flex flex-col h-screen relative z-10 overflow-hidden">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 md:px-6">
+        <div className="max-w-5xl mx-auto w-full">
+          <div className="mb-8 pb-6 border-b border-white/20 relative">
+            <div className="absolute -left-2 top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-white/40 to-transparent rounded-full"></div>
+            <h1 className="text-4xl font-bold text-white tracking-tight" style={{ fontFamily: "'Lexend', sans-serif" }}>Fin Agent</h1>
+            <p className="text-white/80 text-base mt-2">Your intelligent financial assistant</p>
           </div>
-          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="md:flex-1">
+          <div className="mb-6 flex flex-col gap-4">
+            <div className="w-full">
               <SuggestedQueries onSend={sendSuggestedPrompt} disabled={!isConnected || isLoading} />
             </div>
-            <div className="relative flex md:items-start" ref={pickerAnchorRef}>
+            <div className="relative flex justify-end" ref={pickerAnchorRef}>
               <ImportStatementsButton
                 onRequestImport={handleRequestImport}
                 isLoading={isImporting || isSelecting}
               />
               {showPickerMenu && (
-                <div className="absolute right-0 top-full z-10 mt-2 w-48 border border-gray-200 bg-white shadow-md">
+                <div className="absolute right-0 top-full z-10 mt-2 w-52 border border-white/30 bg-white/95 backdrop-blur-lg shadow-xl rounded-xl overflow-hidden animate-scale-in">
                   <button
                     type="button"
-                    className="block w-full px-3 py-2 text-left text-xs uppercase tracking-wider hover:bg-gray-100"
+                    className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
                     onClick={() => runSelection('files')}
                   >
                     Select Files…
                   </button>
                   <button
                     type="button"
-                    className="block w-full px-3 py-2 text-left text-xs uppercase tracking-wider hover:bg-gray-100"
+                    className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors border-t border-gray-200"
                     onClick={() => runSelection('directory')}
                   >
                     Select Folder…
@@ -323,14 +325,14 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
             </div>
           </div>
 
-          
+
           {messages.length === 0 ? (
-            <div className="text-center text-gray-400 mt-12">
-              <p className="text-sm uppercase tracking-wider">Start a conversation</p>
-              <p className="mt-2 text-xs">"Show me top spending categories" • "Find all my Amazon purchases" • "What are my subscriptions?"</p>
+            <div className="text-center text-white/60 mt-20">
+              <p className="text-lg font-medium mb-3">Start a conversation</p>
+              <p className="text-sm text-white/50">Try asking: "Show me top spending categories" • "Find all my Amazon purchases"</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {messages.map((msg) => (
                 <MessageRenderer key={msg.id} message={msg} onSendMessage={sendSuggestedPrompt} />
               ))}
@@ -350,24 +352,24 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
           <div ref={messagesEndRef} />
         </div>
       </div>
-      
-      <div className="border-t border-gray-200 bg-white p-3">
+
+      <div className="border-t border-white/10 backdrop-blur-xl bg-white/10 px-4 py-4 md:px-6 md:py-6 relative z-10">
         <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
-          <div className="flex gap-2">
+          <div className="flex gap-2 md:gap-3">
             <input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={isConnected ? "Ask about your finances..." : "Waiting for connection..."}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 focus:border-gray-900 focus:outline-none"
+              className="flex-1 min-w-0 px-3 py-2.5 md:px-4 md:py-3 text-sm bg-white/90 backdrop-blur-sm border-2 border-white/30 rounded-xl focus:border-white focus:outline-none focus:ring-4 focus:ring-white/30 placeholder:text-gray-400 transition-all shadow-md focus:shadow-xl"
               disabled={isLoading || !isConnected}
             />
             <button
               type="submit"
               disabled={isLoading || !inputValue.trim() || !isConnected}
-              className="px-4 py-2 text-xs font-semibold uppercase tracking-wider bg-gray-900 text-white hover:bg-white hover:text-gray-900 border border-gray-900 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              className="px-4 py-2.5 md:px-6 md:py-3 text-sm font-semibold bg-white text-purple-600 hover:bg-white hover:scale-105 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-lg hover:shadow-2xl hover:shadow-purple-500/20 whitespace-nowrap flex-shrink-0"
             >
-              <Send size={14} />
+              <Send size={16} />
               Send
             </button>
           </div>
