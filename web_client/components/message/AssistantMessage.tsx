@@ -5,7 +5,7 @@ import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, Impo
 import { VizRenderer, isValidFinviz, parseFinviz } from '../viz/VizRenderer';
 import { ImportSummaryBlockRenderer } from './ImportSummaryBlock';
 import { ImportProgressBlockRenderer } from './ImportProgressBlock';
-// Dashboard pinning removed per product decision; keep visuals only.
+import { Bot, ChevronDown, ChevronRight, Code2, Cpu } from 'lucide-react';
 
 interface AssistantMessageProps {
   message: AssistantMessageType;
@@ -13,331 +13,300 @@ interface AssistantMessageProps {
 }
 
 function formatTimestamp(timestamp: string): string {
-  return new Date(timestamp).toLocaleString();
+  return new Date(timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
-  // Format tool parameters based on tool type
+
   const formatToolDisplay = () => {
     const input = toolUse.input;
-    
+
     switch(toolUse.name) {
       case 'Read':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">File:</span>
-              <span className="text-xs text-gray-900 font-mono">{input.file_path}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">FILE</span>
+              <code className="text-xs text-[var(--accent-primary)] font-mono">{input.file_path}</code>
             </div>
             {input.offset && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Offset:</span>
-                <span className="text-xs text-gray-900 font-mono">{input.offset}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)] font-mono">OFFSET</span>
+                <span className="text-xs text-[var(--text-primary)] font-mono">{input.offset}</span>
               </div>
             )}
             {input.limit && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Limit:</span>
-                <span className="text-xs text-gray-900 font-mono">{input.limit} lines</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)] font-mono">LIMIT</span>
+                <span className="text-xs text-[var(--text-primary)] font-mono">{input.limit} lines</span>
               </div>
             )}
           </div>
         );
-        
+
       case 'Write':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">File:</span>
-              <span className="text-xs text-gray-900 font-mono">{input.file_path}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">FILE</span>
+              <code className="text-xs text-[var(--accent-primary)] font-mono">{input.file_path}</code>
             </div>
             <div>
-              <span className="text-xs text-gray-600 font-semibold">Content:</span>
-              <pre className="text-xs bg-white p-1 mt-1 border border-gray-200 overflow-x-auto font-mono max-h-32 overflow-y-auto">
+              <span className="text-xs text-[var(--text-muted)] font-mono block mb-1">CONTENT</span>
+              <pre className="text-xs bg-[var(--bg-primary)] p-2 border border-[var(--border-subtle)] overflow-x-auto font-mono max-h-32 overflow-y-auto text-[var(--text-primary)]">
                 {input.content.length > 500 ? input.content.substring(0, 500) + '...' : input.content}
               </pre>
             </div>
           </div>
         );
-        
+
       case 'Edit':
       case 'MultiEdit':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">File:</span>
-              <span className="text-xs text-gray-900 font-mono">{input.file_path}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">FILE</span>
+              <code className="text-xs text-[var(--accent-primary)] font-mono">{input.file_path}</code>
             </div>
             {toolUse.name === 'Edit' ? (
               <>
                 {input.replace_all && (
-                  <div className="text-xs text-amber-600">Replace all occurrences</div>
+                  <div className="text-xs text-[var(--accent-warm)] font-mono">REPLACE ALL</div>
                 )}
-                <div className="space-y-1">
-                  <div className="text-xs text-gray-600 font-semibold">Replace:</div>
-                  <pre className="text-xs bg-red-50 p-1 border border-red-200 overflow-x-auto font-mono max-h-24 overflow-y-auto">
-                    {input.old_string}
-                  </pre>
-                  <div className="text-xs text-gray-600 font-semibold">With:</div>
-                  <pre className="text-xs bg-green-50 p-1 border border-green-200 overflow-x-auto font-mono max-h-24 overflow-y-auto">
-                    {input.new_string}
-                  </pre>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-xs text-[var(--accent-danger)] font-mono block mb-1">- REMOVE</span>
+                    <pre className="text-xs bg-[var(--accent-danger)]/5 p-2 border border-[var(--accent-danger)]/20 overflow-x-auto font-mono max-h-24 overflow-y-auto text-[var(--text-primary)]">
+                      {input.old_string}
+                    </pre>
+                  </div>
+                  <div>
+                    <span className="text-xs text-[var(--accent-secondary)] font-mono block mb-1">+ ADD</span>
+                    <pre className="text-xs bg-[var(--accent-secondary)]/5 p-2 border border-[var(--accent-secondary)]/20 overflow-x-auto font-mono max-h-24 overflow-y-auto text-[var(--text-primary)]">
+                      {input.new_string}
+                    </pre>
+                  </div>
                 </div>
               </>
             ) : (
-              <div className="space-y-1">
-                <span className="text-xs text-gray-600 font-semibold">
-                  {input.edits?.length || 0} edits
+              <div className="space-y-2">
+                <span className="text-xs text-[var(--text-muted)] font-mono">
+                  {input.edits?.length || 0} EDITS
                 </span>
                 {input.edits?.slice(0, 3).map((edit: any, i: number) => (
-                  <div key={i} className="pl-2 border-l-2 border-gray-300">
-                    <div className="text-xs text-gray-500">Edit {i + 1}:</div>
+                  <div key={i} className="pl-3 border-l-2 border-[var(--accent-primary)]/30">
+                    <div className="text-xs text-[var(--text-muted)] font-mono">EDIT {i + 1}</div>
                     {edit.replace_all && (
-                      <div className="text-xs text-amber-600">Replace all</div>
+                      <div className="text-xs text-[var(--accent-warm)] font-mono">REPLACE ALL</div>
                     )}
-                    <div className="text-xs text-gray-600">Old: {edit.old_string.substring(0, 50)}{edit.old_string.length > 50 ? '...' : ''}</div>
-                    <div className="text-xs text-gray-600">New: {edit.new_string.substring(0, 50)}{edit.new_string.length > 50 ? '...' : ''}</div>
+                    <div className="text-xs text-[var(--accent-danger)] font-mono">- {edit.old_string.substring(0, 50)}{edit.old_string.length > 50 ? '...' : ''}</div>
+                    <div className="text-xs text-[var(--accent-secondary)] font-mono">+ {edit.new_string.substring(0, 50)}{edit.new_string.length > 50 ? '...' : ''}</div>
                   </div>
                 ))}
                 {input.edits?.length > 3 && (
-                  <div className="text-xs text-gray-500 pl-2">
-                    ... and {input.edits.length - 3} more edits
+                  <div className="text-xs text-[var(--text-muted)] font-mono pl-3">
+                    ... and {input.edits.length - 3} more
                   </div>
                 )}
               </div>
             )}
           </div>
         );
-        
+
       case 'Bash':
         return (
-          <div className="space-y-1">
+          <div className="space-y-2">
             <div>
-              <span className="text-xs text-gray-600 font-semibold">Command:</span>
-              <pre className="text-xs bg-gray-900 text-green-400 p-1 mt-1 border border-gray-700 overflow-x-auto font-mono">
-                {input.command}
+              <span className="text-xs text-[var(--text-muted)] font-mono block mb-1">COMMAND</span>
+              <pre className="text-xs bg-[var(--bg-primary)] text-[var(--accent-secondary)] p-2 border border-[var(--border-subtle)] overflow-x-auto font-mono">
+                $ {input.command}
               </pre>
             </div>
             {input.description && (
-              <div className="text-xs text-gray-600">
-                <span className="font-semibold">Description:</span> {input.description}
+              <div className="text-xs text-[var(--text-secondary)]">
+                {input.description}
               </div>
             )}
             {input.run_in_background && (
-              <div className="text-xs text-amber-600">Running in background</div>
+              <div className="text-xs text-[var(--accent-warm)] font-mono">BACKGROUND</div>
             )}
             {input.timeout && (
-              <div className="text-xs text-gray-600">
-                <span className="font-semibold">Timeout:</span> {input.timeout}ms
+              <div className="text-xs text-[var(--text-muted)] font-mono">
+                TIMEOUT: {input.timeout}ms
               </div>
             )}
           </div>
         );
-        
+
       case 'Grep':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Pattern:</span>
-              <span className="text-xs text-gray-900 font-mono bg-yellow-50 px-1">{input.pattern}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">PATTERN</span>
+              <code className="text-xs text-[var(--accent-warm)] font-mono bg-[var(--accent-warm)]/10 px-1">{input.pattern}</code>
             </div>
             {input.path && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Path:</span>
-                <span className="text-xs text-gray-900 font-mono">{input.path}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)] font-mono">PATH</span>
+                <code className="text-xs text-[var(--text-primary)] font-mono">{input.path}</code>
               </div>
             )}
             {input.glob && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Glob:</span>
-                <span className="text-xs text-gray-900 font-mono">{input.glob}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)] font-mono">GLOB</span>
+                <code className="text-xs text-[var(--text-primary)] font-mono">{input.glob}</code>
               </div>
             )}
-            {input.output_mode && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Mode:</span>
-                <span className="text-xs text-gray-900">{input.output_mode}</span>
-              </div>
-            )}
-            <div className="flex space-x-2 text-xs">
-              {input['-i'] && <span className="bg-gray-100 px-1">case-insensitive</span>}
-              {input['-n'] && <span className="bg-gray-100 px-1">line-numbers</span>}
-              {input.multiline && <span className="bg-gray-100 px-1">multiline</span>}
+            <div className="flex gap-2 text-xs font-mono">
+              {input['-i'] && <span className="text-[var(--text-muted)] bg-[var(--bg-elevated)] px-1">-i</span>}
+              {input['-n'] && <span className="text-[var(--text-muted)] bg-[var(--bg-elevated)] px-1">-n</span>}
+              {input.multiline && <span className="text-[var(--text-muted)] bg-[var(--bg-elevated)] px-1">multiline</span>}
             </div>
           </div>
         );
-        
+
       case 'Glob':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Pattern:</span>
-              <span className="text-xs text-gray-900 font-mono">{input.pattern}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">PATTERN</span>
+              <code className="text-xs text-[var(--accent-primary)] font-mono">{input.pattern}</code>
             </div>
             {input.path && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Path:</span>
-                <span className="text-xs text-gray-900 font-mono">{input.path}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)] font-mono">PATH</span>
+                <code className="text-xs text-[var(--text-primary)] font-mono">{input.path}</code>
               </div>
             )}
           </div>
         );
-        
+
       case 'WebSearch':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Query:</span>
-              <span className="text-xs text-gray-900">{input.query}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">QUERY</span>
+              <span className="text-xs text-[var(--text-primary)]">{input.query}</span>
             </div>
             {input.allowed_domains && input.allowed_domains.length > 0 && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Domains:</span>
-                <span className="text-xs text-gray-900">{input.allowed_domains.join(', ')}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)] font-mono">DOMAINS</span>
+                <span className="text-xs text-[var(--text-primary)]">{input.allowed_domains.join(', ')}</span>
               </div>
             )}
           </div>
         );
-        
+
       case 'WebFetch':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">URL:</span>
-              <span className="text-xs text-gray-900 font-mono break-all">{input.url}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">URL</span>
+              <code className="text-xs text-[var(--accent-primary)] font-mono break-all">{input.url}</code>
             </div>
             <div>
-              <span className="text-xs text-gray-600 font-semibold">Prompt:</span>
-              <div className="text-xs text-gray-900 mt-1">{input.prompt}</div>
+              <span className="text-xs text-[var(--text-muted)] font-mono block mb-1">PROMPT</span>
+              <div className="text-xs text-[var(--text-primary)]">{input.prompt}</div>
             </div>
           </div>
         );
-        
+
       case 'Task':
         return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Agent:</span>
-              <span className="text-xs text-gray-900">{input.subagent_type}</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">AGENT</span>
+              <span className="text-xs text-[var(--accent-primary)]">{input.subagent_type}</span>
             </div>
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Description:</span>
-              <span className="text-xs text-gray-900">{input.description}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)] font-mono">DESC</span>
+              <span className="text-xs text-[var(--text-primary)]">{input.description}</span>
             </div>
             <div>
-              <span className="text-xs text-gray-600 font-semibold">Prompt:</span>
-              <div className="text-xs text-gray-900 mt-1 max-h-24 overflow-y-auto">
+              <span className="text-xs text-[var(--text-muted)] font-mono block mb-1">PROMPT</span>
+              <div className="text-xs text-[var(--text-primary)] max-h-24 overflow-y-auto">
                 {input.prompt}
               </div>
             </div>
           </div>
         );
-        
+
       case 'TodoWrite':
         return (
-          <div className="space-y-1">
-            <div className="text-xs text-gray-600 font-semibold">
-              Todos: {input.todos?.length || 0} items
+          <div className="space-y-2">
+            <div className="text-xs text-[var(--text-muted)] font-mono">
+              {input.todos?.length || 0} ITEMS
             </div>
             {input.todos?.map((todo: any, i: number) => (
-              <div key={i} className="flex items-center text-xs">
-                <span className={`mr-2 ${
-                  todo.status === 'completed' ? 'text-green-600' : 
-                  todo.status === 'in_progress' ? 'text-blue-600' : 
-                  'text-gray-500'
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className={`font-mono ${
+                  todo.status === 'completed' ? 'text-[var(--accent-secondary)]' :
+                  todo.status === 'in_progress' ? 'text-[var(--accent-primary)]' :
+                  'text-[var(--text-muted)]'
                 }`}>
-                  {todo.status === 'completed' ? '✓' : 
-                   todo.status === 'in_progress' ? '→' : '○'}
+                  {todo.status === 'completed' ? '[x]' :
+                   todo.status === 'in_progress' ? '[>]' : '[ ]'}
                 </span>
-                <span className={todo.status === 'completed' ? 'line-through text-gray-500' : ''}>
+                <span className={todo.status === 'completed' ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}>
                   {todo.status === 'in_progress' ? todo.activeForm : todo.content}
                 </span>
               </div>
             ))}
           </div>
         );
-        
-      case 'NotebookEdit':
-        return (
-          <div className="space-y-1">
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Notebook:</span>
-              <span className="text-xs text-gray-900 font-mono">{input.notebook_path}</span>
-            </div>
-            {input.cell_id && (
-              <div className="flex">
-                <span className="text-xs text-gray-600 font-semibold mr-2">Cell ID:</span>
-                <span className="text-xs text-gray-900 font-mono">{input.cell_id}</span>
-              </div>
-            )}
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Type:</span>
-              <span className="text-xs text-gray-900">{input.cell_type || 'default'}</span>
-            </div>
-            <div className="flex">
-              <span className="text-xs text-gray-600 font-semibold mr-2">Mode:</span>
-              <span className="text-xs text-gray-900">{input.edit_mode || 'replace'}</span>
-            </div>
-          </div>
-        );
-        
-      case 'ExitPlanMode':
-        return (
-          <div className="space-y-1">
-            <div className="text-xs text-gray-600 font-semibold">Plan:</div>
-            <div className="text-xs text-gray-900 bg-blue-50 p-2 border border-blue-200 max-h-32 overflow-y-auto">
-              {input.plan}
-            </div>
-          </div>
-        );
-        
+
       case 'Skill':
         return (
-          <div className="space-y-1">
-            <div className="flex items-center">
-              <span className="text-xs font-semibold text-indigo-700 mr-2">Skill:</span>
-              <span className="text-sm font-mono bg-indigo-50 text-indigo-900 px-2 py-1 rounded">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Cpu size={14} className="text-[var(--accent-secondary)]" />
+              <span className="text-xs font-mono font-semibold text-[var(--accent-secondary)]">SKILL</span>
+              <code className="text-sm font-mono bg-[var(--accent-secondary)]/10 text-[var(--accent-secondary)] px-2 py-0.5 border border-[var(--accent-secondary)]/20">
                 {input.skill}
-              </span>
+              </code>
             </div>
-            <div className="text-xs text-gray-600 italic mt-1">
-              Following skill-specific workflow...
+            <div className="text-xs text-[var(--text-muted)] italic">
+              Executing skill workflow...
             </div>
           </div>
         );
 
       default:
-        // Fallback to raw JSON for unknown tools
         return (
-          <pre className="text-xs bg-white p-2 border border-gray-200 overflow-x-auto whitespace-pre-wrap font-mono">
+          <pre className="text-xs bg-[var(--bg-primary)] p-2 border border-[var(--border-subtle)] overflow-x-auto whitespace-pre-wrap font-mono text-[var(--text-primary)]">
             {JSON.stringify(input, null, 2)}
           </pre>
         );
     }
   };
-  
+
   return (
-    <div className="mt-3 border border-purple-200 bg-purple-50/50 rounded-xl overflow-hidden shadow-sm">
-      <div className="p-3 border-b border-purple-200 bg-white/60">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-purple-700 uppercase tracking-wider">
-              Tool: {toolUse.name}
-            </span>
-          </div>
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="text-xs text-purple-600 hover:text-purple-800 font-medium transition-colors"
-          >
-            {isExpanded ? '[-]' : '[+]'}
-          </button>
+    <div className="mt-3 bg-[var(--bg-tertiary)] border border-[var(--border-default)] overflow-hidden">
+      {/* Tool header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-[var(--bg-elevated)] border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]/80 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Code2 size={14} className="text-[var(--accent-primary)]" />
+          <span className="text-xs font-mono font-semibold text-[var(--accent-primary)] uppercase tracking-wider">
+            {toolUse.name}
+          </span>
         </div>
-      </div>
+        {isExpanded ? (
+          <ChevronDown size={14} className="text-[var(--text-muted)]" />
+        ) : (
+          <ChevronRight size={14} className="text-[var(--text-muted)]" />
+        )}
+      </button>
 
       {isExpanded && (
-        <div className="p-3">
+        <div className="p-4">
           {formatToolDisplay()}
         </div>
       )}
@@ -346,49 +315,42 @@ function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
 }
 
 function TextComponent({ text }: { text: TextBlock }) {
-  // Parse the text and add a visualization fallback if we detect a markdown transaction table and no finviz block.
   const processContent = (content: string) => {
     const result: React.ReactNode[] = [];
 
-    // Fallback: detect first markdown table that looks like transactions and render a finviz table above the markdown.
     let skipFirstTable = false;
     if (!content.includes('```finviz')) {
       const fallback = buildFinvizFromMarkdownTable(content);
       if (fallback) {
         skipFirstTable = true;
         result.push(
-          <div key="fallback-viz" className="my-2">
+          <div key="fallback-viz" className="my-3">
             <VizRenderer viz={fallback} />
           </div>
         );
       }
     }
 
-    // Regular text part - render with markdown
     result.push(
-    <div key={0} className="prose prose-sm max-w-none leading-relaxed prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-li:text-gray-900 prose-ul:text-gray-900 prose-ol:text-gray-900" style={{ color: '#111827' }}>
+      <div key={0} className="prose prose-sm max-w-none leading-relaxed">
         <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-            // Customize heading rendering with explicit dark colors
+          remarkPlugins={[remarkGfm]}
+          components={{
             h1: ({ node, ...props }) => (
-            <h1 {...props} className="text-xl font-bold mb-3 mt-4" style={{ color: '#111827' }} />
+              <h1 {...props} className="font-mono-display text-xl mb-4 mt-6 text-[var(--text-primary)]" />
             ),
             h2: ({ node, ...props }) => (
-            <h2 {...props} className="text-lg font-bold mb-2 mt-3" style={{ color: '#111827' }} />
+              <h2 {...props} className="font-mono-display text-lg mb-3 mt-5 text-[var(--text-primary)]" />
             ),
             h3: ({ node, ...props }) => (
-            <h3 {...props} className="text-base font-semibold mb-2 mt-2" style={{ color: '#111827' }} />
+              <h3 {...props} className="font-semibold text-base mb-2 mt-4 text-[var(--text-primary)]" />
             ),
-            // Customize strong/bold text
             strong: ({ node, ...props }) => (
-            <strong {...props} className="font-semibold" style={{ color: '#111827' }} />
+              <strong {...props} className="font-semibold text-[var(--text-primary)]" />
             ),
-            // Customize link rendering
             a: ({ node, ...props }) => (
-            <a {...props} className="text-blue-600 hover:text-blue-800 underline font-medium" style={{ color: '#2563eb' }} />
+              <a {...props} className="text-[var(--accent-primary)] hover:underline" />
             ),
-            // Hide the original markdown table when we rendered a fallback viz for it
             table: ({ node, ...props }) => {
               if (skipFirstTable) {
                 skipFirstTable = false;
@@ -396,11 +358,10 @@ function TextComponent({ text }: { text: TextBlock }) {
               }
               return <table className="min-w-full" {...props} />;
             },
-            // Customize code rendering. Special-case `finviz` fences to render charts/tables.
             code: (mdProps: any) => {
               const { inline, className, children, ...props } = mdProps || {};
               if (inline) {
-                return <code className="bg-gray-100 px-1 py-0.5 text-xs font-mono" {...props}>{children}</code>;
+                return <code className="bg-[var(--bg-elevated)] text-[var(--accent-primary)] px-1.5 py-0.5 text-xs font-mono border border-[var(--border-subtle)]" {...props}>{children}</code>;
               }
               const lang = (className || '').toString();
               if (lang.includes('language-finviz')) {
@@ -408,56 +369,52 @@ function TextComponent({ text }: { text: TextBlock }) {
                 const parsed = parseFinviz(raw);
                 if (parsed && isValidFinviz(parsed)) {
                   return (
-                    <div className="my-2">
+                    <div className="my-3">
                       <VizRenderer viz={parsed} />
                     </div>
                   );
                 }
-                // Fall back to raw if invalid
                 return (
-                  <pre className="text-xs bg-red-50 p-2 font-mono border border-red-200">
-                    Invalid finviz spec. Showing raw:\n{raw}
+                  <pre className="text-xs bg-[var(--accent-danger)]/10 p-3 font-mono border border-[var(--accent-danger)]/20 text-[var(--text-primary)]">
+                    Invalid finviz spec:\n{raw}
                   </pre>
                 );
               }
               return (
-                <code className="block bg-gray-100 p-2 text-xs font-mono overflow-x-auto border border-gray-200" {...props}>
+                <code className="block bg-[var(--bg-primary)] p-3 text-xs font-mono overflow-x-auto border border-[var(--border-subtle)] text-[var(--text-primary)]" {...props}>
                   {children}
                 </code>
               );
             },
-            // Customize list rendering with marker colors
             ul: ({ node, ...props }) => (
-            <ul className="list-disc pl-5 space-y-1 marker:text-gray-900" style={{ color: '#111827' }} {...props} />
+              <ul className="list-none pl-4 space-y-1.5" {...props} />
             ),
             ol: ({ node, ...props }) => (
-            <ol className="list-decimal pl-5 space-y-1 marker:text-gray-900" style={{ color: '#111827' }} {...props} />
+              <ol className="list-decimal pl-5 space-y-1.5 marker:text-[var(--accent-primary)]" {...props} />
             ),
             li: ({ node, ...props }) => (
-            <li className="marker:text-gray-900" style={{ color: '#111827' }} {...props} />
+              <li className="text-[var(--text-primary)] relative before:content-['▸'] before:text-[var(--accent-primary)] before:absolute before:-left-4 before:text-xs" {...props} />
             ),
-            // Customize paragraph spacing
             p: ({ node, ...props }) => (
-            <p className="mb-2" style={{ color: '#111827' }} {...props} />
+              <p className="mb-3 text-[var(--text-primary)]" {...props} />
             ),
-        }}
+          }}
         >
-        {content}
+          {content}
         </ReactMarkdown>
-    </div>
+      </div>
     );
 
     return <>{result}</>;
   };
 
   return (
-    <div className="text-sm text-gray-900" style={{ color: '#111827' }}>
+    <div className="text-sm text-[var(--text-primary)]">
       {processContent(text.text)}
     </div>
   );
 }
 
-// Heuristic parser to build a finviz table from a markdown table with columns like Date, Merchant/Description/Payee, Amount, Category
 function buildFinvizFromMarkdownTable(content: string) {
   const lines = content.split(/\r?\n/);
   for (let i = 0; i < lines.length - 2; i++) {
@@ -466,7 +423,6 @@ function buildFinvizFromMarkdownTable(content: string) {
     if (!header.trim().startsWith('|')) continue;
     if (!(sep.trim().startsWith('|') && /[-:]/.test(sep))) continue;
 
-    // Collect rows until a non-table line
     const dataRows: string[] = [];
     let j = i + 2;
     while (j < lines.length && lines[j].trim().startsWith('|')) {
@@ -480,7 +436,7 @@ function buildFinvizFromMarkdownTable(content: string) {
     if (!idx) continue;
 
     const rows = [] as any[];
-    for (const r of dataRows.slice(0, 50)) { // cap rows for performance
+    for (const r of dataRows.slice(0, 50)) {
       const cells = splitMdRow(r);
       if (cells.length < hdrCells.length) continue;
       const row: any = {};
@@ -513,7 +469,6 @@ function buildFinvizFromMarkdownTable(content: string) {
 }
 
 function splitMdRow(line: string): string[] {
-  // Remove leading/trailing pipes and split
   const inner = line.trim().replace(/^\|/, '').replace(/\|$/, '');
   return inner.split('|').map((s) => s.trim());
 }
@@ -528,7 +483,6 @@ function indexTransactionColumns(headers: string[]) {
   })();
   const amount = findIdx('amount');
   const category = findIdx('category');
-  // Require at minimum date and amount to qualify as transactions
   if (date === -1 || amount === -1) return null;
   return { date, merchant, amount, category };
 }
@@ -543,62 +497,79 @@ export function AssistantMessage({ message, onSendMessage }: AssistantMessagePro
   const [showMetadata, setShowMetadata] = useState(false);
 
   return (
-    <div className="mb-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-lg max-w-4xl animate-scale-in">
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider">Assistant</span>
-          {message.metadata?.model && (
-            <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 font-medium rounded-full">
-              {message.metadata.model}
-            </span>
-          )}
-        </div>
-        <span className="text-xs text-gray-500">
-          {formatTimestamp(message.timestamp)}
-        </span>
-      </div>
+    <div className="mb-4">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] max-w-4xl relative overflow-hidden">
+        {/* Left accent bar */}
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[var(--accent-primary)]" />
 
-      <div className="space-y-3">
-        {message.content.map((block, index) => {
-          if (block.type === 'text') {
-            return <TextComponent key={index} text={block} />;
-          } else if (block.type === 'tool_use') {
-            return <ToolUseComponent key={index} toolUse={block} />;
-          } else if (block.type === 'import_summary') {
-            return <ImportSummaryBlockRenderer key={index} block={block as ImportSummaryBlock} onSendMessage={onSendMessage} />;
-          } else if (block.type === 'import_progress') {
-            return <ImportProgressBlockRenderer key={index} block={block as ImportProgressBlock} />;
-          }
-          return null;
-        })}
-      </div>
-      
-      {message.metadata && (
-        <div className="mt-4 pt-3 border-t border-gray-200">
-          <button
-            onClick={() => setShowMetadata(!showMetadata)}
-            className="text-xs text-purple-600 hover:text-purple-800 flex items-center font-medium transition-colors"
-          >
-            {showMetadata ? '[-]' : '[+]'}
-            <span className="ml-1">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[var(--bg-tertiary)] border-b border-[var(--border-subtle)]">
+          <div className="flex items-center gap-2">
+            <Bot size={14} className="text-[var(--accent-primary)]" />
+            <span className="text-xs font-mono font-semibold text-[var(--accent-primary)] uppercase tracking-wider">
+              Agent
+            </span>
+            {message.metadata?.model && (
+              <span className="px-2 py-0.5 text-[10px] bg-[var(--bg-elevated)] text-[var(--text-muted)] font-mono border border-[var(--border-subtle)]">
+                {message.metadata.model}
+              </span>
+            )}
+            {message.metadata?.streaming && (
+              <span className="flex items-center gap-1 text-[10px] text-[var(--accent-secondary)] font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                STREAMING
+              </span>
+            )}
+          </div>
+          <span className="text-xs font-mono text-[var(--text-muted)]">
+            {formatTimestamp(message.timestamp)}
+          </span>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 pl-6">
+          <div className="space-y-3">
+            {message.content.map((block, index) => {
+              if (block.type === 'text') {
+                return <TextComponent key={index} text={block} />;
+              } else if (block.type === 'tool_use') {
+                return <ToolUseComponent key={index} toolUse={block} />;
+              } else if (block.type === 'import_summary') {
+                return <ImportSummaryBlockRenderer key={index} block={block as ImportSummaryBlock} onSendMessage={onSendMessage} />;
+              } else if (block.type === 'import_progress') {
+                return <ImportProgressBlockRenderer key={index} block={block as ImportProgressBlock} />;
+              }
+              return null;
+            })}
+          </div>
+        </div>
+
+        {/* Metadata toggle */}
+        {message.metadata && (
+          <div className="px-4 py-2 border-t border-[var(--border-subtle)] bg-[var(--bg-tertiary)]">
+            <button
+              onClick={() => setShowMetadata(!showMetadata)}
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--accent-primary)] flex items-center gap-1 font-mono transition-colors"
+            >
+              {showMetadata ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               metadata
               {message.metadata.usage && (
-                <span className="ml-1 text-gray-500">
-                  ({message.metadata.usage.input_tokens}↓ / {message.metadata.usage.output_tokens}↑)
+                <span className="ml-2 text-[var(--text-muted)]">
+                  ({message.metadata.usage.input_tokens}↓ {message.metadata.usage.output_tokens}↑)
                 </span>
               )}
-            </span>
-          </button>
+            </button>
 
-          {showMetadata && (
-            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs">
-              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-gray-900">
-                {JSON.stringify(message.metadata, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
+            {showMetadata && (
+              <div className="mt-2 p-3 bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-xs">
+                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[var(--text-primary)]">
+                  {JSON.stringify(message.metadata, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,209 +1,403 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIN AGENT — FINANCIAL TERMINAL DESIGN SYSTEM
+   Aesthetic: Bloomberg meets Swiss Design
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 0%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
-    --primary: 220 90% 56%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 97%;
-    --secondary-foreground: 0 0% 0%;
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 220 90% 56%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 0% 0%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 89%;
-    --input: 0 0% 89%;
-    --ring: 0 0% 60%;
-    --radius: 0.5rem;
-  }
+    /* Core palette */
+    --bg-primary: #07080a;
+    --bg-secondary: #0d0f12;
+    --bg-tertiary: #13161b;
+    --bg-elevated: #1a1e25;
 
-  .dark {
-    --background: 0 0% 3%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 3%;
-    --secondary: 0 0% 8%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 8%;
-    --muted-foreground: 0 0% 63%;
-    --accent: 0 0% 15%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 0% 98%;
-    --destructive-foreground: 0 0% 3%;
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
-    --ring: 0 0% 40%;
+    /* Accent colors */
+    --accent-primary: #00d4ff;
+    --accent-secondary: #00ff88;
+    --accent-warm: #ffaa00;
+    --accent-danger: #ff4757;
+
+    /* Text hierarchy */
+    --text-primary: #f0f2f5;
+    --text-secondary: #8b929e;
+    --text-muted: #5a6270;
+
+    /* Borders & lines */
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-default: rgba(255, 255, 255, 0.1);
+    --border-accent: rgba(0, 212, 255, 0.3);
+
+    /* Grid pattern */
+    --grid-color: rgba(255, 255, 255, 0.02);
+    --grid-accent: rgba(0, 212, 255, 0.03);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+    --shadow-glow: 0 0 40px rgba(0, 212, 255, 0.1);
   }
 }
 
 @layer base {
   * {
-    border-color: hsl(var(--border));
-  }
-  body {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-    background-attachment: fixed;
-    position: relative;
-    color: hsl(var(--foreground));
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-    font-size: 14px;
-    line-height: 1.6;
+    border-color: var(--border-subtle);
   }
 
+  html {
+    background: var(--bg-primary);
+  }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Subtle grid background texture */
   body::before {
     content: '';
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background-image:
-      radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-      radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-    background-size: 50px 50px, 80px 80px;
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Gradient overlay for depth */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, var(--grid-accent), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(0, 255, 136, 0.02), transparent);
     pointer-events: none;
     z-index: 0;
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @layer utilities {
-  .border-thin {
-    border-width: 1px;
+  .font-mono-display {
+    font-family: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
-  .text-xs-tight {
-    font-size: 11px;
-    line-height: 1.2;
+
+  .font-mono {
+    font-family: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
   }
-  .mono-button {
-    background: hsl(var(--foreground));
-    color: hsl(var(--background));
-    border: 1px solid hsl(var(--foreground));
-    transition: all 0.2s;
+
+  .text-gradient-primary {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
-  .mono-button:hover {
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
-  }
-  .mono-button:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-  .mono-input {
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
-  }
-  .mono-input:focus {
-    border-color: hsl(var(--foreground));
-    outline: none;
+
+  .text-gradient-warm {
+    background: linear-gradient(135deg, var(--accent-warm), #ff6b35);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
 
-/* Enhanced prose styling for better table and code display */
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENT STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @layer components {
+  /* Terminal-style panel */
+  .panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    position: relative;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+    opacity: 0.3;
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glow-line {
+    position: relative;
+  }
+
+  .glow-line::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+  }
+
+  /* Terminal input field */
+  .terminal-input {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s ease;
+  }
+
+  .terminal-input:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+    outline: none;
+  }
+
+  .terminal-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Primary button */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent-primary), #00b8e6);
+    color: var(--bg-primary);
+    font-weight: 600;
+    border: none;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .btn-primary:hover::before {
+    transform: translateX(100%);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Secondary/ghost button */
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    background: rgba(0, 212, 255, 0.05);
+  }
+
+  /* Tag/chip style */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+  }
+
+  .chip:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    background: rgba(0, 212, 255, 0.05);
+  }
+
+  .chip-active {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    background: rgba(0, 212, 255, 0.1);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROSE / MARKDOWN CONTENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  .prose {
+    color: var(--text-primary);
+  }
+
   .prose table {
-    @apply w-full border-collapse bg-white/50 backdrop-blur-sm rounded-lg overflow-hidden shadow-sm;
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    overflow: hidden;
+    font-size: 13px;
   }
 
   .prose thead {
-    @apply bg-purple-100/80;
+    background: var(--bg-elevated);
   }
 
   .prose thead th {
-    /* Some WebKit-based browsers (e.g. Comet) were rendering these headers with a much lighter weight.
-       Explicitly set a heavier weight and font to avoid relying on browser defaults; use !important to win
-       over any typography plugin defaults. */
-    @apply px-4 py-3 text-left text-xs text-purple-900 uppercase tracking-wider border-b-2 border-purple-200;
-    font-weight: 700 !important;
-    font-variation-settings: "wght" 700;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
-    letter-spacing: 0.04em;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-    color: #2d0a4a !important;
-    opacity: 1 !important;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-primary);
+    border-bottom: 1px solid var(--border-default);
+    font-family: 'JetBrains Mono', monospace;
   }
 
   .prose tbody tr {
-    @apply border-b border-gray-200 hover:bg-purple-50/30 transition-colors;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background 0.15s ease;
+  }
+
+  .prose tbody tr:hover {
+    background: rgba(0, 212, 255, 0.03);
   }
 
   .prose tbody td {
-    @apply px-4 py-3 text-sm;
-    color: #1f2937;
+    padding: 12px 16px;
+    color: var(--text-primary);
   }
 
   .prose code {
-    @apply bg-purple-100/60 text-purple-900 px-1.5 py-0.5 rounded text-sm font-mono;
+    background: var(--bg-elevated);
+    color: var(--accent-primary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid var(--border-subtle);
   }
 
   .prose pre {
-    @apply bg-gray-900 text-gray-100 p-4 rounded-xl overflow-x-auto shadow-lg;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   .prose pre code {
-    @apply bg-transparent text-gray-100 p-0;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-primary);
   }
 
   .prose h2 {
-    @apply font-bold text-lg mt-6 mb-3;
-    color: #111827;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 16px;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
   }
 
   .prose h3 {
-    @apply font-semibold text-base mt-4 mb-2;
-    color: #111827;
+    font-weight: 600;
+    font-size: 14px;
+    margin-top: 20px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
   }
 
   .prose ul, .prose ol {
-    @apply my-3;
-    color: #111827;
+    margin: 12px 0;
+    padding-left: 20px;
   }
 
   .prose li {
-    @apply my-1.5;
-    color: #111827;
+    margin: 6px 0;
+    color: var(--text-primary);
   }
 
-  .prose li::marker,
-  .prose ul > li::marker,
-  .prose ol > li::marker {
-    /* Safari/WebKit list markers can ignore inherited weight; force bullets/numbers dark and heavy.
-       !important avoids being overridden by typography defaults. */
-    color: #111827 !important;
-    font-weight: 700 !important;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
-    -webkit-font-smoothing: subpixel-antialiased;
-    opacity: 1 !important;
+  .prose li::marker {
+    color: var(--accent-primary);
   }
 
   .prose strong {
-    @apply font-semibold;
-    color: #111827;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .prose a {
+    color: var(--accent-primary);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s ease;
+  }
+
+  .prose a:hover {
+    border-bottom-color: var(--accent-primary);
   }
 
   .prose hr {
-    @apply border-gray-300 my-6;
+    border: none;
+    border-top: 1px solid var(--border-default);
+    margin: 24px 0;
+  }
+
+  .prose p {
+    margin-bottom: 12px;
+    color: var(--text-primary);
   }
 }
 
-/* Animation keyframes */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -212,33 +406,98 @@
 }
 
 @keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
   from {
     opacity: 0;
+    transform: translateX(-8px);
   }
   to {
     opacity: 1;
+    transform: translateX(0);
   }
 }
 
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
   }
-  to {
-    opacity: 1;
-    transform: scale(1);
+  50% {
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
   }
+}
+
+@keyframes scan-line {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.5s ease-out forwards;
+  animation: fadeInUp 0.4s ease-out forwards;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
+  animation: fadeIn 0.3s ease-out forwards;
 }
 
-.animate-scale-in {
-  animation: scaleIn 0.3s ease-out forwards;
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Stagger animation delays */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBAR STYLING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECTION STYLING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+::selection {
+  background: rgba(0, 212, 255, 0.3);
+  color: var(--text-primary);
 }

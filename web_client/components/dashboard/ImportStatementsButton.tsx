@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, Loader2 } from 'lucide-react';
 
 interface ImportStatementsButtonProps {
   onRequestImport: () => void;
@@ -9,9 +9,6 @@ interface ImportStatementsButtonProps {
 
 /**
  * Primary entry point for launching the bulk statement import flow from the UI.
- * Actual file/directory selection is layered on later phases; this component
- * just surfaces the control and keeps styling in one place so future logic
- * stays encapsulated.
  */
 export function ImportStatementsButton({
   onRequestImport,
@@ -23,10 +20,16 @@ export function ImportStatementsButton({
       type="button"
       onClick={onRequestImport}
       disabled={disabled || isLoading}
-      className="inline-flex items-center gap-2 rounded-full border-2 border-white/80 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white hover:text-purple-600 hover:shadow-lg hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40"
+      className="btn-secondary inline-flex items-center gap-2 px-4 py-2.5 text-sm rounded-none disabled:opacity-40 disabled:cursor-not-allowed"
     >
-      <Upload size={16} />
-      {isLoading ? 'Preparing…' : 'Import Statements'}
+      {isLoading ? (
+        <Loader2 size={16} className="animate-spin" />
+      ) : (
+        <Upload size={16} />
+      )}
+      <span className="font-mono">
+        {isLoading ? 'PREPARING...' : 'IMPORT'}
+      </span>
     </button>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { ImportSummaryBlock, StructuredPrompt } from './types';
+import { CheckCircle, Edit3, Sparkles, AlertTriangle } from 'lucide-react';
 
 const currency = new Intl.NumberFormat(undefined, {
   style: 'currency',
@@ -10,15 +11,6 @@ const currency = new Intl.NumberFormat(undefined, {
 function formatAmount(value: number): string {
   if (!Number.isFinite(value)) return String(value);
   return currency.format(value);
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms} ms`;
-  const seconds = ms / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)} s`;
-  const minutes = Math.floor(seconds / 60);
-  const rem = seconds % 60;
-  return `${minutes}m ${rem.toFixed(0)}s`;
 }
 
 interface ReviewDecision {
@@ -48,21 +40,13 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
     steps,
   } = data;
 
-  console.log('[ImportSummaryBlock] Received data:', {
-    csvCount,
-    reviewItemsCount: reviewItems?.length ?? 0,
-    reviewItems: reviewItems,
-  });
-
-  // Filter out invalid review items (where date is empty/n/a or ID is undefined/empty)
+  // Filter out invalid review items
   const validReviewItems = useMemo(() => {
     const filtered = reviewItems
       .map((item) => {
-        // Ensure a stable id so deduping/acceptance logic still functions
         const normalizedId = item.id && item.id !== 'undefined'
           ? String(item.id)
           : `${item.merchant ?? 'unknown'}::${item.date ?? 'unknown'}::${Number.isFinite(item.amount) ? item.amount : 'na'}`;
-
         return { ...item, id: normalizedId };
       })
       .filter(item => item.date && item.date !== 'n/a');
@@ -99,19 +83,9 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
       .sort((a, b) => a.order - b.order)
       .map(entry => entry.item);
 
-    const dedupedWithFallback = deduped.length > 0 ? deduped : filtered;
-
-    console.log('[ImportSummaryBlock] Valid review items:', filtered.length);
-    console.log('[ImportSummaryBlock] Deduped review items:', dedupedWithFallback.length);
-    console.log('[ImportSummaryBlock] Deduped items with suggestedCategory:', dedupedWithFallback.filter(i => i.suggestedCategory).length);
-    if (dedupedWithFallback.length > 0) {
-      console.log('[ImportSummaryBlock] First deduped review item:', dedupedWithFallback[0]);
-    }
-
-    return dedupedWithFallback;
+    return deduped.length > 0 ? deduped : filtered;
   }, [reviewItems]);
 
-  // State management for review decisions
   const [decisions, setDecisions] = useState<Map<string, ReviewDecision>>(new Map());
 
   const handleAccept = (item: typeof validReviewItems[0]) => {
@@ -176,7 +150,6 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
 
     const displayText = `Suggest a category for ${item.merchant} (${item.date}, ${formatAmount(item.amount)}).`;
 
-    // The agent sees the detailed JSON payload while the user only sees the human-readable summary above.
     const agentInstructions = [
       'You are assisting with a manual categorization review. Suggest one or two category/subcategory pairs for the transaction below.',
       'Prioritize matches from the existing taxonomy whenever possible. If nothing fits, note the closest alternative and call out the gap.',
@@ -281,7 +254,7 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
       });
 
     if (acceptedDecisions.length === 0) {
-      return; // Nothing to do
+      return;
     }
 
     onSendMessage(buildReviewPrompt(acceptedDecisions, 'done_reviewing'));
@@ -294,94 +267,109 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
   const hasAnyDecisions = decisions.size > 0;
 
   return (
-    <div className="space-y-4 text-sm text-gray-900">
+    <div className="space-y-4 text-sm">
+      {/* Header */}
       <div className="space-y-1">
-        <div className="font-semibold uppercase tracking-wider text-gray-700">Bulk Import Summary</div>
-        <div>Processed <span className="font-semibold">{csvCount}</span> CSV file{csvCount === 1 ? '' : 's'}.</div>
+        <div className="font-mono font-semibold text-xs uppercase tracking-wider text-[var(--accent-primary)]">
+          Bulk Import Summary
+        </div>
+        <div className="text-[var(--text-primary)]">
+          Processed <span className="font-semibold text-[var(--accent-primary)]">{csvCount}</span> CSV file{csvCount === 1 ? '' : 's'}.
+        </div>
       </div>
 
+      {/* Transactions table */}
       {transactions.length > 0 && (
         <div>
-          <div className="font-semibold text-xs uppercase tracking-wider text-gray-600">Imported Transactions (preview)</div>
-          <div className="mt-2 max-h-64 overflow-auto border border-gray-200">
+          <div className="font-mono font-semibold text-xs uppercase tracking-wider text-[var(--text-muted)] mb-2">
+            Imported Transactions (preview)
+          </div>
+          <div className="max-h-64 overflow-auto border border-[var(--border-default)]">
             <table className="min-w-full text-xs">
-              <thead className="bg-gray-100 text-gray-600">
+              <thead className="bg-[var(--bg-elevated)] sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 text-left">Date</th>
-                  <th className="px-3 py-2 text-left">Merchant</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
-                  <th className="px-3 py-2 text-left">Category</th>
-                  <th className="px-3 py-2 text-left">Subcategory</th>
-                  <th className="px-3 py-2 text-left">Account</th>
+                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Date</th>
+                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Merchant</th>
+                  <th className="px-3 py-2 text-right font-mono text-[var(--accent-primary)] uppercase tracking-wider">Amount</th>
+                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Category</th>
+                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Sub</th>
+                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Account</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((txn, idx) => (
-                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-3 py-2 whitespace-nowrap">{txn.date}</td>
-                    <td className="px-3 py-2">{txn.merchant}</td>
-                    <td className="px-3 py-2 text-right font-mono">{formatAmount(txn.amount)}</td>
-                    <td className="px-3 py-2">{txn.category}</td>
-                    <td className="px-3 py-2">{txn.subcategory}</td>
-                    <td className="px-3 py-2">{txn.accountName ?? ''}</td>
+                  <tr key={idx} className={`border-t border-[var(--border-subtle)] ${idx % 2 === 0 ? 'bg-[var(--bg-tertiary)]' : 'bg-[var(--bg-secondary)]'}`}>
+                    <td className="px-3 py-2 whitespace-nowrap text-[var(--text-primary)]">{txn.date}</td>
+                    <td className="px-3 py-2 text-[var(--text-primary)]">{txn.merchant}</td>
+                    <td className="px-3 py-2 text-right font-mono text-[var(--text-primary)]">{formatAmount(txn.amount)}</td>
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">{txn.category}</td>
+                    <td className="px-3 py-2 text-[var(--text-muted)]">{txn.subcategory}</td>
+                    <td className="px-3 py-2 text-[var(--text-muted)]">{txn.accountName ?? ''}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {transactions.length >= 200 && (
-            <div className="mt-1 text-xs text-gray-500">Showing first 200 transactions.</div>
+            <div className="mt-1 text-xs text-[var(--text-muted)] font-mono">Showing first 200 transactions.</div>
           )}
         </div>
       )}
 
+      {/* Review items */}
       {validReviewItems.length > 0 && (
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <div className="font-semibold text-xs uppercase tracking-wider text-gray-600">
+          <div className="flex justify-between items-center mb-3">
+            <div className="font-mono font-semibold text-xs uppercase tracking-wider text-[var(--accent-warm)]">
               Needs Review ({validReviewItems.length})
             </div>
             {onSendMessage && (
               <button
                 onClick={handleAcceptAll}
-                className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                className="px-3 py-1.5 text-xs font-mono font-semibold text-[var(--bg-primary)] bg-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/90 transition-colors"
               >
-                Accept All
+                ACCEPT ALL
               </button>
             )}
           </div>
-          <div className="mt-2 space-y-2">
+          <div className="space-y-2">
             {validReviewItems.map((item) => {
               const decision = getDecisionStatus(item.id);
               const isEditing = decision?.status === 'editing';
               const isAccepted = decision?.status === 'accepted';
 
               return (
-                <div key={item.id} className={`border p-3 text-sm ${isAccepted ? 'border-green-300 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+                <div key={item.id} className={`border p-3 ${
+                  isAccepted
+                    ? 'border-[var(--accent-secondary)]/30 bg-[var(--accent-secondary)]/5'
+                    : 'border-[var(--accent-warm)]/30 bg-[var(--accent-warm)]/5'
+                }`}>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <div className="font-semibold text-amber-900">{item.merchant}</div>
-                      <div className="mt-1 text-xs text-gray-600">Date: {item.date}</div>
+                      <div className="font-semibold text-[var(--text-primary)]">{item.merchant}</div>
+                      <div className="mt-1 text-xs text-[var(--text-muted)] font-mono">
+                        DATE: {item.date}
+                      </div>
 
                       {isEditing ? (
                         <div className="mt-2 space-y-2">
                           <div>
-                            <label className="block text-xs text-gray-600 mb-1">Category</label>
+                            <label className="block text-xs text-[var(--text-muted)] font-mono mb-1">CATEGORY</label>
                             <input
                               type="text"
                               value={decision.category ?? ''}
                               onChange={(e) => handleEditChange(item.id, 'category', e.target.value)}
-                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                              className="w-full px-2 py-1.5 text-xs terminal-input"
                               placeholder="e.g., Food & Dining"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-gray-600 mb-1">Subcategory</label>
+                            <label className="block text-xs text-[var(--text-muted)] font-mono mb-1">SUBCATEGORY</label>
                             <input
                               type="text"
                               value={decision.subcategory ?? ''}
                               onChange={(e) => handleEditChange(item.id, 'subcategory', e.target.value)}
-                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                              className="w-full px-2 py-1.5 text-xs terminal-input"
                               placeholder="e.g., Restaurants"
                             />
                           </div>
@@ -389,15 +377,15 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                       ) : (
                         <>
                           {item.suggestedCategory && (
-                            <div className="mt-1 text-xs text-gray-700">
-                              <span className="text-gray-500">{isAccepted ? 'Accepted:' : 'Suggested:'}</span>{' '}
-                              <span className="font-medium">{decision?.category ?? item.suggestedCategory}</span>
+                            <div className="mt-1 text-xs text-[var(--text-secondary)]">
+                              <span className="text-[var(--text-muted)]">{isAccepted ? 'ACCEPTED:' : 'SUGGESTED:'}</span>{' '}
+                              <span className="font-medium text-[var(--accent-primary)]">{decision?.category ?? item.suggestedCategory}</span>
                               {(decision?.subcategory ?? item.suggestedSubcategory) && (
-                                <span> → {decision?.subcategory ?? item.suggestedSubcategory}</span>
+                                <span className="text-[var(--text-muted)]"> → {decision?.subcategory ?? item.suggestedSubcategory}</span>
                               )}
                               {!isAccepted && item.confidence !== undefined && (
-                                <span className="ml-2 text-gray-500">
-                                  ({Math.round(item.confidence * 100)}% confidence)
+                                <span className="ml-2 text-[var(--text-muted)]">
+                                  ({Math.round(item.confidence * 100)}%)
                                 </span>
                               )}
                             </div>
@@ -405,18 +393,18 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                         </>
                       )}
                     </div>
-                    <div className="ml-4 font-semibold text-amber-900">{formatAmount(item.amount)}</div>
+                    <div className="ml-4 font-mono font-semibold text-[var(--text-primary)]">{formatAmount(item.amount)}</div>
                   </div>
 
                   {onSendMessage && !isAccepted && (
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {isEditing ? (
                         <>
                           <button
                             onClick={() => handleSaveEdit(item.id)}
-                            className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                            className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/90 transition-colors flex items-center gap-1"
                           >
-                            Save
+                            <CheckCircle size={12} /> SAVE
                           </button>
                           <button
                             onClick={() => setDecisions(prev => {
@@ -424,15 +412,15 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                               next.delete(item.id);
                               return next;
                             })}
-                            className="px-3 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded transition-colors"
+                            className="btn-secondary px-3 py-1.5 text-xs font-mono"
                           >
-                            Cancel
+                            CANCEL
                           </button>
                           <button
                             onClick={() => handleSuggestCategory(item)}
-                            className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                            className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 transition-colors flex items-center gap-1"
                           >
-                            Suggest Category
+                            <Sparkles size={12} /> SUGGEST
                           </button>
                         </>
                       ) : (
@@ -441,23 +429,23 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                             <>
                               <button
                                 onClick={() => handleAccept(item)}
-                                className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                                className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/90 transition-colors flex items-center gap-1"
                               >
-                                Accept
+                                <CheckCircle size={12} /> ACCEPT
                               </button>
                               <button
                                 onClick={() => handleEdit(item)}
-                                className="px-3 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded transition-colors"
+                                className="btn-secondary px-3 py-1.5 text-xs font-mono flex items-center gap-1"
                               >
-                                Edit
+                                <Edit3 size={12} /> EDIT
                               </button>
                             </>
                           )}
                           <button
                             onClick={() => handleSuggestCategory(item)}
-                            className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                            className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 transition-colors flex items-center gap-1"
                           >
-                            Suggest Category
+                            <Sparkles size={12} /> SUGGEST
                           </button>
                         </>
                       )}
@@ -465,11 +453,9 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                   )}
 
                   {isAccepted && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-green-700">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span>Ready to apply</span>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-[var(--accent-secondary)] font-mono">
+                      <CheckCircle size={14} />
+                      <span>READY TO APPLY</span>
                     </div>
                   )}
                 </div>
@@ -479,48 +465,62 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
         </div>
       )}
 
+      {/* Errors and warnings */}
       {(unsupported.length > 0 || missing.length > 0 || skippedUploads.length > 0 || extractionErrors.length > 0) && (
-        <div className="space-y-1 text-xs">
+        <div className="space-y-2 text-xs">
           {unsupported.length > 0 && (
-            <div className="text-gray-600">
-              <span className="font-semibold">Unsupported inputs skipped:</span> {unsupported.join(', ')}
+            <div className="flex items-start gap-2 text-[var(--text-muted)]">
+              <AlertTriangle size={14} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-mono text-[var(--accent-warm)]">UNSUPPORTED:</span> {unsupported.join(', ')}
+              </div>
             </div>
           )}
           {missing.length > 0 && (
-            <div className="text-gray-600">
-              <span className="font-semibold">Missing paths:</span> {missing.join(', ')}
+            <div className="flex items-start gap-2 text-[var(--text-muted)]">
+              <AlertTriangle size={14} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-mono text-[var(--accent-warm)]">MISSING:</span> {missing.join(', ')}
+              </div>
             </div>
           )}
           {skippedUploads.length > 0 && (
-            <div className="text-gray-600">
-              <span className="font-semibold">Skipped uploads:</span> {skippedUploads.join(', ')}
+            <div className="flex items-start gap-2 text-[var(--text-muted)]">
+              <AlertTriangle size={14} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-mono text-[var(--accent-warm)]">SKIPPED:</span> {skippedUploads.join(', ')}
+              </div>
             </div>
           )}
           {extractionErrors.length > 0 && (
-            <div className="text-red-700">
-              <span className="font-semibold">Extraction issues:</span>
-              <ul className="mt-1 list-disc pl-5">
-                {extractionErrors.map((err, idx) => (
-                  <li key={idx}>{err}</li>
-                ))}
-              </ul>
+            <div className="flex items-start gap-2 text-[var(--accent-danger)]">
+              <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-mono">ERRORS:</span>
+                <ul className="mt-1 list-none space-y-1">
+                  {extractionErrors.map((err, idx) => (
+                    <li key={idx} className="text-[var(--text-muted)]">• {err}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
         </div>
       )}
 
+      {/* Done reviewing button */}
       {validReviewItems.length > 0 && hasAnyDecisions && onSendMessage && (
-        <div className="rounded-sm bg-blue-50 border border-blue-200 p-3 text-sm">
+        <div className="border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5 p-3">
           <div className="flex justify-between items-center">
-            <div className="text-gray-700">
-              <span className="font-semibold text-blue-900">{Array.from(decisions.values()).filter(d => d.status === 'accepted').length}</span> of {validReviewItems.length} reviewed
+            <div className="text-[var(--text-secondary)]">
+              <span className="font-semibold text-[var(--accent-primary)]">{Array.from(decisions.values()).filter(d => d.status === 'accepted').length}</span> of {validReviewItems.length} reviewed
             </div>
             <button
               onClick={handleDoneReviewing}
               disabled={!Array.from(decisions.values()).some(d => d.status === 'accepted')}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors"
+              className="px-4 py-2 text-sm font-mono font-semibold text-[var(--bg-primary)] bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
             >
-              Done Reviewing
+              DONE REVIEWING
             </button>
           </div>
         </div>
