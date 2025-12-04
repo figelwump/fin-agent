@@ -2,7 +2,7 @@ services:
   - type: web
     name: fin-agent
     env: docker
-    plan: starter
+    plan: standard
     region: oregon
     numInstances: 1
     dockerfilePath: Dockerfile
