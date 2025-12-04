@@ -5,6 +5,7 @@ import { DATABASE_PATH } from "../database/config";
 import { bulkImportStatements, getImportsStagingDir, sanitiseRelativePath, writeUploadedFile } from "../ccsdk/bulk-import";
 import * as path from "path";
 import * as fs from "fs/promises";
+import { Buffer } from "buffer";
 import { getPlaidClient } from "./plaid/client";
 import { getStoredItem as getStoredPlaidItem, loadStoredItems, upsertStoredItem } from "./plaid/token-store";
 import { parseCountryCodes, parseProducts } from "./plaid/config";
@@ -12,8 +13,92 @@ import { computeAccountKey, formatAccountName, normalizeAccountType } from "./pl
 import { fetchPlaidTransactionsAndImport, PlaidFetchError, resolveInstitutionName } from "./plaid/fetch";
 import type { LinkTokenCreateRequest } from "plaid";
 
+// Auth config
+const PORT = Number(process.env.PORT || 3000);
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD || process.env.BASIC_AUTH_PASSWORD;
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+if (!AUTH_PASSWORD) {
+  console.warn("AUTH_PASSWORD not set; WebSocket will allow unauthenticated access");
+}
+
 const wsHandler = new WebSocketHandler(DATABASE_PATH);
 
+// Security headers (from claudeboxes)
+const securityHeaders: Record<string, string> = {
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss: ws:; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
+};
+
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin) return ALLOWED_ORIGINS.length === 0;
+  if (ALLOWED_ORIGINS.length === 0) return true;
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
+function allowedOriginHeader(origin: string | null): string | undefined {
+  if (!origin && ALLOWED_ORIGINS.length === 0) return "*";
+  if (origin && isOriginAllowed(origin)) return origin;
+  return undefined;
+}
+
+function createHeaders(contentType?: string, origin?: string | null): Record<string, string> {
+  const headers: Record<string, string> = { ...securityHeaders };
+  const allowedOrigin = allowedOriginHeader(origin ?? null);
+  if (allowedOrigin) {
+    headers["Access-Control-Allow-Origin"] = allowedOrigin;
+    headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
+    headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+    headers["Vary"] = "Origin";
+  }
+  if (contentType) headers["Content-Type"] = contentType;
+  return headers;
+}
+
+function getPasswordFromRequest(req: Request, url: URL): string | null {
+  // Check query param token
+  const token = url.searchParams.get("token");
+  if (token) return token;
+
+  // Check Authorization header (Basic auth)
+  const authHeader = req.headers.get("authorization");
+  if (authHeader) {
+    const [scheme, encoded] = authHeader.split(" ");
+    if (encoded && scheme?.toLowerCase() === "basic") {
+      try {
+        const decoded = Buffer.from(encoded, "base64").toString("utf8");
+        const separator = decoded.indexOf(":");
+        if (separator !== -1) {
+          return decoded.slice(separator + 1);
+        }
+      } catch {}
+    }
+  }
+
+  return null;
+}
+
+function isAuthorized(password: string | null): boolean {
+  if (!AUTH_PASSWORD) return true; // No password configured = open access
+  return password === AUTH_PASSWORD;
+}
+
+function unauthorizedResponse(origin: string | null): Response {
+  const headers = createHeaders("application/json", origin);
+  headers["WWW-Authenticate"] = 'Basic realm="fin-agent"';
+  return new Response(JSON.stringify({ error: "unauthorized" }), {
+    status: 401,
+    headers,
+  });
+}
+
+// Legacy CORS headers (kept for backward compatibility during transition)
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -25,17 +110,18 @@ const jsonHeaders = {
   ...corsHeaders,
 };
 
-function jsonResponse(data: unknown, status = 200): Response {
+function jsonResponse(data: unknown, status = 200, origin: string | null = null): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: jsonHeaders,
+    headers: createHeaders("application/json", origin),
   });
 }
 
-function errorResponse(message: string, status = 400, detail?: unknown): Response {
+function errorResponse(message: string, status = 400, detail?: unknown, origin: string | null = null): Response {
   return jsonResponse(
     detail !== undefined ? { error: message, detail } : { error: message },
-    status
+    status,
+    origin
   );
 }
 
@@ -55,7 +141,7 @@ function isIsoDate(value: string): boolean {
 }
 
 const server = Bun.serve({
-  port: 3000,
+  port: PORT,
   idleTimeout: 120,
 
   websocket: {
@@ -74,25 +160,38 @@ const server = Bun.serve({
 
   async fetch(req: Request, server: any) {
     const url = new URL(req.url);
+    const origin = req.headers.get("origin");
+
+    // Check CORS origin if allowlist is configured
+    if (ALLOWED_ORIGINS.length > 0 && origin && !isOriginAllowed(origin)) {
+      return new Response("Forbidden", { status: 403, headers: createHeaders(undefined, origin) });
+    }
 
     if (req.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { status: 204, headers: createHeaders(undefined, origin) });
     }
 
     if (url.pathname === '/ws') {
-      const upgraded = server.upgrade(req, { data: { sessionId: '' } });
+      // Accept all WebSocket connections - auth happens via message
+      const upgraded = server.upgrade(req, { data: { sessionId: '', authenticated: false } });
       if (!upgraded) {
-        return new Response('WebSocket upgrade failed', { status: 400 });
+        return new Response('WebSocket upgrade failed', { status: 400, headers: createHeaders(undefined, origin) });
       }
       return;
+    }
+
+    // Protect API endpoints with auth
+    if (AUTH_PASSWORD && url.pathname.startsWith("/api")) {
+      const password = getPasswordFromRequest(req, url);
+      if (!isAuthorized(password)) {
+        return unauthorizedResponse(origin);
+      }
     }
 
     if (url.pathname === '/') {
       const file = Bun.file('./web_client/index.html');
       return new Response(file, {
-        headers: {
-          'Content-Type': 'text/html',
-        },
+        headers: createHeaders('text/html', origin),
       });
     }
 

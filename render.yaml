@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: fin-agent
+    env: docker
+    plan: starter
+    region: oregon
+    numInstances: 1
+    dockerfilePath: Dockerfile
+    healthCheckPath: /
+    disk:
+      name: fin-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      # Authentication (required for production)
+      - key: AUTH_PASSWORD
+        sync: false
+      # Anthropic API (one of these required)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_CODE_OAUTH_TOKEN
+        sync: false
+      # Database path on persistent disk
+      - key: FINAGENT_DATABASE_PATH
+        value: /var/data/data.db
+      # CORS origins (comma-separated, or leave empty for *)
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Server port
+      - key: PORT
+        value: "3000"
+      # Production mode
+      - key: NODE_ENV
+        value: production

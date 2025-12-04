@@ -1,0 +1,40 @@
+# Git
+.git/
+.gitignore
+
+# Development
+.venv/
+.venv-py312/
+node_modules/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.env
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Test/staging data
+statements/
+output/
+tmp/
+logs/
+.playwright-mcp/
+
+# Plans and docs (not needed at runtime)
+plans/
+docs/
+*.md
+!README.md
+
+# Test files
+tests/
+**/__tests__/

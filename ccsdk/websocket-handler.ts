@@ -3,6 +3,9 @@ import { Session } from "./session";
 import type { WSClient, IncomingMessage } from "./types";
 import { DATABASE_PATH } from "../database/config";
 
+// Auth config - read from environment
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD || process.env.BASIC_AUTH_PASSWORD;
+
 // Main WebSocket handler class
 export class WebSocketHandler {
 //    private db: Database; // TODO: not using this yet
@@ -33,6 +36,10 @@ export class WebSocketHandler {
         return session;
     }
 
+    private isAuthenticated(ws: WSClient): boolean {
+        return ws.data.authenticated === true;
+    }
+
     public async onOpen(ws: WSClient) {
         const clientId =
             Date.now().toString() +
@@ -41,18 +48,62 @@ export class WebSocketHandler {
         this.clients.set(clientId, ws);
         console.log("WebSocket client connected:", clientId);
 
-        ws.send(
-            JSON.stringify({
-                type: "connected",
-                message: "Connected to finance assistant",
-                availableSessions: Array.from(this.sessions.keys()),
-            })
-        );
+        if (!AUTH_PASSWORD) {
+            // No password configured - allow open access (local dev)
+            ws.data.authenticated = true;
+            ws.send(
+                JSON.stringify({
+                    type: "connected",
+                    message: "Connected to finance assistant",
+                    availableSessions: Array.from(this.sessions.keys()),
+                })
+            );
+        } else {
+            // Require auth message
+            ws.send(
+                JSON.stringify({
+                    type: "auth_required",
+                    message: "Send auth message with password",
+                })
+            );
+        }
     }
 
     public async onMessage(ws: WSClient, message: string) {
         try {
             const data = JSON.parse(message) as IncomingMessage;
+
+            // Handle auth message first
+            if (data.type === "auth") {
+                if (!AUTH_PASSWORD) {
+                    // No password configured - auto-authenticate
+                    ws.data.authenticated = true;
+                    ws.send(JSON.stringify({
+                        type: "connected",
+                        message: "Connected to finance assistant",
+                        availableSessions: Array.from(this.sessions.keys()),
+                    }));
+                } else if (data.password === AUTH_PASSWORD) {
+                    ws.data.authenticated = true;
+                    console.log("WebSocket client authenticated");
+                    ws.send(JSON.stringify({
+                        type: "connected",
+                        message: "Connected to finance assistant",
+                        availableSessions: Array.from(this.sessions.keys()),
+                    }));
+                } else {
+                    console.warn("WebSocket auth failed - wrong password");
+                    ws.send(JSON.stringify({ type: "auth_failed", error: "Invalid password" }));
+                    ws.close();
+                }
+                return;
+            }
+
+            // Reject all other messages if not authenticated
+            if (!this.isAuthenticated(ws)) {
+                ws.send(JSON.stringify({ type: "error", error: "Not authenticated" }));
+                return;
+            }
 
             switch (data.type) {
                 case "chat": {

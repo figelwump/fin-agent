@@ -14,6 +14,8 @@ interface ChatInterfaceProps {
   sessionId: string | null;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  onResetAuth?: () => void;
+  connectionError?: string | null;
 }
 
 type ResolvedStatementPath = {
@@ -22,7 +24,7 @@ type ResolvedStatementPath = {
   source: 'absolute' | 'staged';
 };
 
-export function ChatInterface({ isConnected, sendMessage, messages, setMessages, sessionId, isLoading, setIsLoading }: ChatInterfaceProps) {
+export function ChatInterface({ isConnected, sendMessage, messages, setMessages, sessionId, isLoading, setIsLoading, onResetAuth, connectionError }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [showPickerMenu, setShowPickerMenu] = useState(false);
