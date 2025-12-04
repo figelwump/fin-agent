@@ -3,10 +3,10 @@ import type { ImportProgressBlock } from './types';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
 const stageLabels: Record<ImportProgressBlock['data']['stage'], string> = {
-  uploading: 'UPLOADING STATEMENTS',
-  processing: 'PROCESSING STATEMENTS',
-  completed: 'IMPORT COMPLETE',
-  error: 'IMPORT FAILED',
+  uploading: 'Uploading statements...',
+  processing: 'Processing statements...',
+  completed: 'Import complete',
+  error: 'Import failed',
 };
 
 export function ImportProgressBlockRenderer({ block }: { block: ImportProgressBlock }) {
@@ -16,36 +16,40 @@ export function ImportProgressBlockRenderer({ block }: { block: ImportProgressBl
   const isComplete = stage === 'completed';
 
   return (
-    <div className={`flex items-start gap-3 border px-4 py-3 text-sm ${
+    <div className={`card flex items-start gap-3 p-4 ${
       isError
-        ? 'border-[var(--accent-danger)]/30 bg-[var(--accent-danger)]/5'
+        ? 'border-l-4 border-l-[var(--accent-danger)] bg-red-50'
         : isComplete
-        ? 'border-[var(--accent-secondary)]/30 bg-[var(--accent-secondary)]/5'
-        : 'border-[var(--border-default)] bg-[var(--bg-tertiary)]'
+        ? 'border-l-4 border-l-[#4a7c59] bg-green-50'
+        : ''
     }`}>
       <div className="mt-0.5">
         {isSpinning ? (
-          <Loader2 size={16} className="text-[var(--accent-primary)] animate-spin" />
+          <Loader2 size={18} className="text-[var(--accent-primary)] animate-spin" />
         ) : isComplete ? (
-          <CheckCircle size={16} className="text-[var(--accent-secondary)]" />
+          <CheckCircle size={18} className="text-[#4a7c59]" />
         ) : (
-          <AlertCircle size={16} className="text-[var(--accent-danger)]" />
+          <AlertCircle size={18} className="text-[var(--accent-danger)]" />
         )}
       </div>
-      <div className="space-y-1 flex-1">
-        <div className={`font-mono font-semibold text-xs uppercase tracking-wider ${
+      <div className="flex-1">
+        <div className={`font-medium text-sm ${
           isError
             ? 'text-[var(--accent-danger)]'
             : isComplete
-            ? 'text-[var(--accent-secondary)]'
-            : 'text-[var(--accent-primary)]'
+            ? 'text-[#4a7c59]'
+            : 'text-[var(--text-primary)]'
         }`}>
           {stageLabels[stage]}
         </div>
-        <div className="text-sm text-[var(--text-primary)] whitespace-pre-line">{message}</div>
+        {message && (
+          <div className="text-sm text-[var(--text-secondary)] mt-1 whitespace-pre-line">
+            {message}
+          </div>
+        )}
         {files.length > 0 && (
-          <div className="text-xs text-[var(--text-muted)] font-mono">
-            FILES: {files.join(', ')}
+          <div className="text-xs text-[var(--text-muted)] mt-2">
+            Files: {files.join(', ')}
           </div>
         )}
       </div>

@@ -29,7 +29,6 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
   const { data } = block;
   const {
     csvCount,
-    stagingDir,
     reviewPath,
     unsupported,
     missing,
@@ -37,10 +36,8 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
     extractionErrors,
     transactions,
     reviewItems,
-    steps,
   } = data;
 
-  // Filter out invalid review items
   const validReviewItems = useMemo(() => {
     const filtered = reviewItems
       .map((item) => {
@@ -148,19 +145,15 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
       accountId: item.accountId,
     };
 
-    const displayText = `Suggest a category for ${item.merchant} (${item.date}, ${formatAmount(item.amount)}).`;
-
-    const agentInstructions = [
-      'You are assisting with a manual categorization review. Suggest one or two category/subcategory pairs for the transaction below.',
-      'Prioritize matches from the existing taxonomy whenever possible. If nothing fits, note the closest alternative and call out the gap.',
-      'Do not apply any review decisions or run fin-enhance. Respond with concise suggestions and reasoning only.',
-      'TRANSACTION JSON:',
-      JSON.stringify(transactionPayload, null, 2),
-    ].join('\n');
-
     onSendMessage({
-      displayText,
-      agentText: agentInstructions,
+      displayText: `Suggest a category for ${item.merchant} (${item.date}, ${formatAmount(item.amount)}).`,
+      agentText: [
+        'You are assisting with a manual categorization review. Suggest one or two category/subcategory pairs for the transaction below.',
+        'Prioritize matches from the existing taxonomy whenever possible. If nothing fits, note the closest alternative and call out the gap.',
+        'Do not apply any review decisions or run fin-enhance. Respond with concise suggestions and reasoning only.',
+        'TRANSACTION JSON:',
+        JSON.stringify(transactionPayload, null, 2),
+      ].join('\n'),
       metadata: {
         action: 'request_category_suggestion',
         transaction: transactionPayload,
@@ -175,53 +168,46 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
     subcategory?: string;
   };
 
-  const buildReviewPrompt = (decisions: ReviewDecisionPayload[], source: 'accept_all' | 'done_reviewing'): StructuredPrompt => {
+  const buildReviewPrompt = (decisionsList: ReviewDecisionPayload[], source: 'accept_all' | 'done_reviewing'): StructuredPrompt => {
     const headline = source === 'accept_all'
-      ? `Please double-check ${decisions.length} suggested categor${decisions.length === 1 ? 'y' : 'ies'} before we apply them.`
-      : `Here are ${decisions.length} categor${decisions.length === 1 ? 'y' : 'ies'} I just reviewed - please validate before applying.`;
+      ? `Please double-check ${decisionsList.length} suggested categor${decisionsList.length === 1 ? 'y' : 'ies'} before we apply them.`
+      : `Here are ${decisionsList.length} categor${decisionsList.length === 1 ? 'y' : 'ies'} I just reviewed - please validate before applying.`;
 
-    const preview = decisions.slice(0, 3).map(decision => {
-      const subLabel = decision.subcategory ? ` -> ${decision.subcategory}` : '';
+    const preview = decisionsList.slice(0, 3).map(decision => {
+      const subLabel = decision.subcategory ? ` → ${decision.subcategory}` : '';
       return `- ${decision.merchant}: ${decision.category}${subLabel}`;
     });
 
-    const remainingCount = decisions.length - preview.length;
-    const remainderLine = remainingCount > 0
-      ? `- ...and ${remainingCount} more.`
-      : undefined;
+    const remainingCount = decisionsList.length - preview.length;
+    const remainderLine = remainingCount > 0 ? `- ...and ${remainingCount} more.` : undefined;
 
     const displayLines = [headline, '', ...preview];
-    if (remainderLine) {
-      displayLines.push(remainderLine);
-    }
+    if (remainderLine) displayLines.push(remainderLine);
 
     const agentMetadata = {
       action: 'review_decisions' as const,
       source,
       reviewPath,
-      decisions,
+      decisions: decisionsList,
     };
-
-    const agentInstructions = [
-      'Validate the following categorization decisions before applying them.',
-      'Steps:',
-      '- Query the existing category catalog (for example: fin_query_sample(table="categories", limit=200)).',
-      '- Suggest close matches for any new labels and confirm the final choice with the user.',
-      '- Once confirmed, create the decisions JSON file and run fin-enhance --apply-review to apply it.',
-      'Decisions payload:',
-      JSON.stringify(agentMetadata, null, 2),
-    ].join('\n');
 
     return {
       displayText: displayLines.join('\n'),
-      agentText: agentInstructions,
+      agentText: [
+        'Validate the following categorization decisions before applying them.',
+        'Steps:',
+        '- Query the existing category catalog (for example: fin_query_sample(table="categories", limit=200)).',
+        '- Suggest close matches for any new labels and confirm the final choice with the user.',
+        '- Once confirmed, create the decisions JSON file and run fin-enhance --apply-review to apply it.',
+        'Decisions payload:',
+        JSON.stringify(agentMetadata, null, 2),
+      ].join('\n'),
       metadata: agentMetadata,
     };
   };
 
   const handleAcceptAll = () => {
     if (!onSendMessage) return;
-
     const allDecisions = validReviewItems
       .filter(item => item.suggestedCategory)
       .map(item => ({
@@ -230,17 +216,12 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
         category: item.suggestedCategory!,
         subcategory: item.suggestedSubcategory ?? undefined,
       }));
-
-    if (allDecisions.length === 0) {
-      return;
-    }
-
+    if (allDecisions.length === 0) return;
     onSendMessage(buildReviewPrompt(allDecisions, 'accept_all'));
   };
 
   const handleDoneReviewing = () => {
     if (!onSendMessage) return;
-
     const acceptedDecisions = Array.from(decisions.values())
       .filter(d => d.status === 'accepted' && d.category)
       .map(d => {
@@ -252,200 +233,143 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
           subcategory: d.subcategory ?? undefined,
         };
       });
-
-    if (acceptedDecisions.length === 0) {
-      return;
-    }
-
+    if (acceptedDecisions.length === 0) return;
     onSendMessage(buildReviewPrompt(acceptedDecisions, 'done_reviewing'));
   };
 
-  const getDecisionStatus = (itemId: string): ReviewDecision | undefined => {
-    return decisions.get(itemId);
-  };
-
+  const getDecisionStatus = (itemId: string): ReviewDecision | undefined => decisions.get(itemId);
   const hasAnyDecisions = decisions.size > 0;
 
   return (
-    <div className="space-y-4 text-sm">
-      {/* Header */}
-      <div className="space-y-1">
-        <div className="font-mono font-semibold text-xs uppercase tracking-wider text-[var(--accent-primary)]">
-          Bulk Import Summary
-        </div>
-        <div className="text-[var(--text-primary)]">
+    <div className="space-y-5">
+      {/* Summary */}
+      <div className="card p-4">
+        <h3 className="font-display text-lg text-[var(--text-primary)] mb-1">Import Summary</h3>
+        <p className="text-[var(--text-secondary)]">
           Processed <span className="font-semibold text-[var(--accent-primary)]">{csvCount}</span> CSV file{csvCount === 1 ? '' : 's'}.
-        </div>
+        </p>
       </div>
 
-      {/* Transactions table */}
+      {/* Transactions preview */}
       {transactions.length > 0 && (
-        <div>
-          <div className="font-mono font-semibold text-xs uppercase tracking-wider text-[var(--text-muted)] mb-2">
-            Imported Transactions (preview)
+        <div className="card overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border-light)] bg-[var(--bg-tertiary)]">
+            <h4 className="font-medium text-sm text-[var(--text-primary)]">Imported Transactions</h4>
           </div>
-          <div className="max-h-64 overflow-auto border border-[var(--border-default)]">
-            <table className="min-w-full text-xs">
-              <thead className="bg-[var(--bg-elevated)] sticky top-0">
+          <div className="max-h-64 overflow-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-[var(--bg-tertiary)] sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Date</th>
-                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Merchant</th>
-                  <th className="px-3 py-2 text-right font-mono text-[var(--accent-primary)] uppercase tracking-wider">Amount</th>
-                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Category</th>
-                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Sub</th>
-                  <th className="px-3 py-2 text-left font-mono text-[var(--accent-primary)] uppercase tracking-wider">Account</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Merchant</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Amount</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">Category</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((txn, idx) => (
-                  <tr key={idx} className={`border-t border-[var(--border-subtle)] ${idx % 2 === 0 ? 'bg-[var(--bg-tertiary)]' : 'bg-[var(--bg-secondary)]'}`}>
-                    <td className="px-3 py-2 whitespace-nowrap text-[var(--text-primary)]">{txn.date}</td>
-                    <td className="px-3 py-2 text-[var(--text-primary)]">{txn.merchant}</td>
-                    <td className="px-3 py-2 text-right font-mono text-[var(--text-primary)]">{formatAmount(txn.amount)}</td>
-                    <td className="px-3 py-2 text-[var(--text-secondary)]">{txn.category}</td>
-                    <td className="px-3 py-2 text-[var(--text-muted)]">{txn.subcategory}</td>
-                    <td className="px-3 py-2 text-[var(--text-muted)]">{txn.accountName ?? ''}</td>
+                  <tr key={idx} className="border-t border-[var(--border-light)] hover:bg-[var(--bg-tertiary)]">
+                    <td className="px-4 py-2 text-[var(--text-primary)]">{txn.date}</td>
+                    <td className="px-4 py-2 text-[var(--text-primary)]">{txn.merchant}</td>
+                    <td className="px-4 py-2 text-right text-[var(--text-primary)] tabular-nums">{formatAmount(txn.amount)}</td>
+                    <td className="px-4 py-2 text-[var(--text-secondary)]">{txn.category}{txn.subcategory ? ` → ${txn.subcategory}` : ''}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {transactions.length >= 200 && (
-            <div className="mt-1 text-xs text-[var(--text-muted)] font-mono">Showing first 200 transactions.</div>
+            <div className="px-4 py-2 text-xs text-[var(--text-muted)] border-t border-[var(--border-light)]">
+              Showing first 200 transactions.
+            </div>
           )}
         </div>
       )}
 
       {/* Review items */}
       {validReviewItems.length > 0 && (
-        <div>
-          <div className="flex justify-between items-center mb-3">
-            <div className="font-mono font-semibold text-xs uppercase tracking-wider text-[var(--accent-warm)]">
+        <div className="card overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border-light)] bg-[var(--accent-warm)]/5 flex justify-between items-center">
+            <h4 className="font-medium text-sm text-[var(--accent-warm)]">
               Needs Review ({validReviewItems.length})
-            </div>
+            </h4>
             {onSendMessage && (
-              <button
-                onClick={handleAcceptAll}
-                className="px-3 py-1.5 text-xs font-mono font-semibold text-[var(--bg-primary)] bg-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/90 transition-colors"
-              >
-                ACCEPT ALL
+              <button onClick={handleAcceptAll} className="btn-primary px-3 py-1.5 text-xs">
+                Accept all
               </button>
             )}
           </div>
-          <div className="space-y-2">
+          <div className="divide-y divide-[var(--border-light)]">
             {validReviewItems.map((item) => {
               const decision = getDecisionStatus(item.id);
               const isEditing = decision?.status === 'editing';
               const isAccepted = decision?.status === 'accepted';
 
               return (
-                <div key={item.id} className={`border p-3 ${
-                  isAccepted
-                    ? 'border-[var(--accent-secondary)]/30 bg-[var(--accent-secondary)]/5'
-                    : 'border-[var(--accent-warm)]/30 bg-[var(--accent-warm)]/5'
-                }`}>
+                <div key={item.id} className={`p-4 ${isAccepted ? 'bg-green-50' : ''}`}>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <div className="font-semibold text-[var(--text-primary)]">{item.merchant}</div>
-                      <div className="mt-1 text-xs text-[var(--text-muted)] font-mono">
-                        DATE: {item.date}
-                      </div>
+                      <div className="font-medium text-[var(--text-primary)]">{item.merchant}</div>
+                      <div className="text-sm text-[var(--text-muted)]">{item.date}</div>
 
                       {isEditing ? (
-                        <div className="mt-2 space-y-2">
-                          <div>
-                            <label className="block text-xs text-[var(--text-muted)] font-mono mb-1">CATEGORY</label>
-                            <input
-                              type="text"
-                              value={decision.category ?? ''}
-                              onChange={(e) => handleEditChange(item.id, 'category', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs terminal-input"
-                              placeholder="e.g., Food & Dining"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-[var(--text-muted)] font-mono mb-1">SUBCATEGORY</label>
-                            <input
-                              type="text"
-                              value={decision.subcategory ?? ''}
-                              onChange={(e) => handleEditChange(item.id, 'subcategory', e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs terminal-input"
-                              placeholder="e.g., Restaurants"
-                            />
-                          </div>
+                        <div className="mt-3 space-y-2">
+                          <input
+                            type="text"
+                            value={decision.category ?? ''}
+                            onChange={(e) => handleEditChange(item.id, 'category', e.target.value)}
+                            className="w-full px-3 py-2 text-sm input-field"
+                            placeholder="Category"
+                          />
+                          <input
+                            type="text"
+                            value={decision.subcategory ?? ''}
+                            onChange={(e) => handleEditChange(item.id, 'subcategory', e.target.value)}
+                            className="w-full px-3 py-2 text-sm input-field"
+                            placeholder="Subcategory (optional)"
+                          />
                         </div>
-                      ) : (
-                        <>
-                          {item.suggestedCategory && (
-                            <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                              <span className="text-[var(--text-muted)]">{isAccepted ? 'ACCEPTED:' : 'SUGGESTED:'}</span>{' '}
-                              <span className="font-medium text-[var(--accent-primary)]">{decision?.category ?? item.suggestedCategory}</span>
-                              {(decision?.subcategory ?? item.suggestedSubcategory) && (
-                                <span className="text-[var(--text-muted)]"> → {decision?.subcategory ?? item.suggestedSubcategory}</span>
-                              )}
-                              {!isAccepted && item.confidence !== undefined && (
-                                <span className="ml-2 text-[var(--text-muted)]">
-                                  ({Math.round(item.confidence * 100)}%)
-                                </span>
-                              )}
-                            </div>
+                      ) : item.suggestedCategory ? (
+                        <div className="mt-1 text-sm">
+                          <span className="text-[var(--text-muted)]">{isAccepted ? 'Accepted:' : 'Suggested:'}</span>{' '}
+                          <span className="font-medium text-[var(--accent-primary)]">{decision?.category ?? item.suggestedCategory}</span>
+                          {(decision?.subcategory ?? item.suggestedSubcategory) && (
+                            <span className="text-[var(--text-muted)]"> → {decision?.subcategory ?? item.suggestedSubcategory}</span>
                           )}
-                        </>
-                      )}
+                          {!isAccepted && item.confidence !== undefined && (
+                            <span className="ml-1 text-[var(--text-muted)]">({Math.round(item.confidence * 100)}%)</span>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="ml-4 font-mono font-semibold text-[var(--text-primary)]">{formatAmount(item.amount)}</div>
+                    <div className="font-medium text-[var(--text-primary)] tabular-nums">{formatAmount(item.amount)}</div>
                   </div>
 
                   {onSendMessage && !isAccepted && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {isEditing ? (
                         <>
-                          <button
-                            onClick={() => handleSaveEdit(item.id)}
-                            className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/90 transition-colors flex items-center gap-1"
-                          >
-                            <CheckCircle size={12} /> SAVE
+                          <button onClick={() => handleSaveEdit(item.id)} className="btn-primary px-3 py-1.5 text-xs flex items-center gap-1">
+                            <CheckCircle size={12} /> Save
                           </button>
-                          <button
-                            onClick={() => setDecisions(prev => {
-                              const next = new Map(prev);
-                              next.delete(item.id);
-                              return next;
-                            })}
-                            className="btn-secondary px-3 py-1.5 text-xs font-mono"
-                          >
-                            CANCEL
-                          </button>
-                          <button
-                            onClick={() => handleSuggestCategory(item)}
-                            className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 transition-colors flex items-center gap-1"
-                          >
-                            <Sparkles size={12} /> SUGGEST
+                          <button onClick={() => setDecisions(prev => { const next = new Map(prev); next.delete(item.id); return next; })} className="btn-secondary px-3 py-1.5 text-xs">
+                            Cancel
                           </button>
                         </>
                       ) : (
                         <>
                           {item.suggestedCategory && (
                             <>
-                              <button
-                                onClick={() => handleAccept(item)}
-                                className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/90 transition-colors flex items-center gap-1"
-                              >
-                                <CheckCircle size={12} /> ACCEPT
+                              <button onClick={() => handleAccept(item)} className="btn-primary px-3 py-1.5 text-xs flex items-center gap-1">
+                                <CheckCircle size={12} /> Accept
                               </button>
-                              <button
-                                onClick={() => handleEdit(item)}
-                                className="btn-secondary px-3 py-1.5 text-xs font-mono flex items-center gap-1"
-                              >
-                                <Edit3 size={12} /> EDIT
+                              <button onClick={() => handleEdit(item)} className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1">
+                                <Edit3 size={12} /> Edit
                               </button>
                             </>
                           )}
-                          <button
-                            onClick={() => handleSuggestCategory(item)}
-                            className="px-3 py-1.5 text-xs font-mono text-[var(--bg-primary)] bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 transition-colors flex items-center gap-1"
-                          >
-                            <Sparkles size={12} /> SUGGEST
+                          <button onClick={() => handleSuggestCategory(item)} className="btn-secondary px-3 py-1.5 text-xs flex items-center gap-1">
+                            <Sparkles size={12} /> Suggest
                           </button>
                         </>
                       )}
@@ -453,9 +377,8 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
                   )}
 
                   {isAccepted && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-[var(--accent-secondary)] font-mono">
-                      <CheckCircle size={14} />
-                      <span>READY TO APPLY</span>
+                    <div className="mt-2 flex items-center gap-1 text-xs text-[#4a7c59]">
+                      <CheckCircle size={14} /> Ready to apply
                     </div>
                   )}
                 </div>
@@ -465,42 +388,34 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
         </div>
       )}
 
-      {/* Errors and warnings */}
+      {/* Warnings */}
       {(unsupported.length > 0 || missing.length > 0 || skippedUploads.length > 0 || extractionErrors.length > 0) && (
-        <div className="space-y-2 text-xs">
+        <div className="card p-4 space-y-2">
           {unsupported.length > 0 && (
-            <div className="flex items-start gap-2 text-[var(--text-muted)]">
-              <AlertTriangle size={14} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
-              <div>
-                <span className="font-mono text-[var(--accent-warm)]">UNSUPPORTED:</span> {unsupported.join(', ')}
-              </div>
+            <div className="flex items-start gap-2 text-sm">
+              <AlertTriangle size={16} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
+              <span className="text-[var(--text-secondary)]"><strong>Unsupported:</strong> {unsupported.join(', ')}</span>
             </div>
           )}
           {missing.length > 0 && (
-            <div className="flex items-start gap-2 text-[var(--text-muted)]">
-              <AlertTriangle size={14} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
-              <div>
-                <span className="font-mono text-[var(--accent-warm)]">MISSING:</span> {missing.join(', ')}
-              </div>
+            <div className="flex items-start gap-2 text-sm">
+              <AlertTriangle size={16} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
+              <span className="text-[var(--text-secondary)]"><strong>Missing:</strong> {missing.join(', ')}</span>
             </div>
           )}
           {skippedUploads.length > 0 && (
-            <div className="flex items-start gap-2 text-[var(--text-muted)]">
-              <AlertTriangle size={14} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
-              <div>
-                <span className="font-mono text-[var(--accent-warm)]">SKIPPED:</span> {skippedUploads.join(', ')}
-              </div>
+            <div className="flex items-start gap-2 text-sm">
+              <AlertTriangle size={16} className="text-[var(--accent-warm)] flex-shrink-0 mt-0.5" />
+              <span className="text-[var(--text-secondary)]"><strong>Skipped:</strong> {skippedUploads.join(', ')}</span>
             </div>
           )}
           {extractionErrors.length > 0 && (
-            <div className="flex items-start gap-2 text-[var(--accent-danger)]">
-              <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 text-sm text-[var(--accent-danger)]">
+              <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
               <div>
-                <span className="font-mono">ERRORS:</span>
-                <ul className="mt-1 list-none space-y-1">
-                  {extractionErrors.map((err, idx) => (
-                    <li key={idx} className="text-[var(--text-muted)]">• {err}</li>
-                  ))}
+                <strong>Errors:</strong>
+                <ul className="mt-1 list-disc pl-4 text-[var(--text-secondary)]">
+                  {extractionErrors.map((err, idx) => <li key={idx}>{err}</li>)}
                 </ul>
               </div>
             </div>
@@ -508,21 +423,21 @@ export function ImportSummaryBlockRenderer({ block, onSendMessage }: ImportSumma
         </div>
       )}
 
-      {/* Done reviewing button */}
+      {/* Done reviewing */}
       {validReviewItems.length > 0 && hasAnyDecisions && onSendMessage && (
-        <div className="border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5 p-3">
-          <div className="flex justify-between items-center">
-            <div className="text-[var(--text-secondary)]">
-              <span className="font-semibold text-[var(--accent-primary)]">{Array.from(decisions.values()).filter(d => d.status === 'accepted').length}</span> of {validReviewItems.length} reviewed
-            </div>
-            <button
-              onClick={handleDoneReviewing}
-              disabled={!Array.from(decisions.values()).some(d => d.status === 'accepted')}
-              className="px-4 py-2 text-sm font-mono font-semibold text-[var(--bg-primary)] bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
-            >
-              DONE REVIEWING
-            </button>
-          </div>
+        <div className="card p-4 bg-[var(--accent-primary-light)] flex justify-between items-center">
+          <span className="text-sm text-[var(--text-secondary)]">
+            <span className="font-semibold text-[var(--accent-primary)]">
+              {Array.from(decisions.values()).filter(d => d.status === 'accepted').length}
+            </span> of {validReviewItems.length} reviewed
+          </span>
+          <button
+            onClick={handleDoneReviewing}
+            disabled={!Array.from(decisions.values()).some(d => d.status === 'accepted')}
+            className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
+          >
+            Done reviewing
+          </button>
         </div>
       )}
     </div>

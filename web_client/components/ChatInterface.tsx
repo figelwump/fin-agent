@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
 import { Message, StructuredPrompt } from './message/types';
-import { ArrowUp, Zap } from 'lucide-react';
+import { Send, Wallet } from 'lucide-react';
 import { SuggestedQueries } from './dashboard/SuggestedQueries';
 import { ImportStatementsButton } from './dashboard/ImportStatementsButton';
 import { useFileSelection, SelectionMode, SelectedEntry } from '../hooks/useFileSelection';
@@ -84,6 +84,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
 
     dispatchPrompt({ ...structured });
   };
+
   const appendAssistantText = (text: string) => {
     const message: Message = {
       id: Date.now().toString(),
@@ -282,59 +283,51 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     setInputValue('');
     dispatchPrompt({ displayText: trimmed, agentText: trimmed });
   };
+
   const hasStreamingAssistant = useMemo(() => (
     messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
   ), [messages]);
 
   return (
-    <div className="flex flex-col h-screen relative z-10 overflow-hidden">
+    <div className="flex flex-col h-screen relative overflow-hidden bg-[var(--bg-primary)]">
       {/* Header */}
-      <header className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)]/80 backdrop-blur-xl px-6 py-4 relative z-20">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {/* Logo / Brand */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] flex items-center justify-center shadow-lg shadow-[var(--accent-primary)]/20">
-                <Zap size={20} className="text-[var(--bg-primary)]" />
-              </div>
-              <div>
-                <h1 className="font-mono-display text-xl tracking-tight text-[var(--text-primary)]">
-                  FIN<span className="text-[var(--accent-primary)]">_</span>AGENT
-                </h1>
-                <p className="text-xs text-[var(--text-muted)] font-mono tracking-wide">
-                  FINANCIAL INTELLIGENCE TERMINAL
-                </p>
-              </div>
+      <header className="bg-[var(--bg-secondary)] border-b border-[var(--border-light)] px-6 py-4 shadow-[var(--shadow-xs)]">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-[var(--radius-md)] bg-[var(--accent-primary)] flex items-center justify-center shadow-[var(--shadow-sm)]">
+              <Wallet size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="font-display text-xl text-[var(--text-primary)]">
+                Fin
+              </h1>
+              <p className="text-xs text-[var(--text-muted)]">
+                Your financial assistant
+              </p>
             </div>
           </div>
 
-          {/* Status indicator */}
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border ${
-              isConnected
-                ? 'border-[var(--accent-secondary)]/30 bg-[var(--accent-secondary)]/5'
-                : 'border-[var(--accent-danger)]/30 bg-[var(--accent-danger)]/5'
-            }`}>
-              <div className={`w-2 h-2 rounded-full ${
-                isConnected
-                  ? 'bg-[var(--accent-secondary)] animate-pulse'
-                  : 'bg-[var(--accent-danger)]'
-              }`} />
-              <span className={`text-xs font-mono ${
-                isConnected ? 'text-[var(--accent-secondary)]' : 'text-[var(--accent-danger)]'
-              }`}>
-                {isConnected ? 'CONNECTED' : 'OFFLINE'}
-              </span>
-            </div>
+          {/* Connection status */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
+            isConnected
+              ? 'bg-[#e8f5e9] text-[#4a7c59]'
+              : 'bg-[#fce8e8] text-[var(--accent-danger)]'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${
+              isConnected ? 'bg-[#4a7c59]' : 'bg-[var(--accent-danger)]'
+            } ${isConnected ? 'animate-pulse-soft' : ''}`} />
+            <span className="font-medium">
+              {isConnected ? 'Connected' : 'Offline'}
+            </span>
           </div>
         </div>
       </header>
 
-      {/* Main content area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
-        <div className="max-w-5xl mx-auto w-full">
-          {/* Quick actions bar */}
-          <div className="mb-6 flex flex-col gap-4">
+      {/* Main content */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6">
+        <div className="max-w-3xl mx-auto w-full">
+          {/* Quick actions */}
+          <div className="mb-6 space-y-4">
             <SuggestedQueries onSend={sendSuggestedPrompt} disabled={!isConnected || isLoading} />
 
             <div className="relative flex justify-end" ref={pickerAnchorRef}>
@@ -343,20 +336,20 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
                 isLoading={isImporting || isSelecting}
               />
               {showPickerMenu && (
-                <div className="absolute right-0 top-full z-10 mt-2 w-52 border border-[var(--border-default)] bg-[var(--bg-secondary)] shadow-xl overflow-hidden animate-fade-in">
+                <div className="absolute right-0 top-full z-10 mt-2 w-48 card-elevated overflow-hidden animate-fade-in">
                   <button
                     type="button"
-                    className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--accent-primary)]/10 hover:text-[var(--accent-primary)] transition-colors"
+                    className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                     onClick={() => runSelection('files')}
                   >
-                    Select Files…
+                    Select files
                   </button>
                   <button
                     type="button"
-                    className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--accent-primary)]/10 hover:text-[var(--accent-primary)] transition-colors border-t border-[var(--border-subtle)]"
+                    className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors border-t border-[var(--border-light)]"
                     onClick={() => runSelection('directory')}
                   >
-                    Select Folder…
+                    Select folder
                   </button>
                 </div>
               )}
@@ -365,21 +358,16 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
 
           {/* Empty state */}
           {messages.length === 0 ? (
-            <div className="text-center py-20 animate-fade-in">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-default)] mb-6">
-                <span className="font-mono text-2xl text-[var(--accent-primary)]">$_</span>
+            <div className="text-center py-16">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[var(--accent-primary-light)] mb-5">
+                <Wallet size={28} className="text-[var(--accent-primary)]" />
               </div>
-              <p className="font-mono-display text-lg text-[var(--text-primary)] mb-2">
-                Ready for queries
+              <h2 className="font-display text-xl text-[var(--text-primary)] mb-2">
+                How can I help you today?
+              </h2>
+              <p className="text-[var(--text-secondary)] max-w-sm mx-auto leading-relaxed">
+                Ask about your spending, search transactions, or import new statements to get started.
               </p>
-              <p className="text-sm text-[var(--text-muted)] max-w-md mx-auto">
-                Ask about your spending patterns, search transactions, or import new statements
-              </p>
-              <div className="mt-8 flex flex-wrap justify-center gap-3 text-xs font-mono text-[var(--text-muted)]">
-                <span className="px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded">"Show top categories"</span>
-                <span className="px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded">"Find Amazon purchases"</span>
-                <span className="px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded">"Monthly summary"</span>
-              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -391,7 +379,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
                   message={{
                     id: 'loading',
                     type: 'assistant',
-                    content: [{ type: 'text', text: 'Processing...' }],
+                    content: [{ type: 'text', text: 'Thinking...' }],
                     timestamp: new Date().toISOString(),
                   }}
                 />
@@ -404,47 +392,25 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
       </div>
 
       {/* Input area */}
-      <div className="border-t border-[var(--border-default)] bg-[var(--bg-secondary)]/80 backdrop-blur-xl px-6 py-5 relative z-10">
-        <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
+      <div className="bg-[var(--bg-secondary)] border-t border-[var(--border-light)] px-4 py-4 md:px-6 shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
           <div className="flex gap-3">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder={isConnected ? "Enter query..." : "Waiting for connection..."}
-                className="w-full px-4 py-3.5 text-sm terminal-input rounded-lg pr-12"
-                disabled={isLoading || !isConnected}
-              />
-              {/* Cursor blink effect when empty */}
-              {!inputValue && isConnected && !isLoading && (
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--accent-primary)] animate-blink pointer-events-none">
-                  |
-                </span>
-              )}
-            </div>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={isConnected ? "Ask about your finances..." : "Waiting for connection..."}
+              className="flex-1 px-4 py-3 text-[15px] input-field"
+              disabled={isLoading || !isConnected}
+            />
             <button
               type="submit"
               disabled={isLoading || !inputValue.trim() || !isConnected}
-              className="px-5 py-3.5 btn-primary rounded-lg flex items-center gap-2 text-sm font-semibold"
+              className="px-5 py-3 btn-primary flex items-center gap-2"
             >
-              <ArrowUp size={16} />
-              <span className="hidden sm:inline">Execute</span>
+              <Send size={18} />
+              <span className="hidden sm:inline">Send</span>
             </button>
-          </div>
-
-          {/* Keyboard hint */}
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-muted)]">
-            <span className="font-mono">
-              <kbd className="px-1.5 py-0.5 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded text-[10px]">↵</kbd>
-              {' '}to send
-            </span>
-            {isLoading && (
-              <span className="flex items-center gap-2 text-[var(--accent-primary)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                Processing query...
-              </span>
-            )}
           </div>
         </form>
       </div>
