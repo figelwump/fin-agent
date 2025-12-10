@@ -174,6 +174,130 @@ def _validate_vehicle_type(vehicle_type: str | None) -> str | None:
     return vehicle_type
 
 
+def _infer_asset_class(inst: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Lightweight heuristic to map an instrument to an asset class.
+
+    Prefers explicit hints in the payload (asset_class/main/sub) and falls back to
+    name/symbol/vehicle_type keyword checks. This is intentionally conservative and
+    defaults to leaving instruments unclassified when uncertain.
+    """
+
+    explicit = inst.get("asset_class") or inst.get("classification")
+    if isinstance(explicit, Mapping):
+        main = explicit.get("main_class") or explicit.get("main")
+        sub = explicit.get("sub_class") or explicit.get("sub")
+        if main and sub:
+            return str(main).lower(), str(sub).lower()
+
+    name = (inst.get("name") or "").lower()
+    symbol = (inst.get("symbol") or "").upper()
+    vehicle = inst.get("vehicle_type")
+
+    def has_keyword(*candidates: str) -> bool:
+        lowered = name
+        for cand in candidates:
+            if cand.lower() in lowered or cand.upper() in symbol:
+                return True
+        return False
+
+    if vehicle == "MMF" or has_keyword("sweep", "mmf"):
+        return ("cash", "cash sweep")
+
+    if vehicle in {"bond", "note"}:
+        if has_keyword("tips"):
+            return ("bonds", "TIPS")
+        if has_keyword("treasury", "t-bill", "ust", "govt"):
+            return ("bonds", "treasury")
+        if has_keyword("muni", "municipal"):
+            return ("bonds", "muni")
+        if has_keyword("high yield", "hy"):
+            return ("bonds", "corporate HY")
+        if has_keyword("corp", "corporate"):
+            return ("bonds", "corporate IG")
+        return ("bonds", "treasury")
+
+    if vehicle == "crypto" or has_keyword("bitcoin", "ethereum", "crypto", "btc", "eth"):
+        return ("alternatives", "crypto")
+
+    if has_keyword("reit"):
+        return ("alternatives", "REIT")
+
+    if vehicle == "fund_LP":
+        if has_keyword("vc", "venture", "angel"):
+            return ("alternatives", "VC/Angel")
+        if has_keyword("real estate"):
+            return ("alternatives", "real estate fund")
+        return ("alternatives", "private equity")
+
+    if vehicle == "option":
+        return ("other", "options")
+
+    if vehicle in {"stock", "ETF", "mutual_fund"}:
+        if has_keyword("emerging") or symbol.startswith("EEM"):
+            return ("equities", "emerging markets")
+        if has_keyword("intl", "international", "ex-us", "ex us", "global ex us"):
+            return ("equities", "intl equity")
+        if has_keyword("small cap", "smallcap") or "SC" in symbol:
+            return ("equities", "small cap")
+        if has_keyword("large cap", "largecap"):
+            return ("equities", "large cap")
+        sector_words = (
+            "technology",
+            "health",
+            "energy",
+            "utilities",
+            "financial",
+            "industrial",
+            "consumer",
+            "communications",
+        )
+        if any(has_keyword(word) for word in sector_words):
+            return ("equities", "sector fund")
+        return ("equities", "US equity")
+
+    # Fallback: leave unclassified; downstream queries surface missing rows.
+    return None
+
+
+def _autoclassify_instruments(
+    connection: sqlite3.Connection,
+    *,
+    instrument_payloads: Mapping[str, Mapping[str, Any]],
+    preview: bool,
+    logger,
+) -> None:
+    """Attach inferred asset classes to instruments when unambiguous."""
+
+    for symbol, inst in instrument_payloads.items():
+        inferred = _infer_asset_class(inst)
+        if inferred is None:
+            logger.debug(f"No classification inference for {symbol}; leaving unclassified.")
+            continue
+
+        class_id = models.find_asset_class_id(
+            connection, main_class=inferred[0], sub_class=inferred[1]
+        )
+        if class_id is None:
+            logger.warning(
+                f"Inferred asset class {inferred[0]}/{inferred[1]} not found; skipping classification for {symbol}."
+            )
+            continue
+
+        if preview:
+            logger.info(
+                f"[dry-run] Would classify instrument {symbol} -> {inferred[0]}/{inferred[1]} (asset_class_id={class_id})."
+            )
+            continue
+
+        instr_id = _resolve_instrument_id(connection, symbol)
+        models.ensure_instrument_classification(
+            connection,
+            instrument_id=instr_id,
+            asset_class_id=class_id,
+            is_primary=True,
+        )
+
+
 def _normalize_holding_value(entry: Mapping[str, Any]) -> Mapping[str, Any]:
     """Ensure required fields and derive price/market_value when one is missing."""
 
@@ -231,6 +355,7 @@ def _process_asset_payload(
 
     # Optional instruments bootstrap
     instruments = payload.get("instruments") or []
+    instrument_by_symbol: dict[str, Mapping[str, Any]] = {}
     for inst in instruments:
         if "name" not in inst:
             raise click.ClickException("Instrument entry missing 'name'.")
@@ -239,6 +364,10 @@ def _process_asset_payload(
 
         currency = _validate_currency(inst.get("currency", "USD"))
         vehicle_type = _validate_vehicle_type(inst.get("vehicle_type"))
+
+        symbol = inst.get("symbol")
+        if symbol:
+            instrument_by_symbol[str(symbol)] = inst
 
         if preview:
             logger.info(
@@ -254,6 +383,14 @@ def _process_asset_payload(
             vehicle_type=vehicle_type,
             identifiers=inst.get("identifiers"),
             metadata=inst.get("metadata"),
+        )
+
+    if instrument_by_symbol:
+        _autoclassify_instruments(
+            connection,
+            instrument_payloads=instrument_by_symbol,
+            preview=preview,
+            logger=logger,
         )
 
     # Optional holdings bootstrap

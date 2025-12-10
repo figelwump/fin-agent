@@ -167,6 +167,48 @@ def test_asset_import_wrapper(tmp_path: Path) -> None:
         assert doc_hash == "schwab-2025-01-15-demo-hash"
 
 
+def test_asset_import_autoclassifies_instruments(tmp_path: Path) -> None:
+    db_path, env = _setup_db(tmp_path)
+    runner = CliRunner()
+    fixture = FIXTURE_ROOT / "ubs_statement.json"
+
+    result = runner.invoke(
+        edit_cli,
+        ["--db", str(db_path), "--apply", "asset-import", "--from", str(fixture)],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(load_config(env=env), apply_migrations=False, read_only=True) as connection:
+        rows = connection.execute(
+            """
+            SELECT i.symbol, ac.main_class, ac.sub_class
+            FROM instrument_classifications ic
+            JOIN instruments i ON i.id = ic.instrument_id
+            JOIN asset_classes ac ON ac.id = ic.asset_class_id
+            ORDER BY i.symbol
+            """
+        ).fetchall()
+
+        mapping = {(row["symbol"], row["main_class"], row["sub_class"]) for row in rows}
+        assert ("UBS-SWEEP", "cash", "cash sweep") in mapping
+        assert ("AAPL", "equities", "US equity") in mapping
+
+    # Re-run import to ensure classifications remain idempotent
+    result = runner.invoke(
+        edit_cli,
+        ["--db", str(db_path), "--apply", "asset-import", "--from", str(fixture)],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(load_config(env=env), apply_migrations=False, read_only=True) as connection:
+        count_after_rerun = connection.execute(
+            "SELECT COUNT(*) FROM instrument_classifications"
+        ).fetchone()[0]
+        assert count_after_rerun == len(mapping)
+
+
 def test_holdings_add_and_deactivate(tmp_path: Path) -> None:
     db_path, env = _setup_db(tmp_path)
     runner = CliRunner()

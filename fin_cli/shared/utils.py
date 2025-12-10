@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable
+from pathlib import Path
 from typing import TypeVar
 
 T = TypeVar("T")
@@ -20,3 +22,13 @@ def chunked(iterable: Iterable[T], size: int) -> list[list[T]]:
     if chunk:
         output.append(chunk)
     return output
+
+
+def compute_file_sha256(path: str | Path, *, chunk_size: int = 65536) -> str:
+    """Return the SHA256 hex digest for a file without loading it entirely into memory."""
+
+    digest = hashlib.sha256()
+    with Path(path).expanduser().open("rb") as handle:
+        for block in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(block)
+    return digest.hexdigest()

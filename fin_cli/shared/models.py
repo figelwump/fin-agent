@@ -670,6 +670,53 @@ def register_document(
     return int(cursor.lastrowid)
 
 
+def find_asset_class_id(
+    connection: sqlite3.Connection, *, main_class: str, sub_class: str
+) -> int | None:
+    """Look up an asset class id by main/sub labels."""
+
+    row = connection.execute(
+        """
+        SELECT id FROM asset_classes
+        WHERE LOWER(main_class) = LOWER(?) AND LOWER(sub_class) = LOWER(?)
+        LIMIT 1
+        """,
+        (main_class, sub_class),
+    ).fetchone()
+    return int(row["id"]) if row else None
+
+
+def ensure_instrument_classification(
+    connection: sqlite3.Connection,
+    *,
+    instrument_id: int,
+    asset_class_id: int,
+    is_primary: bool = True,
+    metadata: Mapping[str, Any] | str | None = None,
+) -> int:
+    """Idempotently attach an instrument to an asset class."""
+
+    row = connection.execute(
+        """
+        SELECT id FROM instrument_classifications
+        WHERE instrument_id = ? AND asset_class_id = ?
+        """,
+        (instrument_id, asset_class_id),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+
+    metadata_json = _serialize_metadata(metadata)
+    cursor = connection.execute(
+        """
+        INSERT INTO instrument_classifications (instrument_id, asset_class_id, is_primary, metadata)
+        VALUES (?, ?, ?, ?)
+        """,
+        (instrument_id, asset_class_id, int(is_primary), metadata_json),
+    )
+    return int(cursor.lastrowid)
+
+
 def upsert_llm_cache_entry(
     connection: sqlite3.Connection,
     *,

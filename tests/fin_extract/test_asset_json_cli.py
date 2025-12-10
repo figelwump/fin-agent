@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -60,3 +62,77 @@ def test_asset_json_apply_imports(tmp_path: Path) -> None:
         assert hv_count == 3
         doc_hash = connection.execute("SELECT document_hash FROM documents").fetchone()[0]
         assert doc_hash == "ubs-2024-12-31-demo-hash"
+
+
+def test_asset_json_computes_hash_when_missing(tmp_path: Path) -> None:
+    db_path, env = _setup_db(tmp_path)
+    runner = CliRunner()
+
+    statement_path = tmp_path / "ubs_demo.pdf"
+    statement_bytes = b"fake ubs statement contents"
+    statement_path.write_bytes(statement_bytes)
+    expected_hash = hashlib.sha256(statement_bytes).hexdigest()
+
+    payload = {
+        "document": {"broker": "UBS", "as_of_date": "2024-12-31"},
+        "instruments": [
+            {
+                "name": "Hash Test Equity",
+                "symbol": "HASH",
+                "currency": "USD",
+                "vehicle_type": "stock",
+            }
+        ],
+        "holdings": [{"account_key": "UBS-INV-001", "symbol": "HASH", "status": "active"}],
+        "holding_values": [
+            {
+                "account_key": "UBS-INV-001",
+                "symbol": "HASH",
+                "as_of_date": "2024-12-31",
+                "quantity": 5,
+                "price": 10.0,
+                "source": "statement",
+            }
+        ],
+    }
+
+    payload_path = tmp_path / "asset_payload.json"
+    payload_path.write_text(json.dumps(payload))
+
+    result = runner.invoke(
+        extract_cli,
+        [
+            "--db",
+            str(db_path),
+            "asset-json",
+            "--apply",
+            "--document-path",
+            str(statement_path),
+            str(payload_path),
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(load_config(env=env), apply_migrations=False, read_only=True) as connection:
+        doc_row = connection.execute("SELECT document_hash, file_path FROM documents").fetchone()
+        assert doc_row is not None
+        assert doc_row["document_hash"] == expected_hash
+        assert Path(doc_row["file_path"]).name == statement_path.name
+
+        hv_doc_ids = connection.execute(
+            "SELECT COUNT(*) FROM holding_values WHERE document_id IS NOT NULL"
+        ).fetchone()[0]
+        assert hv_doc_ids == 1
+
+        hv_doc_hashes = {
+            row[0]
+            for row in connection.execute(
+                """
+                SELECT d.document_hash
+                FROM holding_values hv
+                JOIN documents d ON d.id = hv.document_id
+                """
+            ).fetchall()
+        }
+        assert hv_doc_hashes == {expected_hash}

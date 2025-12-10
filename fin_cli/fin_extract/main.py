@@ -15,6 +15,7 @@ from fin_cli.fin_edit.main import _process_asset_payload
 from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors, pass_cli_context
 from fin_cli.shared.database import connect
 from fin_cli.shared.models import compute_account_key
+from fin_cli.shared.utils import compute_file_sha256
 
 from .asset_contract import validate_asset_payload
 
@@ -244,6 +245,14 @@ def _run_extract(
     is_flag=True,
     help="If set, import into the DB via fin-edit asset ingest (otherwise validation only).",
 )
+@click.option(
+    "--document-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help=(
+        "Optional path to the original statement; when provided, document_hash is computed "
+        "and applied to the payload (document + holding_values)."
+    ),
+)
 @handle_cli_errors
 @pass_cli_context
 def asset_json(
@@ -251,6 +260,7 @@ def asset_json(
     input_path: Path,
     output_path: Path | None,
     apply_import: bool,
+    document_path: Path | None,
 ) -> None:
     """Validate a normalized asset JSON payload and optionally import it."""
 
@@ -259,6 +269,27 @@ def asset_json(
         payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:  # pragma: no cover - surfaced via Click
         raise click.ClickException(f"Invalid JSON: {exc}") from exc
+
+    computed_hash = None
+    if document_path:
+        computed_hash = compute_file_sha256(document_path)
+        document_block = payload.setdefault("document", {})
+        existing_hash = document_block.get("document_hash")
+        if existing_hash and existing_hash != computed_hash:
+            raise click.ClickException(
+                "document_hash in payload does not match hash of --document-path"
+            )
+        document_block.setdefault("document_hash", computed_hash)
+        document_block.setdefault("file_path", str(document_path))
+        # Preserve broker if provided; fall back to filename stem for logging context.
+        document_block.setdefault("broker", document_path.stem)
+        for value in payload.get("holding_values") or []:
+            value.setdefault("document_hash", computed_hash)
+
+    if computed_hash:
+        cli_ctx.logger.info(
+            f"Computed document_hash={computed_hash} from {document_path} and applied to payload"
+        )
 
     errors = validate_asset_payload(payload)
     if errors:
@@ -280,6 +311,159 @@ def asset_json(
         )
     if not preview:
         cli_ctx.logger.success(f"Imported asset payload rows: holding_values={inserted}")
+
+
+@main.command("asset-csv")
+@click.argument("csv_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--broker", type=str, help="Broker name for the document block (defaults to file stem)."
+)
+@click.option(
+    "--as-of-date",
+    type=str,
+    help="Override as_of_date; otherwise derived from latest row in CSV.",
+)
+@click.option(
+    "--apply",
+    "apply_import",
+    is_flag=True,
+    help="If set, import into the DB (otherwise validation/output only).",
+)
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Optional path to write normalized JSON payload.",
+)
+@handle_cli_errors
+@pass_cli_context
+def asset_csv(
+    cli_ctx: CLIContext,
+    csv_path: Path,
+    broker: str | None,
+    as_of_date: str | None,
+    apply_import: bool,
+    output_path: Path | None,
+) -> None:
+    """Convert a simple holdings CSV into normalized asset JSON and optionally import it.
+
+    Expected columns (case-insensitive): account_key, symbol, quantity, as_of_date, price (or market_value).
+    Optional columns: name, currency, vehicle_type, market_value, source.
+    """
+
+    with csv_path.open("r", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+    if not rows:
+        raise click.ClickException("CSV is empty.")
+
+    required_cols = {"account_key", "symbol", "quantity", "as_of_date"}
+    normalized_header = {col.lower() for col in reader.fieldnames or []}
+    missing = required_cols - normalized_header
+    if missing:
+        raise click.ClickException(f"CSV missing required column(s): {', '.join(sorted(missing))}")
+
+    instrument_map: dict[str, dict[str, object]] = {}
+    holdings: set[tuple[str, str]] = set()
+    holding_values: list[dict[str, object]] = []
+
+    for row in rows:
+        symbol = (row.get("symbol") or "").strip()
+        account_key = (row.get("account_key") or "").strip()
+        if not symbol or not account_key:
+            raise click.ClickException("Each row requires symbol and account_key.")
+
+        quantity = float(row.get("quantity") or 0)
+        price = row.get("price")
+        market_value = row.get("market_value")
+        price_float = float(price) if price not in (None, "") else None
+        mv_float = float(market_value) if market_value not in (None, "") else None
+        if price_float is None and mv_float is None:
+            raise click.ClickException(
+                "Each row needs price or market_value (can derive the other from quantity)."
+            )
+        if mv_float is None and price_float is not None:
+            mv_float = price_float * quantity
+        if price_float is None and mv_float is not None:
+            price_float = mv_float / quantity if quantity != 0 else 0.0
+
+        currency = (row.get("currency") or "USD").upper()
+        vehicle_type = row.get("vehicle_type") or None
+        name = row.get("name") or symbol
+
+        instrument_map.setdefault(
+            symbol,
+            {
+                "name": name,
+                "symbol": symbol,
+                "currency": currency,
+                "vehicle_type": vehicle_type,
+            },
+        )
+        holdings.add((account_key, symbol))
+
+        holding_values.append(
+            {
+                "account_key": account_key,
+                "symbol": symbol,
+                "as_of_date": row.get("as_of_date"),
+                "quantity": quantity,
+                "price": price_float,
+                "market_value": mv_float,
+                "source": row.get("source") or "statement",
+            }
+        )
+
+    doc_hash = compute_file_sha256(csv_path)
+    derived_as_of = as_of_date or max(hv["as_of_date"] for hv in holding_values)
+    payload = {
+        "document": {
+            "document_hash": doc_hash,
+            "broker": broker or csv_path.stem,
+            "as_of_date": derived_as_of,
+            "period_end_date": derived_as_of,
+            "file_path": str(csv_path),
+        },
+        "instruments": list(instrument_map.values()),
+        "holdings": [
+            {"account_key": acct, "symbol": sym, "status": "active"}
+            for acct, sym in sorted(holdings)
+        ],
+        "holding_values": [
+            {
+                **hv,
+                "document_hash": doc_hash,
+                "valuation_currency": instrument_map[hv["symbol"]]["currency"],
+            }
+            for hv in holding_values
+        ],
+    }
+
+    errors = validate_asset_payload(payload)
+    if errors:
+        formatted = "\n - " + "\n - ".join(errors)
+        raise click.ClickException(f"Asset payload invalid:{formatted}")
+
+    if output_path:
+        output_path.write_text(json.dumps(payload, indent=2))
+        cli_ctx.logger.info(f"Wrote normalized asset JSON to {output_path}")
+
+    preview = cli_ctx.dry_run or not apply_import
+    if not apply_import:
+        cli_ctx.logger.success(
+            "Asset CSV normalized successfully. Use --apply to import into the database."
+        )
+        return
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        inserted = _process_asset_payload(
+            connection, payload=payload, preview=preview, logger=cli_ctx.logger
+        )
+
+    if not preview:
+        cli_ctx.logger.success(
+            f"Imported asset payload rows: holding_values={inserted} (document_hash={doc_hash})"
+        )
 
 
 def _mark_dry_run(ctx: click.Context, value: bool) -> None:

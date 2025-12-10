@@ -1,6 +1,6 @@
 # Asset Tracking Plan
 **Created:** 2025-12-10
-**Updated:** 2025-12-10 (phase 0.5 fixtures, golden tests, idempotence check)
+**Updated:** 2025-12-10 (phase 3 hash+autoclassify wiring, CSV ingest)
 **Goal:** Add first-class asset tracking (schema, import, analysis) so users can ingest statements/screenshots, maintain asset history, view allocations/trends, and reuse spending knowledge across skills.
 
 ## Architecture & Data Model
@@ -162,9 +162,9 @@ Notes:
 
 ### Phase 3: Extraction Pipeline for Asset Statements
 - [x] Extend statement processor (or new `asset-import` helper) to parse PDFs/CSVs/screenshots: scrub PII via `fin-scrub`, extract holdings/valuations, emit normalized JSON matching Phase 2 contract. (Added `fin-extract asset-json` CLI for validated JSON ingest; PDF parsing still TODO.)
-- [ ] Compute document_hash (SHA256) for each statement; store in documents table for idempotent re-imports.
-- [ ] Add broker-specific parsing templates where structure is known; fall back to LLM extraction with guardrails and confidence checks.
-- [ ] Include categorization step that maps holdings -> `asset_classes` (rule-based on ticker/description + LLM backstop).
+- [x] Compute document_hash (SHA256) for each statement; store in documents table for idempotent re-imports. (`fin-extract asset-json --document-path` derives hashes and propagates to values.)
+- [x] Add CSV ingest path for holdings (`fin-extract asset-csv`) as the first broker-neutral template; PDF templates/LLM fallback still pending.
+- [x] Include categorization step that maps holdings -> `asset_classes` (rule-based on ticker/description + LLM backstop). (Heuristics infer cash sweeps, bonds, crypto, equity flavors; idempotent classifications on import.)
 - [ ] Handle edge cases:
   - Security aliases (same security, different names across brokers)
   - Fractional shares (6-8 decimal precision)
