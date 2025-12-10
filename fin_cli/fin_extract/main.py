@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from collections.abc import Iterable, Sequence
 from dataclasses import replace
 from io import StringIO
@@ -10,8 +11,12 @@ from pathlib import Path
 
 import click
 
+from fin_cli.fin_edit.main import _process_asset_payload
 from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors, pass_cli_context
+from fin_cli.shared.database import connect
 from fin_cli.shared.models import compute_account_key
+
+from .asset_contract import validate_asset_payload
 
 
 class ExtractDefaultGroup(click.Group):
@@ -223,6 +228,58 @@ def _run_extract(
     _write_csv_output(result, output_path if not use_stdout else None, cli_ctx)
     destination = "sent to stdout" if use_stdout else f"written to {output_path}"
     cli_ctx.logger.success(f"Extraction complete. Output {destination}.")
+
+
+@main.command("asset-json")
+@click.argument("input_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Optional path to write validated/normalised JSON.",
+)
+@click.option(
+    "--apply",
+    "apply_import",
+    is_flag=True,
+    help="If set, import into the DB via fin-edit asset ingest (otherwise validation only).",
+)
+@handle_cli_errors
+@pass_cli_context
+def asset_json(
+    cli_ctx: CLIContext,
+    input_path: Path,
+    output_path: Path | None,
+    apply_import: bool,
+) -> None:
+    """Validate a normalized asset JSON payload and optionally import it."""
+
+    raw_text = input_path.read_text()
+    try:
+        payload = json.loads(raw_text)
+    except json.JSONDecodeError as exc:  # pragma: no cover - surfaced via Click
+        raise click.ClickException(f"Invalid JSON: {exc}") from exc
+
+    errors = validate_asset_payload(payload)
+    if errors:
+        formatted = "\n - " + "\n - ".join(errors)
+        raise click.ClickException(f"Asset payload invalid:{formatted}")
+
+    if output_path:
+        output_path.write_text(json.dumps(payload, indent=2))
+        cli_ctx.logger.info(f"Wrote validated payload to {output_path}")
+
+    preview = cli_ctx.dry_run or not apply_import
+    if not apply_import:
+        cli_ctx.logger.success("Payload validated (no import performed). Use --apply to ingest.")
+        return
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        inserted = _process_asset_payload(
+            connection, payload=payload, preview=preview, logger=cli_ctx.logger
+        )
+    if not preview:
+        cli_ctx.logger.success(f"Imported asset payload rows: holding_values={inserted}")
 
 
 def _mark_dry_run(ctx: click.Context, value: bool) -> None:

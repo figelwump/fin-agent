@@ -161,7 +161,7 @@ Notes:
 - Added convenience `asset-import` command (one-shot ingest of document+instruments+holdings+values) tested with Schwab fixture.
 
 ### Phase 3: Extraction Pipeline for Asset Statements
-- [ ] Extend statement processor (or new `asset-import` helper) to parse PDFs/CSVs/screenshots: scrub PII via `fin-scrub`, extract holdings/valuations, emit normalized JSON matching Phase 2 contract.
+- [x] Extend statement processor (or new `asset-import` helper) to parse PDFs/CSVs/screenshots: scrub PII via `fin-scrub`, extract holdings/valuations, emit normalized JSON matching Phase 2 contract. (Added `fin-extract asset-json` CLI for validated JSON ingest; PDF parsing still TODO.)
 - [ ] Compute document_hash (SHA256) for each statement; store in documents table for idempotent re-imports.
 - [ ] Add broker-specific parsing templates where structure is known; fall back to LLM extraction with guardrails and confidence checks.
 - [ ] Include categorization step that maps holdings -> `asset_classes` (rule-based on ticker/description + LLM backstop).
@@ -170,7 +170,7 @@ Notes:
   - Fractional shares (6-8 decimal precision)
   - Private funds with quarterly-lag NAV (capture in metadata, surface staleness)
   - CUSIP/symbol changes, corporate actions (log in metadata)
-- [ ] Write tests/fixtures under `tests/` for parsers with golden outputs.
+- [x] Write tests/fixtures under `tests/` for parsers with golden outputs. (Validator + asset-json CLI tests on broker fixtures.)
 
 ### Phase 4: Analysis & Reporting
 - [ ] Add `fin-analyze` analyzers:
