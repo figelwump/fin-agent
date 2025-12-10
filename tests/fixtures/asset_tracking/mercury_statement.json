@@ -1,0 +1,55 @@
+{
+  "document": {
+    "document_hash": "mercury-2025-02-28-demo-hash",
+    "broker": "Mercury",
+    "as_of_date": "2025-02-28",
+    "period_end_date": "2025-02-28"
+  },
+  "instruments": [
+    {
+      "name": "Mercury Treasury",
+      "symbol": "MERCTSY",
+      "currency": "USD",
+      "vehicle_type": "bond",
+      "identifiers": {"cusip": "912797FU6"}
+    },
+    {
+      "name": "Mercury Operating Account",
+      "symbol": "MERC-CASH",
+      "currency": "USD",
+      "vehicle_type": null,
+      "identifiers": {"account_product": "operating"}
+    }
+  ],
+  "holdings": [
+    {"account_key": "MERCURY-PRIMARY", "symbol": "MERCTSY", "status": "active"},
+    {"account_key": "MERCURY-PRIMARY", "symbol": "MERC-CASH", "status": "active"}
+  ],
+  "holding_values": [
+    {
+      "account_key": "MERCURY-PRIMARY",
+      "symbol": "MERCTSY",
+      "as_of_date": "2025-02-28",
+      "as_of_datetime": "2025-02-28T21:30:00Z",
+      "quantity": 85.123456,
+      "price": 100.0,
+      "market_value": 8512.3456,
+      "valuation_currency": "USD",
+      "fx_rate_used": 1.0,
+      "source": "statement",
+      "document_hash": "mercury-2025-02-28-demo-hash"
+    },
+    {
+      "account_key": "MERCURY-PRIMARY",
+      "symbol": "MERC-CASH",
+      "as_of_date": "2025-02-28",
+      "quantity": 190000.0,
+      "price": 1.0,
+      "market_value": 190000.0,
+      "valuation_currency": "USD",
+      "fx_rate_used": 1.0,
+      "source": "statement",
+      "document_hash": "mercury-2025-02-28-demo-hash"
+    }
+  ]
+}

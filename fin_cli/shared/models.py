@@ -381,6 +381,295 @@ def fetch_llm_cache_entry(
     ).fetchone()
 
 
+# ---------------------------------------------------------------------------
+# Asset tracking helpers
+
+
+def find_account_id_by_key(connection: sqlite3.Connection, account_key: str) -> int | None:
+    """Resolve an account_id using multiple stable keys.
+
+    Matching precedence:
+    1. Exact name match (for human-readable keys like 'UBS-INV-001')
+    2. v2 key (institution + account_type + last_4_digits) when last4 is present
+    3. v1 key (name + institution + account_type) legacy hash
+    """
+
+    rows = connection.execute(
+        "SELECT id, name, institution, account_type, last_4_digits FROM accounts"
+    ).fetchall()
+
+    matches: list[int] = []
+    for row in rows:
+        if row["name"] == account_key:
+            matches.append(int(row["id"]))
+            continue
+        if row["last_4_digits"]:
+            v2 = compute_account_key_v2(
+                institution=row["institution"],
+                account_type=row["account_type"],
+                last_4_digits=row["last_4_digits"],
+            )
+            if v2 == account_key:
+                matches.append(int(row["id"]))
+                continue
+        v1 = compute_account_key(
+            row["name"],
+            row["institution"],
+            row["account_type"],
+        )
+        if v1 == account_key:
+            matches.append(int(row["id"]))
+
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise DatabaseError(f"Account key '{account_key}' matched multiple accounts.")
+    return matches[0]
+
+
+def get_or_create_asset_source(
+    connection: sqlite3.Connection,
+    *,
+    name: str,
+    source_type: str,
+    priority: int,
+) -> int:
+    """Find or insert an asset source."""
+    row = connection.execute(
+        "SELECT id FROM asset_sources WHERE name = ?",
+        (name,),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+    cursor = connection.execute(
+        """
+        INSERT INTO asset_sources (name, source_type, priority)
+        VALUES (?, ?, ?)
+        """,
+        (name, source_type, priority),
+    )
+    return int(cursor.lastrowid)
+
+
+def _load_identifiers(row: sqlite3.Row | None) -> dict[str, Any]:
+    if row is None:
+        return {}
+    try:
+        return json.loads(row["identifiers"]) if row["identifiers"] else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _instrument_matches_identifiers(row: sqlite3.Row, identifiers: Mapping[str, Any]) -> bool:
+    if not identifiers:
+        return False
+    row_identifiers = _load_identifiers(row)
+    for key, value in identifiers.items():
+        if value and row_identifiers.get(key) == value:
+            return True
+    return False
+
+
+def upsert_instrument(
+    connection: sqlite3.Connection,
+    *,
+    name: str,
+    symbol: str | None,
+    exchange: str | None,
+    currency: str,
+    vehicle_type: str | None = None,
+    identifiers: Mapping[str, Any] | None = None,
+    metadata: Mapping[str, Any] | str | None = None,
+) -> int:
+    """Insert or update an instrument, matching on symbol+exchange or identifiers."""
+
+    identifiers_json = _serialize_metadata(identifiers)
+    metadata_json = _serialize_metadata(metadata)
+
+    row = None
+    if symbol:
+        row = connection.execute(
+            """
+            SELECT * FROM instruments
+            WHERE symbol = ?
+              AND (exchange IS ? OR exchange = ? OR (exchange IS NULL AND ? IS NULL))
+            """,
+            (symbol, exchange, exchange, exchange),
+        ).fetchone()
+
+    if row is None and identifiers:
+        # Fallback: scan instruments with identifiers and look for matching keys.
+        candidates = connection.execute(
+            "SELECT * FROM instruments WHERE identifiers IS NOT NULL"
+        ).fetchall()
+        for candidate in candidates:
+            if _instrument_matches_identifiers(candidate, identifiers):
+                row = candidate
+                break
+
+    if row:
+        connection.execute(
+            """
+            UPDATE instruments
+            SET name = COALESCE(?, name),
+                exchange = COALESCE(?, exchange),
+                currency = COALESCE(?, currency),
+                vehicle_type = COALESCE(?, vehicle_type),
+                identifiers = COALESCE(?, identifiers),
+                metadata = COALESCE(?, metadata)
+            WHERE id = ?
+            """,
+            (
+                name,
+                exchange,
+                currency,
+                vehicle_type,
+                identifiers_json,
+                metadata_json,
+                int(row["id"]),
+            ),
+        )
+        return int(row["id"])
+
+    cursor = connection.execute(
+        """
+        INSERT INTO instruments (name, symbol, exchange, currency, vehicle_type, identifiers, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (name, symbol, exchange, currency, vehicle_type, identifiers_json, metadata_json),
+    )
+    return int(cursor.lastrowid)
+
+
+def get_or_create_holding(
+    connection: sqlite3.Connection,
+    *,
+    account_id: int,
+    instrument_id: int,
+    status: str = "active",
+    position_side: str = "long",
+    opened_at: str | None = None,
+    closed_at: str | None = None,
+    metadata: Mapping[str, Any] | str | None = None,
+) -> int:
+    """Return a holding id, creating if an active record doesn't exist."""
+
+    row = connection.execute(
+        """
+        SELECT id FROM holdings
+        WHERE account_id = ? AND instrument_id = ? AND status = 'active'
+        """,
+        (account_id, instrument_id),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+
+    metadata_json = _serialize_metadata(metadata)
+    cursor = connection.execute(
+        """
+        INSERT INTO holdings (
+            account_id,
+            instrument_id,
+            status,
+            position_side,
+            opened_at,
+            closed_at,
+            metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (account_id, instrument_id, status, position_side, opened_at, closed_at, metadata_json),
+    )
+    return int(cursor.lastrowid)
+
+
+def upsert_holding_value(
+    connection: sqlite3.Connection,
+    *,
+    holding_id: int,
+    as_of_date: str,
+    quantity: float,
+    price: float | None,
+    market_value: float | None,
+    source_id: int,
+    document_id: int | None,
+    valuation_currency: str = "USD",
+    fx_rate_used: float = 1.0,
+    as_of_datetime: str | None = None,
+    accrued_interest: float | None = None,
+    fees: float | None = None,
+    metadata: Mapping[str, Any] | str | None = None,
+) -> None:
+    """Upsert a holding value row keyed by (holding_id, as_of_date, source_id)."""
+
+    metadata_json = _serialize_metadata(metadata)
+    connection.execute(
+        """
+        INSERT INTO holding_values (
+            holding_id, as_of_date, as_of_datetime, quantity, price, market_value,
+            accrued_interest, fees, source_id, document_id, valuation_currency,
+            fx_rate_used, metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(holding_id, as_of_date, source_id) DO UPDATE SET
+            quantity = excluded.quantity,
+            price = excluded.price,
+            market_value = excluded.market_value,
+            accrued_interest = excluded.accrued_interest,
+            fees = excluded.fees,
+            as_of_datetime = excluded.as_of_datetime,
+            valuation_currency = excluded.valuation_currency,
+            fx_rate_used = excluded.fx_rate_used,
+            document_id = excluded.document_id,
+            metadata = COALESCE(excluded.metadata, holding_values.metadata),
+            ingested_at = CURRENT_TIMESTAMP
+        """,
+        (
+            holding_id,
+            as_of_date,
+            as_of_datetime,
+            quantity,
+            price,
+            market_value,
+            accrued_interest,
+            fees,
+            source_id,
+            document_id,
+            valuation_currency,
+            fx_rate_used,
+            metadata_json,
+        ),
+    )
+
+
+def register_document(
+    connection: sqlite3.Connection,
+    *,
+    document_hash: str,
+    source_id: int,
+    broker: str | None = None,
+    period_end_date: str | None = None,
+    file_path: str | None = None,
+    metadata: Mapping[str, Any] | str | None = None,
+) -> int:
+    """Insert a document if missing, otherwise return existing id."""
+
+    row = connection.execute(
+        "SELECT id FROM documents WHERE document_hash = ?",
+        (document_hash,),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+
+    metadata_json = _serialize_metadata(metadata)
+    cursor = connection.execute(
+        """
+        INSERT INTO documents (document_hash, source_id, broker, period_end_date, file_path, metadata)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (document_hash, source_id, broker, period_end_date, file_path, metadata_json),
+    )
+    return int(cursor.lastrowid)
+
+
 def upsert_llm_cache_entry(
     connection: sqlite3.Connection,
     *,

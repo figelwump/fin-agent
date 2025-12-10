@@ -11,6 +11,8 @@ import json
 import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 import click
@@ -89,6 +91,274 @@ def _fetch_transactions_for_where(
         ORDER BY t.date ASC, t.id ASC
     """
     return connection.execute(query).fetchall()
+
+
+# ---------------------------------------------------------------------------
+# Asset tracking helpers
+
+
+def _load_json(path: str | Path) -> Mapping[str, Any]:
+    try:
+        content = Path(path).read_text()
+    except OSError as exc:  # pragma: no cover - surfaced via Click
+        raise click.ClickException(f"Unable to read file '{path}': {exc}") from exc
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise click.ClickException(f"File '{path}' is not valid JSON: {exc}") from exc
+
+
+def _resolve_source(connection: sqlite3.Connection, source: str) -> int:
+    """Map logical source strings to asset_sources rows."""
+    normalized = source.lower()
+    if normalized == "statement":
+        return models.get_or_create_asset_source(
+            connection, name="Statement Import", source_type="statement", priority=1
+        )
+    if normalized == "manual":
+        return models.get_or_create_asset_source(
+            connection, name="Manual Entry", source_type="manual", priority=2
+        )
+    if normalized == "api":
+        return models.get_or_create_asset_source(
+            connection, name="API Sync", source_type="api", priority=3
+        )
+    if normalized == "upload":
+        return models.get_or_create_asset_source(
+            connection, name="Statement Import", source_type="upload", priority=1
+        )
+    raise click.ClickException(f"Unknown source '{source}'. Expected statement/manual/api/upload.")
+
+
+def _resolve_account_id(connection: sqlite3.Connection, holding: Mapping[str, Any]) -> int:
+    account_id = holding.get("account_id")
+    if account_id is not None:
+        return int(account_id)
+    account_key = holding.get("account_key")
+    if not account_key:
+        raise click.ClickException("Holding entry requires either 'account_id' or 'account_key'.")
+    account_id = models.find_account_id_by_key(connection, account_key)
+    if account_id is None:
+        raise click.ClickException(
+            f"Unknown account key '{account_key}'. Create the account first."
+        )
+    return account_id
+
+
+def _resolve_instrument_id(connection: sqlite3.Connection, symbol: str) -> int:
+    row = connection.execute(
+        "SELECT id FROM instruments WHERE symbol = ?",
+        (symbol,),
+    ).fetchone()
+    if row:
+        return int(row["id"])
+    raise click.ClickException(
+        f"Instrument with symbol '{symbol}' not found. Run 'fin-edit instruments-upsert' first."
+    )
+
+
+def _validate_currency(value: str) -> str:
+    if not value or len(value) != 3 or not value.isalpha():
+        raise click.ClickException(f"Invalid currency '{value}'. Expected 3-letter code.")
+    return value.upper()
+
+
+def _validate_vehicle_type(vehicle_type: str | None) -> str | None:
+    allowed = {"stock", "ETF", "mutual_fund", "bond", "MMF", "fund_LP", "note", "option", "crypto"}
+    if vehicle_type is None:
+        return None
+    if vehicle_type not in allowed:
+        raise click.ClickException(
+            f"Invalid vehicle_type '{vehicle_type}'. Allowed: {', '.join(sorted(allowed))}"
+        )
+    return vehicle_type
+
+
+def _normalize_holding_value(entry: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Ensure required fields and derive price/market_value when one is missing."""
+
+    required = ["account_key", "symbol", "as_of_date", "quantity"]
+    missing = [field for field in required if field not in entry]
+    if missing:
+        raise click.ClickException(f"holding_value missing required field(s): {', '.join(missing)}")
+
+    try:
+        date.fromisoformat(entry["as_of_date"])
+    except Exception as exc:
+        raise click.ClickException(f"Invalid as_of_date '{entry['as_of_date']}': {exc}") from exc
+
+    try:
+        quantity = float(entry["quantity"])
+    except Exception as exc:  # pragma: no cover - click error path
+        raise click.ClickException(f"Invalid quantity '{entry['quantity']}': {exc}") from exc
+    if quantity < 0:
+        raise click.ClickException(
+            "Quantity must be non-negative. Use position_side on holding for shorts."
+        )
+
+    price = entry.get("price")
+    market_value = entry.get("market_value")
+    if price is None and market_value is None:
+        raise click.ClickException("holding_value requires at least one of price or market_value.")
+    if price is None and market_value is not None:
+        price = float(market_value) / quantity if quantity != 0 else 0.0
+    if market_value is None and price is not None:
+        market_value = float(price) * quantity
+
+    valuation_currency = _validate_currency(entry.get("valuation_currency", "USD"))
+    fx_rate_used = float(entry.get("fx_rate_used", 1.0))
+    if fx_rate_used <= 0:
+        raise click.ClickException("fx_rate_used must be positive.")
+
+    return {
+        **entry,
+        "quantity": quantity,
+        "price": float(price) if price is not None else None,
+        "market_value": float(market_value) if market_value is not None else None,
+        "valuation_currency": valuation_currency,
+        "fx_rate_used": fx_rate_used,
+    }
+
+
+def _process_asset_payload(
+    connection: sqlite3.Connection,
+    *,
+    payload: Mapping[str, Any],
+    preview: bool,
+    logger,
+) -> int:
+    """Shared logic for holding-values upserts and asset-import shortcut."""
+
+    # Optional instruments bootstrap
+    instruments = payload.get("instruments") or []
+    for inst in instruments:
+        if "name" not in inst:
+            raise click.ClickException("Instrument entry missing 'name'.")
+        if not inst.get("symbol") and not inst.get("identifiers"):
+            raise click.ClickException("Instrument requires either 'symbol' or 'identifiers'.")
+
+        currency = _validate_currency(inst.get("currency", "USD"))
+        vehicle_type = _validate_vehicle_type(inst.get("vehicle_type"))
+
+        if preview:
+            logger.info(
+                f"[dry-run] Would upsert instrument {inst.get('name')} ({inst.get('symbol')})"
+            )
+            continue
+        models.upsert_instrument(
+            connection,
+            name=inst["name"],
+            symbol=inst.get("symbol"),
+            exchange=inst.get("exchange"),
+            currency=currency,
+            vehicle_type=vehicle_type,
+            identifiers=inst.get("identifiers"),
+            metadata=inst.get("metadata"),
+        )
+
+    # Optional holdings bootstrap
+    holdings_payload = payload.get("holdings") or []
+    holding_id_cache: dict[tuple[int, int], int] = {}
+    for h in holdings_payload:
+        if preview:
+            logger.info(
+                f"[dry-run] Would ensure holding for account_key={h.get('account_key')} symbol={h.get('symbol')}"
+            )
+            continue
+        acct_id = _resolve_account_id(connection, h)
+        instr_id = _resolve_instrument_id(connection, h.get("symbol"))
+        holding_id = models.get_or_create_holding(
+            connection,
+            account_id=acct_id,
+            instrument_id=instr_id,
+            status=h.get("status", "active"),
+            position_side=h.get("position_side", "long"),
+            opened_at=h.get("opened_at"),
+            closed_at=h.get("closed_at"),
+            metadata=h.get("metadata"),
+        )
+        holding_id_cache[(acct_id, instr_id)] = holding_id
+
+    document_block = payload.get("document")
+    document_id = None
+    document_hash = None
+    if document_block:
+        document_hash = document_block.get("document_hash")
+        if document_hash:
+            source_id = _resolve_source(connection, document_block.get("source_type", "statement"))
+            if preview:
+                logger.info(
+                    f"[dry-run] Would register document hash={document_hash} via source={source_id}"
+                )
+            else:
+                document_id = models.register_document(
+                    connection,
+                    document_hash=document_hash,
+                    source_id=source_id,
+                    broker=document_block.get("broker"),
+                    period_end_date=document_block.get("period_end_date"),
+                    file_path=document_block.get("file_path"),
+                    metadata=document_block.get("metadata"),
+                )
+
+    inserted = 0
+    holding_values = payload.get("holding_values") or []
+    for value in holding_values:
+        value = _normalize_holding_value(value)
+        account_key = value.get("account_key")
+        symbol = value.get("symbol")
+
+        if preview:
+            logger.info(
+                f"[dry-run] Would upsert holding_value {account_key}/{symbol} {value.get('as_of_date')}"
+            )
+            continue
+
+        acct_id = _resolve_account_id(connection, value)
+        instr_id = _resolve_instrument_id(connection, symbol)
+        holding_id = holding_id_cache.get((acct_id, instr_id))
+        if holding_id is None:
+            holding_id = models.get_or_create_holding(
+                connection,
+                account_id=acct_id,
+                instrument_id=instr_id,
+                status="active",
+            )
+
+        source_value = value.get("source", "statement")
+        source_id = _resolve_source(connection, source_value)
+
+        doc_id = document_id
+        if value.get("document_hash") and value.get("document_hash") != document_hash:
+            doc_id = models.register_document(
+                connection,
+                document_hash=value["document_hash"],
+                source_id=source_id,
+                broker=document_block.get("broker") if document_block else None,
+                period_end_date=document_block.get("period_end_date") if document_block else None,
+            )
+
+        models.upsert_holding_value(
+            connection,
+            holding_id=holding_id,
+            as_of_date=value["as_of_date"],
+            as_of_datetime=value.get("as_of_datetime"),
+            quantity=float(value["quantity"]),
+            price=float(value["price"]) if value.get("price") is not None else None,
+            market_value=(
+                float(value["market_value"]) if value.get("market_value") is not None else None
+            ),
+            accrued_interest=value.get("accrued_interest"),
+            fees=value.get("fees"),
+            source_id=source_id,
+            document_id=doc_id,
+            valuation_currency=value.get("valuation_currency", "USD"),
+            fx_rate_used=float(value.get("fx_rate_used", 1.0)),
+            metadata=value.get("metadata"),
+        )
+        inserted += 1
+
+    return inserted
 
 
 @click.group(help="Edit utilities for updating categories and merchant patterns.")
@@ -411,6 +681,386 @@ def delete_transactions(
             unique_ids,
         )
         cli_ctx.logger.success(f"Deleted {len(rows)} transaction(s).")
+
+
+# ---------------------------------------------------------------------------
+# Asset tracking subcommands
+
+
+@main.command("instruments-upsert")
+@click.option(
+    "--from",
+    "from_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="JSON file containing an 'instruments' array.",
+)
+@pass_cli_context
+def instruments_upsert(cli_ctx: CLIContext, from_path: Path) -> None:
+    """Upsert instrument records from a JSON payload."""
+
+    payload = _load_json(from_path)
+    instruments = payload.get("instruments")
+    if not isinstance(instruments, list) or not instruments:
+        raise click.ClickException("Input JSON must include a non-empty 'instruments' array.")
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    inserted = updated = 0
+    with connect(cli_ctx.config, read_only=False) as connection:
+        for inst in instruments:
+            if "name" not in inst:
+                raise click.ClickException("Instrument entry missing 'name'.")
+            if not inst.get("symbol") and not inst.get("identifiers"):
+                raise click.ClickException("Instrument requires either 'symbol' or 'identifiers'.")
+
+            currency = _validate_currency(inst.get("currency", "USD"))
+            vehicle_type = _validate_vehicle_type(inst.get("vehicle_type"))
+
+            symbol = inst.get("symbol")
+            exchange = inst.get("exchange")
+            identifiers = inst.get("identifiers") or {}
+
+            row = connection.execute(
+                """
+                SELECT id, identifiers FROM instruments
+                WHERE symbol = ?
+                  AND (exchange IS ? OR exchange = ? OR (exchange IS NULL AND ? IS NULL))
+                """,
+                (symbol, exchange, exchange, exchange),
+            ).fetchone()
+            if row is None and identifiers:
+                candidates = connection.execute(
+                    "SELECT id, identifiers FROM instruments WHERE identifiers IS NOT NULL"
+                ).fetchall()
+                for cand in candidates:
+                    if models._instrument_matches_identifiers(cand, identifiers):  # type: ignore[attr-defined]
+                        row = cand
+                        break
+
+            if preview:
+                action = "update" if row else "insert"
+                cli_ctx.logger.info(
+                    f"[dry-run] Would {action} instrument {inst.get('name')} ({symbol})"
+                )
+                continue
+
+            models.upsert_instrument(
+                connection,
+                name=inst["name"],
+                symbol=symbol,
+                exchange=exchange,
+                currency=currency,
+                vehicle_type=vehicle_type,
+                identifiers=identifiers,
+                metadata=inst.get("metadata"),
+            )
+            if row:
+                updated += 1
+            else:
+                inserted += 1
+
+    if not preview:
+        cli_ctx.logger.success(f"Upserted instruments: inserted={inserted}, updated={updated}")
+
+
+@main.command("holdings-add")
+@click.option(
+    "--account-id",
+    type=int,
+    help="Target account id (optional if provided via JSON).",
+)
+@click.option(
+    "--instrument-symbol",
+    type=str,
+    help="Instrument symbol (optional if provided via JSON).",
+)
+@click.option(
+    "--status",
+    type=click.Choice(["active", "closed"]),
+    default="active",
+    show_default=True,
+)
+@click.option(
+    "--from",
+    "from_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Optional JSON file containing a 'holdings' array.",
+)
+@pass_cli_context
+def holdings_add(
+    cli_ctx: CLIContext,
+    account_id: int | None,
+    instrument_symbol: str | None,
+    status: str,
+    from_path: Path | None,
+) -> None:
+    """Create holdings for account/instrument pairs (idempotent for active holdings)."""
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    items: list[Mapping[str, Any]] = []
+    if from_path:
+        payload = _load_json(from_path)
+        holdings = payload.get("holdings")
+        if not isinstance(holdings, list) or not holdings:
+            raise click.ClickException("Input JSON must include a non-empty 'holdings' array.")
+        items.extend(holdings)
+    else:
+        if account_id is None or not instrument_symbol:
+            raise click.ClickException(
+                "Provide --account-id and --instrument-symbol or --from JSON."
+            )
+        items.append(
+            {
+                "account_id": account_id,
+                "symbol": instrument_symbol,
+                "status": status,
+            }
+        )
+
+    created = 0
+    with connect(cli_ctx.config, read_only=False) as connection:
+        for holding in items:
+            acct_id = account_id or _resolve_account_id(connection, holding)
+            symbol = holding.get("symbol") or instrument_symbol
+            if not symbol:
+                raise click.ClickException("Holding entry missing 'symbol'.")
+            instr_id = _resolve_instrument_id(connection, symbol)
+            if preview:
+                cli_ctx.logger.info(
+                    f"[dry-run] Would ensure holding account_id={acct_id} symbol={symbol} status={status}"
+                )
+                continue
+            models.get_or_create_holding(
+                connection,
+                account_id=acct_id,
+                instrument_id=instr_id,
+                status=status,
+                position_side=holding.get("position_side", "long"),
+                opened_at=holding.get("opened_at"),
+                closed_at=holding.get("closed_at"),
+                metadata=holding.get("metadata"),
+            )
+            created += 1
+
+    if not preview:
+        cli_ctx.logger.success(f"Holdings processed: {created}")
+
+
+@main.command("holdings-deactivate")
+@click.option("--holding-id", required=True, type=int, help="Holding id to deactivate.")
+@click.option(
+    "--closed-at",
+    type=str,
+    default=None,
+    help="Optional closure date (YYYY-MM-DD). Defaults to today.",
+)
+@pass_cli_context
+def holdings_deactivate(cli_ctx: CLIContext, holding_id: int, closed_at: str | None) -> None:
+    """Mark a holding as closed."""
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+    closed_date = closed_at or date.today().isoformat()
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        row = connection.execute(
+            "SELECT id, status FROM holdings WHERE id = ?", (holding_id,)
+        ).fetchone()
+        if row is None:
+            raise click.ClickException(f"Holding id={holding_id} not found.")
+        if preview:
+            cli_ctx.logger.info(
+                f"[dry-run] Would set holding id={holding_id} status=closed on {closed_date}"
+            )
+            return
+        connection.execute(
+            "UPDATE holdings SET status = 'closed', closed_at = ? WHERE id = ?",
+            (closed_date, holding_id),
+        )
+    cli_ctx.logger.success(f"Holding id={holding_id} closed (closed_at={closed_date}).")
+
+
+@main.command("holdings-move")
+@click.option("--holding-id", required=True, type=int, help="Holding id to move.")
+@click.option("--account-id", required=True, type=int, help="Destination account id.")
+@pass_cli_context
+def holdings_move(cli_ctx: CLIContext, holding_id: int, account_id: int) -> None:
+    """Move a holding to a different account."""
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        row = connection.execute(
+            "SELECT instrument_id, account_id FROM holdings WHERE id = ?", (holding_id,)
+        ).fetchone()
+        if row is None:
+            raise click.ClickException(f"Holding id={holding_id} not found.")
+        instrument_id = int(row["instrument_id"])
+
+        # Check for unique active constraint in destination.
+        conflict = connection.execute(
+            """
+            SELECT 1 FROM holdings
+            WHERE account_id = ? AND instrument_id = ? AND status = 'active'
+            """,
+            (account_id, instrument_id),
+        ).fetchone()
+        if conflict:
+            raise click.ClickException(
+                "Destination already has an active holding for this instrument; deactivate or close it first."
+            )
+
+        if preview:
+            cli_ctx.logger.info(
+                f"[dry-run] Would move holding id={holding_id} from account {row['account_id']} to {account_id}"
+            )
+            return
+
+        connection.execute(
+            "UPDATE holdings SET account_id = ? WHERE id = ?",
+            (account_id, holding_id),
+        )
+
+    cli_ctx.logger.success(f"Holding id={holding_id} moved to account {account_id}.")
+
+
+@main.command("holding-values-upsert")
+@click.option(
+    "--from",
+    "from_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="JSON file with 'holding_values' (optionally also 'document', 'instruments', 'holdings').",
+)
+@pass_cli_context
+def holding_values_upsert(cli_ctx: CLIContext, from_path: Path) -> None:
+    """Upsert holding value rows from a normalized JSON payload."""
+
+    payload = _load_json(from_path)
+    holding_values = payload.get("holding_values")
+    if not isinstance(holding_values, list) or not holding_values:
+        raise click.ClickException("Input JSON must include a non-empty 'holding_values' array.")
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        inserted = _process_asset_payload(
+            connection, payload=payload, preview=preview, logger=cli_ctx.logger
+        )
+
+    if not preview:
+        cli_ctx.logger.success(f"Upserted holding_values rows: {inserted}")
+
+
+@main.command("documents-register")
+@click.option("--hash", "doc_hash", required=True, type=str, help="Document SHA256 hash.")
+@click.option("--source", "source_name", default="Statement Import", show_default=True, type=str)
+@click.option("--source-type", default="statement", show_default=True, type=str)
+@click.option("--priority", default=1, show_default=True, type=int)
+@click.option("--broker", type=str, default=None)
+@click.option("--period-end-date", type=str, default=None)
+@click.option("--file-path", type=str, default=None)
+@pass_cli_context
+def documents_register(
+    cli_ctx: CLIContext,
+    doc_hash: str,
+    source_name: str,
+    source_type: str,
+    priority: int,
+    broker: str | None,
+    period_end_date: str | None,
+    file_path: str | None,
+) -> None:
+    """Register a document for idempotent imports."""
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        source_id = models.get_or_create_asset_source(
+            connection, name=source_name, source_type=source_type, priority=priority
+        )
+        if preview:
+            cli_ctx.logger.info(
+                f"[dry-run] Would register document hash={doc_hash} source_id={source_id}"
+            )
+            return
+        doc_id = models.register_document(
+            connection,
+            document_hash=doc_hash,
+            source_id=source_id,
+            broker=broker,
+            period_end_date=period_end_date,
+            file_path=file_path,
+        )
+    cli_ctx.logger.success(f"Registered document hash={doc_hash} (id={doc_id}).")
+
+
+@main.command("documents-delete")
+@click.option("--hash", "doc_hash", required=True, type=str, help="Document SHA256 hash.")
+@pass_cli_context
+def documents_delete(cli_ctx: CLIContext, doc_hash: str) -> None:
+    """Delete a document and clear linked holding_values (idempotent)."""
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        row = connection.execute(
+            "SELECT id FROM documents WHERE document_hash = ?",
+            (doc_hash,),
+        ).fetchone()
+        if row is None:
+            raise click.ClickException(f"Document hash '{doc_hash}' not found.")
+        doc_id = int(row["id"])
+
+        if preview:
+            cli_ctx.logger.info(
+                f"[dry-run] Would delete document id={doc_id} and null linked holding_values"
+            )
+            return
+
+        connection.execute(
+            "UPDATE holding_values SET document_id = NULL WHERE document_id = ?",
+            (doc_id,),
+        )
+        connection.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+
+    cli_ctx.logger.success(f"Deleted document hash={doc_hash} (id={doc_id}).")
+
+
+@main.command("asset-import")
+@click.option(
+    "--from",
+    "from_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Normalized asset JSON (document + instruments + holdings + holding_values).",
+)
+@pass_cli_context
+def asset_import(cli_ctx: CLIContext, from_path: Path) -> None:
+    """Convenience wrapper to import an entire asset payload in one step."""
+
+    payload = _load_json(from_path)
+    if "holding_values" not in payload:
+        raise click.ClickException("Payload must include a 'holding_values' array.")
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        inserted = _process_asset_payload(
+            connection, payload=payload, preview=preview, logger=cli_ctx.logger
+        )
+
+    if not preview:
+        cli_ctx.logger.success(f"Imported asset payload rows: holding_values={inserted}")
 
 
 @dataclass(slots=True)

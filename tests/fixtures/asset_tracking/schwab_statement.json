@@ -1,0 +1,69 @@
+{
+  "document": {
+    "document_hash": "schwab-2025-01-15-demo-hash",
+    "broker": "Schwab",
+    "as_of_date": "2025-01-15",
+    "period_end_date": "2025-01-15"
+  },
+  "instruments": [
+    {
+      "name": "Vanguard Total Bond Market ETF",
+      "symbol": "BND",
+      "exchange": "NYSEARCA",
+      "currency": "USD",
+      "vehicle_type": "ETF",
+      "identifiers": {"isin": "US9219378356"}
+    },
+    {
+      "name": "US Treasury Bill 06/30/2025",
+      "symbol": "T-BILL-063025",
+      "currency": "USD",
+      "vehicle_type": "bond",
+      "identifiers": {"cusip": "912796ZL2"}
+    },
+    {
+      "name": "Schwab Value Advantage Money Fund",
+      "symbol": "SWVXX",
+      "currency": "USD",
+      "vehicle_type": "MMF",
+      "identifiers": {"isin": "US8085156098"}
+    }
+  ],
+  "holdings": [
+    {"account_key": "SCHWAB-IRA-2024", "symbol": "BND", "status": "active"},
+    {"account_key": "SCHWAB-IRA-2024", "symbol": "T-BILL-063025", "status": "active"},
+    {"account_key": "SCHWAB-IRA-2024", "symbol": "SWVXX", "status": "active", "position_side": "long"}
+  ],
+  "holding_values": [
+    {
+      "account_key": "SCHWAB-IRA-2024",
+      "symbol": "BND",
+      "as_of_date": "2025-01-15",
+      "quantity": 120.0,
+      "price": 72.14,
+      "market_value": 8656.80,
+      "source": "statement",
+      "document_hash": "schwab-2025-01-15-demo-hash"
+    },
+    {
+      "account_key": "SCHWAB-IRA-2024",
+      "symbol": "T-BILL-063025",
+      "as_of_date": "2025-01-15",
+      "quantity": 50.0,
+      "price": 99.12,
+      "market_value": 4956.00,
+      "source": "statement",
+      "document_hash": "schwab-2025-01-15-demo-hash"
+    },
+    {
+      "account_key": "SCHWAB-IRA-2024",
+      "symbol": "SWVXX",
+      "as_of_date": "2025-01-15",
+      "quantity": 25000.0,
+      "price": 1.0,
+      "market_value": 25000.0,
+      "source": "statement",
+      "document_hash": "schwab-2025-01-15-demo-hash"
+    }
+  ]
+}

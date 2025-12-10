@@ -1,0 +1,70 @@
+{
+  "document": {
+    "document_hash": "ubs-2024-12-31-demo-hash",
+    "broker": "UBS",
+    "as_of_date": "2024-12-31",
+    "period_end_date": "2024-12-31"
+  },
+  "instruments": [
+    {
+      "name": "Apple Inc",
+      "symbol": "AAPL",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "vehicle_type": "stock",
+      "identifiers": {"cusip": "037833100", "isin": "US0378331005"}
+    },
+    {
+      "name": "iShares MSCI ACWI ETF",
+      "symbol": "ACWI",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "vehicle_type": "ETF",
+      "identifiers": {"isin": "US4642882579"}
+    },
+    {
+      "name": "UBS Financial Sweep",
+      "symbol": "UBS-SWEEP",
+      "currency": "USD",
+      "vehicle_type": "MMF",
+      "identifiers": {"fund_id": "ubs-sweep-usd"}
+    }
+  ],
+  "holdings": [
+    {"account_key": "UBS-INV-001", "symbol": "AAPL", "status": "active", "opened_at": "2023-03-15"},
+    {"account_key": "UBS-INV-001", "symbol": "ACWI", "status": "active"},
+    {"account_key": "UBS-INV-001", "symbol": "UBS-SWEEP", "status": "active"}
+  ],
+  "holding_values": [
+    {
+      "account_key": "UBS-INV-001",
+      "symbol": "AAPL",
+      "as_of_date": "2024-12-31",
+      "quantity": 40.0,
+      "price": 192.50,
+      "market_value": 7700.00,
+      "source": "statement",
+      "document_hash": "ubs-2024-12-31-demo-hash"
+    },
+    {
+      "account_key": "UBS-INV-001",
+      "symbol": "ACWI",
+      "as_of_date": "2024-12-31",
+      "quantity": 18.0,
+      "price": 97.10,
+      "market_value": 1747.80,
+      "source": "statement",
+      "document_hash": "ubs-2024-12-31-demo-hash"
+    },
+    {
+      "account_key": "UBS-INV-001",
+      "symbol": "UBS-SWEEP",
+      "as_of_date": "2024-12-31",
+      "quantity": 13000.0,
+      "price": 1.0,
+      "market_value": 13000.0,
+      "source": "statement",
+      "document_hash": "ubs-2024-12-31-demo-hash"
+    }
+  ]
+}
