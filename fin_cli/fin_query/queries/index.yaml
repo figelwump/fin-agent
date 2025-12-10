@@ -130,3 +130,118 @@ queries:
     limit:
       type: integer
       default: 100
+
+# Asset Tracking Queries
+- name: holding_latest_values
+  file: holding_latest_values.sql
+  description: Latest valuation for each holding using source priority then recency.
+  parameters:
+    account_id:
+      type: integer
+      default: null
+      description: Optional account filter.
+    status:
+      type: string
+      default: active
+      description: Holding status filter (active, closed, or null for all).
+    limit:
+      type: integer
+      default: 200
+
+- name: portfolio_snapshot
+  file: portfolio_snapshot.sql
+  description: Current portfolio snapshot with holdings, values, and classifications.
+  parameters:
+    as_of_date:
+      type: string
+      default: null
+      description: Optional date for point-in-time snapshot (YYYY-MM-DD). Defaults to latest.
+    account_id:
+      type: integer
+      default: null
+      description: Optional account filter.
+    limit:
+      type: integer
+      default: 500
+
+- name: allocation_by_class
+  file: allocation_by_class.sql
+  description: Allocation breakdown by main and sub asset class.
+  parameters:
+    as_of_date:
+      type: string
+      default: null
+      description: Optional date for point-in-time snapshot (YYYY-MM-DD).
+    account_id:
+      type: integer
+      default: null
+      description: Optional account filter.
+
+- name: allocation_by_account
+  file: allocation_by_account.sql
+  description: Allocation breakdown by account.
+  parameters:
+    as_of_date:
+      type: string
+      default: null
+      description: Optional date for point-in-time snapshot (YYYY-MM-DD).
+
+- name: stale_holdings
+  file: stale_holdings.sql
+  description: Holdings without recent valuation updates.
+  parameters:
+    days:
+      type: integer
+      default: 30
+      description: Number of days to consider a holding stale.
+    limit:
+      type: integer
+      default: 100
+
+- name: holdings_missing_classification
+  file: holdings_missing_classification.sql
+  description: Instruments without asset class assignments.
+  parameters:
+    limit:
+      type: integer
+      default: 100
+
+- name: asset_classes
+  file: asset_classes.sql
+  description: Asset class taxonomy catalog.
+  parameters:
+    main_class:
+      type: string
+      default: null
+      description: Optional main class filter.
+    limit:
+      type: integer
+      default: 100
+
+- name: instruments
+  file: instruments.sql
+  description: Instrument catalog with classifications.
+  parameters:
+    symbol:
+      type: string
+      default: null
+      description: Optional symbol LIKE filter (use % wildcards).
+    vehicle_type:
+      type: string
+      default: null
+      description: Optional vehicle type filter.
+    limit:
+      type: integer
+      default: 200
+
+- name: holding_history
+  file: holding_history.sql
+  description: Value history for a specific holding over time.
+  parameters:
+    holding_id:
+      type: integer
+      required: true
+      description: Holding ID to retrieve history for.
+    limit:
+      type: integer
+      default: 365

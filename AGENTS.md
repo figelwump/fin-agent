@@ -103,3 +103,8 @@ except $EXCEPTION:
 - Add `--json` for machine-readable output
 - Add `-A 3 -B 3` to show context lines
 - Combine with standard Unix tools: `sg --pattern 'def $FUNC($$$):' --lang python | grep enhance`
+
+# Using the Oracle 
+
+- Oracle bundles a prompt plus the right files so another AI (GPT 5 Pro + more) can answer. Use when stuck/bugs/reviewing or requested.
+- Run `npx -y @steipete/oracle --help` once per session before first use.

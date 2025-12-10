@@ -36,3 +36,7 @@ logs/
 
 # Playwright UI snapshots (generated locally by MCP tooling)
 .playwright-mcp/
+
+# User data directory (preferences, local state)
+# Note: ~/.finagent/ is outside the repo but we exclude any local references
+.finagent/
