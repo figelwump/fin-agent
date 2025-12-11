@@ -1,0 +1,263 @@
+{
+  "document": {
+    "document_hash": "ubs-2025-11-28-scrubbed-demo",
+    "broker": "UBS",
+    "as_of_date": "2025-11-28",
+    "period_end_date": "2025-11-28"
+  },
+  "instruments": [
+    {
+      "name": "UBS FDIC Insured Deposit",
+      "symbol": "UBS-FDIC-SWEEP",
+      "currency": "USD",
+      "vehicle_type": "MMF",
+      "identifiers": {"fund_id": "ubs-fdic-sweep"}
+    },
+    {
+      "name": "UBS Select 100% US Treasury Fund Institutional",
+      "symbol": "SIOXX",
+      "currency": "USD",
+      "vehicle_type": "MMF",
+      "identifiers": {"cusip": "902677300"}
+    },
+    {
+      "name": "Salesforce, Inc.",
+      "symbol": "CRM",
+      "exchange": "NYSE",
+      "currency": "USD",
+      "vehicle_type": "stock",
+      "identifiers": {"cusip": "79466L302"}
+    },
+    {
+      "name": "Call Salesforce Inc Jan 2026 360",
+      "symbol": "CRM-C-360-2026-01-16",
+      "currency": "USD",
+      "vehicle_type": "option",
+      "identifiers": {},
+      "metadata": {"underlying": "CRM", "strike": 360.0, "expiration": "2026-01-16", "option_type": "call"}
+    },
+    {
+      "name": "Canyon Distressed Opportunity Fund III (Delaware) LP",
+      "symbol": "CANYON-DOF-III",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"fund_id": "canyon-dof-iii-delaware"}
+    },
+    {
+      "name": "K5 Private Investors (iCapital) LP",
+      "symbol": "K5-ICAPITAL",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"fund_id": "k5-icapital-lp"}
+    },
+    {
+      "name": "SL Partners VII (iCapital) LP",
+      "symbol": "SL-VII-ICAPITAL",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"fund_id": "sl-partners-vii-icapital"}
+    },
+    {
+      "name": "SLP VI and SLA II (iCapital) LP",
+      "symbol": "SLP-VI-SLA-II",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"fund_id": "slp-vi-sla-ii-icapital"}
+    },
+    {
+      "name": "Strategic Value Dislocation Fund (iCapital) LP",
+      "symbol": "SVDF-ICAPITAL",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"fund_id": "strategic-value-dislocation-icapital"}
+    },
+    {
+      "name": "Apollo Debt Solutions BDC Class S",
+      "symbol": "APOLLO-DS-BDC-S",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"cusip": "03768E103"}
+    },
+    {
+      "name": "Blackstone Real Estate Income Trust Inc Class S-P",
+      "symbol": "BREIT-S-P",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"cusip": "0759959I3"}
+    },
+    {
+      "name": "Carlyle Tactical Private Credit Fund Class M",
+      "symbol": "CARLYLE-TPC-M",
+      "currency": "USD",
+      "vehicle_type": "fund_LP",
+      "identifiers": {"fund_id": "carlyle-tactical-private-credit-m"}
+    },
+    {
+      "name": "Gold Bullion (UBS AG Collective Custody)",
+      "symbol": "GOLD-UBS-OZ",
+      "currency": "USD",
+      "vehicle_type": "note",
+      "identifiers": {"fund_id": "gold-ubs-collective-custody"},
+      "metadata": {"unit": "troy_ounce", "custodian": "UBS AG"}
+    }
+  ],
+  "holdings": [
+    {"account_key": "UBS-Y7-01487-28", "symbol": "UBS-FDIC-SWEEP", "status": "active"},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "SIOXX", "status": "active"},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "CRM", "status": "active", "opened_at": "2014-12-22", "cost_basis_total": 61195.77, "cost_basis_method": "FIFO"},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "CRM-C-360-2026-01-16", "status": "active", "position_side": "short", "opened_at": "2024-12-20"},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "CANYON-DOF-III", "status": "active", "metadata": {"commitment_amount": 300000.0, "as_of_nav_date": "2025-09-30"}},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "K5-ICAPITAL", "status": "active", "metadata": {"commitment_amount": 500000.0, "as_of_nav_date": "2025-06-30"}},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "SL-VII-ICAPITAL", "status": "active", "metadata": {"commitment_amount": 300000.0, "as_of_nav_date": "2025-06-30"}},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "SLP-VI-SLA-II", "status": "active", "metadata": {"commitment_amount": 300000.0, "as_of_nav_date": "2025-06-30"}},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "SVDF-ICAPITAL", "status": "active", "metadata": {"commitment_amount": 300000.0, "as_of_nav_date": "2025-06-30"}},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "APOLLO-DS-BDC-S", "status": "active", "opened_at": "2023-06-27", "cost_basis_total": 151500.00},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "BREIT-S-P", "status": "active", "opened_at": "2020-07-28", "cost_basis_total": 1429384.34},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "CARLYLE-TPC-M", "status": "active", "opened_at": "2023-06-28", "cost_basis_total": 151500.00},
+    {"account_key": "UBS-Y7-01487-28", "symbol": "GOLD-UBS-OZ", "status": "active", "opened_at": "2020-10-02", "cost_basis_total": 252231.71}
+  ],
+  "holding_values": [
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "UBS-FDIC-SWEEP",
+      "as_of_date": "2025-11-28",
+      "quantity": 5697.46,
+      "price": 1.0,
+      "market_value": 5697.46,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo"
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "SIOXX",
+      "as_of_date": "2025-11-28",
+      "quantity": 483735.42,
+      "price": 1.0,
+      "market_value": 483735.42,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"estimated_annual_income": 18479.0, "current_yield": 0.0382}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "CRM",
+      "as_of_date": "2025-11-28",
+      "quantity": 6260.0,
+      "price": 230.54,
+      "market_value": 1443180.40,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"unrealized_gain_loss": 1381984.63, "holding_period": "LT", "estimated_annual_income": 10417.0, "current_yield": 0.0072}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "CRM-C-360-2026-01-16",
+      "as_of_date": "2025-11-28",
+      "quantity": 13.0,
+      "price": 18.0,
+      "market_value": 234.0,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"sale_proceeds": 64838.95, "unrealized_gain_loss": 64604.95, "holding_period": "ST", "contract_value": 234.0}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "CANYON-DOF-III",
+      "as_of_date": "2025-11-28",
+      "quantity": 192044.0,
+      "price": 1.0,
+      "market_value": 192044.0,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"valuation_lag_months": 2, "nav_as_of": "2025-09-30", "valuation_type": "issuer_estimate"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "K5-ICAPITAL",
+      "as_of_date": "2025-11-28",
+      "quantity": 587155.0,
+      "price": 1.0,
+      "market_value": 587155.0,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"valuation_lag_months": 5, "nav_as_of": "2025-06-30", "valuation_type": "issuer_estimate"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "SL-VII-ICAPITAL",
+      "as_of_date": "2025-11-28",
+      "quantity": 130001.0,
+      "price": 1.0,
+      "market_value": 130001.0,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"valuation_lag_months": 5, "nav_as_of": "2025-06-30", "valuation_type": "issuer_estimate"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "SLP-VI-SLA-II",
+      "as_of_date": "2025-11-28",
+      "quantity": 338634.0,
+      "price": 1.0,
+      "market_value": 338634.0,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"valuation_lag_months": 5, "nav_as_of": "2025-06-30", "valuation_type": "issuer_estimate"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "SVDF-ICAPITAL",
+      "as_of_date": "2025-11-28",
+      "quantity": 219455.0,
+      "price": 1.0,
+      "market_value": 219455.0,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"valuation_lag_months": 5, "nav_as_of": "2025-06-30", "valuation_type": "issuer_estimate"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "APOLLO-DS-BDC-S",
+      "as_of_date": "2025-11-28",
+      "quantity": 6203.551,
+      "price": 24.52,
+      "market_value": 152111.07,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"nav_as_of": "2025-09-30", "unrealized_gain_loss": 611.07, "holding_period": "LT"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "BREIT-S-P",
+      "as_of_date": "2025-11-28",
+      "quantity": 126278.077,
+      "price": 13.912,
+      "market_value": 1756780.60,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"nav_as_of": "2025-10-31", "unrealized_gain_loss": 327396.25, "holding_period": "LT"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "CARLYLE-TPC-M",
+      "as_of_date": "2025-11-28",
+      "quantity": 17921.147,
+      "price": 8.35,
+      "market_value": 149641.57,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"unrealized_gain_loss": -1858.43, "holding_period": "LT"}
+    },
+    {
+      "account_key": "UBS-Y7-01487-28",
+      "symbol": "GOLD-UBS-OZ",
+      "as_of_date": "2025-11-28",
+      "quantity": 132.0,
+      "price": 4230.37,
+      "market_value": 558408.84,
+      "source": "statement",
+      "document_hash": "ubs-2025-11-28-scrubbed-demo",
+      "metadata": {"unrealized_gain_loss": 306177.13, "holding_period": "LT", "unit": "troy_ounce"}
+    }
+  ]
+}

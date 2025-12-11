@@ -184,7 +184,11 @@ Notes:
 - [ ] Tests for analyzers using fixture data.
 
 ### Phase 5: Skills Integration
-- [ ] Create new skill `asset-tracker` (or extend existing) with workflows: ingest statements -> import -> analyze; reuse spending-analyzer patterns for narrative assembly.
+- [x] Create new skill `asset-tracker` with workflows: ingest statements -> import -> analyze; reuse spending-analyzer patterns for narrative assembly.
+  - Created `.claude/skills/asset-tracker/` with SKILL.md, templates, and scripts
+  - `preprocess.py`: Builds LLM prompts with asset class taxonomy and existing instruments
+  - `postprocess.py`: Validates JSON, auto-classifies instruments by name/vehicle_type, computes document_hash
+  - Tested end-to-end with scrubbed UBS November 2025 statement (13 holdings, $6M portfolio)
 - [ ] Add workflows for "view allocation", "trend/history", "rebalance suggestions", "over/under cash vs spend rate".
 - [ ] Add preference capture: quiz user for target allocations/risk/liquidity/geo preferences; persist in DB (`portfolio_targets` table) AND JSON file under `~/.finagent/preferences.json` (gitignored).
 - [ ] Implement safe preferences file handling:
