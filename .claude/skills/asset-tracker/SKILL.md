@@ -217,6 +217,64 @@ For securities without standard tickers:
 - Options: `CRM-C-360-2026-01-16` (underlying-type-strike-expiry)
 - Gold: `GOLD-UBS-OZ`
 
+## Handling Transfers
+
+When assets move between custodians (e.g., transferring shares from UBS to Schwab), the system can detect and handle this.
+
+### Automatic Detection
+
+During postprocess (step 4), the system checks if any instruments in the payload already have active holdings at different accounts. If detected, you'll see:
+
+```
+⚠️  Potential transfers detected:
+
+  CRM (Salesforce, Inc.)
+    Currently active at: UBS-Y7-01487-28
+    Now appearing at: Schwab-1234
+
+    Suggested command:
+      fin-edit --apply holdings-transfer --symbol CRM --from "UBS-Y7-01487-28" --to "Schwab-1234" --carry-cost-basis
+```
+
+### Manual Transfer Command
+
+To transfer a holding between accounts:
+
+```bash
+# Preview the transfer
+fin-edit holdings-transfer \
+  --symbol CRM \
+  --from "UBS-Y7-01487-28" \
+  --to "Schwab-1234" \
+  --transfer-date 2025-12-01 \
+  --carry-cost-basis
+
+# Execute the transfer
+fin-edit --apply holdings-transfer \
+  --symbol CRM \
+  --from "UBS-Y7-01487-28" \
+  --to "Schwab-1234" \
+  --transfer-date 2025-12-01 \
+  --carry-cost-basis
+```
+
+This:
+1. Closes the source holding (`status='closed'`, `closed_at=transfer_date`)
+2. Creates a new holding at the destination (`status='active'`, `opened_at=transfer_date`)
+3. Optionally carries cost basis from source to destination (`--carry-cost-basis`)
+
+### Viewing Closed Holdings
+
+By default, queries only show active holdings. To see closed holdings:
+
+```bash
+# Show only closed holdings
+fin-query saved holding_latest_values -p status=closed --format table
+
+# Show all holdings (active and closed)
+fin-query saved holding_latest_values -p status=null --format table
+```
+
 ## Database Commands
 
 ```bash
@@ -256,9 +314,10 @@ This cascades to remove associated holding_values.
 
 - `fin-scrub`: Sanitize PDFs to redact PII
 - `python $SKILL_ROOT/scripts/preprocess.py`: Build extraction prompts with taxonomy context
-- `python $SKILL_ROOT/scripts/postprocess.py`: Validate/enrich LLM output, auto-classify instruments
+- `python $SKILL_ROOT/scripts/postprocess.py`: Validate/enrich LLM output, auto-classify instruments, detect transfers
 - `fin-extract asset-json`: Validate and import asset JSON payloads
 - `fin-extract asset-csv`: Import from CSV format
+- `fin-edit holdings-transfer`: Transfer holdings between accounts (closes source, creates destination)
 - `fin-query saved <query>`: Query asset data
 
 ## Common Errors

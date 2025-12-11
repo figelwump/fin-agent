@@ -219,6 +219,114 @@ def validate_and_report(payload: dict, *, strict: bool = True) -> list[str]:
     return errors
 
 
+def detect_potential_transfers(
+    payload: dict,
+    *,
+    config: AppConfig | None = None,
+    verbose: bool = False,
+) -> list[dict]:
+    """
+    Detect potential transfers by checking if any instruments in the payload
+    already have active holdings at different accounts.
+
+    This helps identify when assets have moved between custodians.
+
+    Args:
+        payload: The asset payload to check
+        config: App config for database access
+        verbose: Whether to print detection details
+
+    Returns:
+        List of potential transfers with suggested commands
+    """
+    effective_config = config or load_config()
+    potential_transfers = []
+
+    # Get unique (account_key, symbol) pairs from payload
+    payload_holdings = {}
+    for holding in payload.get("holdings") or []:
+        account_key = holding.get("account_key")
+        symbol = holding.get("symbol")
+        if account_key and symbol:
+            payload_holdings[(account_key, symbol)] = holding
+
+    if not payload_holdings:
+        return []
+
+    with connect(effective_config, read_only=True) as conn:
+        # For each symbol in the payload, check for existing active holdings
+        # at different accounts
+        symbols = set(h[1] for h in payload_holdings.keys())
+
+        for symbol in symbols:
+            # Get payload's account for this symbol
+            payload_accounts = [
+                ak for ak, sym in payload_holdings.keys() if sym == symbol
+            ]
+
+            # Find active holdings for this symbol in the database
+            cursor = conn.execute(
+                """
+                SELECT
+                    h.id as holding_id,
+                    a.name as account_name,
+                    i.name as instrument_name,
+                    i.symbol
+                FROM holdings h
+                JOIN accounts a ON h.account_id = a.id
+                JOIN instruments i ON h.instrument_id = i.id
+                WHERE i.symbol = ? AND h.status = 'active'
+                """,
+                (symbol,),
+            )
+            existing = cursor.fetchall()
+
+            for row in existing:
+                existing_account = row["account_name"]
+                # Check if this is a different account than what's in the payload
+                if existing_account not in payload_accounts:
+                    potential_transfers.append({
+                        "symbol": symbol,
+                        "instrument_name": row["instrument_name"],
+                        "existing_account": existing_account,
+                        "existing_holding_id": row["holding_id"],
+                        "new_accounts": payload_accounts,
+                    })
+
+    return potential_transfers
+
+
+def print_transfer_warnings(transfers: list[dict]) -> None:
+    """Print warnings about potential transfers with suggested commands."""
+    if not transfers:
+        return
+
+    click.echo()
+    click.secho("⚠️  Potential transfers detected:", fg="yellow", bold=True)
+    click.echo()
+
+    for xfer in transfers:
+        symbol = xfer["symbol"]
+        name = xfer["instrument_name"]
+        existing = xfer["existing_account"]
+        new_accounts = xfer["new_accounts"]
+
+        click.echo(f"  {symbol} ({name})")
+        click.echo(f"    Currently active at: {existing}")
+        click.echo(f"    Now appearing at: {', '.join(new_accounts)}")
+        click.echo()
+
+        # Suggest command for each new account
+        for new_acct in new_accounts:
+            click.echo(f"    Suggested command:")
+            click.secho(
+                f"      fin-edit --apply holdings-transfer --symbol {symbol} "
+                f'--from "{existing}" --to "{new_acct}" --carry-cost-basis',
+                fg="cyan",
+            )
+        click.echo()
+
+
 @click.command()
 @click.option(
     "--input",
@@ -249,6 +357,12 @@ def validate_and_report(payload: dict, *, strict: bool = True) -> list[str]:
     help="Auto-classify instruments based on name/type.",
 )
 @click.option(
+    "--detect-transfers/--no-detect-transfers",
+    default=True,
+    show_default=True,
+    help="Check for potential transfers from other accounts.",
+)
+@click.option(
     "--validate-only",
     is_flag=True,
     help="Only validate, don't write output.",
@@ -265,6 +379,7 @@ def cli(
     document_path: Path | None,
     workdir: Path | None,
     auto_classify: bool,
+    detect_transfers: bool,
     validate_only: bool,
     verbose: bool,
 ) -> None:
@@ -333,6 +448,11 @@ def cli(
 
     # Validate
     errors = validate_and_report(enriched, strict=True)
+
+    # Detect potential transfers
+    if detect_transfers:
+        transfers = detect_potential_transfers(enriched, verbose=verbose)
+        print_transfer_warnings(transfers)
 
     if validate_only:
         click.echo("Payload is valid.")

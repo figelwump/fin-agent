@@ -293,3 +293,253 @@ def test_documents_register_and_delete(tmp_path: Path) -> None:
     with connect(load_config(env=env), apply_migrations=False, read_only=True) as connection:
         remaining = connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         assert remaining == 0
+
+
+def test_holdings_transfer_preview(tmp_path: Path) -> None:
+    """Test holdings-transfer command in preview mode."""
+    db_path, env = _setup_db(tmp_path)
+    runner = CliRunner()
+
+    # Setup: create source and destination accounts, instrument, and holding
+    with connect(load_config(env=env)) as connection:
+        # Add destination account
+        connection.execute(
+            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?)",
+            ("Schwab-IRA", "Schwab", "brokerage"),
+        )
+        # Add instrument
+        connection.execute(
+            "INSERT INTO instruments (name, symbol, currency, vehicle_type) VALUES (?, ?, ?, ?)",
+            ("Salesforce, Inc.", "CRM", "USD", "stock"),
+        )
+        # Add holding at source account
+        connection.execute(
+            """INSERT INTO holdings
+               (account_id, instrument_id, status, position_side, cost_basis_total)
+               VALUES (1, 1, 'active', 'long', 50000.00)"""
+        )
+
+    # Preview transfer (no --apply)
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "holdings-transfer",
+            "--symbol",
+            "CRM",
+            "--from",
+            "UBS-INV-001",
+            "--to",
+            "Schwab-IRA",
+            "--carry-cost-basis",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+    assert "Transfer Preview:" in result.output
+    assert "CRM" in result.output
+    assert "UBS-INV-001" in result.output
+    assert "Schwab-IRA" in result.output
+    assert "Use --apply to execute" in result.output
+
+    # Verify nothing changed
+    with connect(load_config(env=env), apply_migrations=False, read_only=True) as connection:
+        source = connection.execute(
+            "SELECT status FROM holdings WHERE account_id = 1 AND instrument_id = 1"
+        ).fetchone()
+        assert source["status"] == "active"
+
+        dest = connection.execute("SELECT COUNT(*) FROM holdings WHERE account_id = 2").fetchone()[
+            0
+        ]
+        assert dest == 0
+
+
+def test_holdings_transfer_apply(tmp_path: Path) -> None:
+    """Test holdings-transfer command with --apply."""
+    db_path, env = _setup_db(tmp_path)
+    runner = CliRunner()
+
+    # Setup
+    with connect(load_config(env=env)) as connection:
+        connection.execute(
+            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?)",
+            ("Schwab-IRA", "Schwab", "brokerage"),
+        )
+        connection.execute(
+            "INSERT INTO instruments (name, symbol, currency, vehicle_type) VALUES (?, ?, ?, ?)",
+            ("Salesforce, Inc.", "CRM", "USD", "stock"),
+        )
+        connection.execute(
+            """INSERT INTO holdings
+               (account_id, instrument_id, status, position_side, cost_basis_total, cost_basis_method)
+               VALUES (1, 1, 'active', 'long', 50000.00, 'FIFO')"""
+        )
+
+    # Execute transfer
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "holdings-transfer",
+            "--symbol",
+            "CRM",
+            "--from",
+            "UBS-INV-001",
+            "--to",
+            "Schwab-IRA",
+            "--transfer-date",
+            "2025-12-01",
+            "--carry-cost-basis",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+    assert "Transferred CRM" in result.output
+
+    # Verify changes
+    with connect(load_config(env=env), apply_migrations=False, read_only=True) as connection:
+        # Source holding should be closed
+        source = connection.execute(
+            "SELECT status, closed_at FROM holdings WHERE account_id = 1 AND instrument_id = 1"
+        ).fetchone()
+        assert source["status"] == "closed"
+        assert source["closed_at"] == "2025-12-01"
+
+        # Destination holding should be created
+        dest = connection.execute(
+            """SELECT status, opened_at, cost_basis_total, cost_basis_method, position_side
+               FROM holdings WHERE account_id = 2 AND instrument_id = 1"""
+        ).fetchone()
+        assert dest["status"] == "active"
+        assert dest["opened_at"] == "2025-12-01"
+        assert dest["cost_basis_total"] == 50000.00
+        assert dest["cost_basis_method"] == "FIFO"
+        assert dest["position_side"] == "long"
+
+
+def test_holdings_transfer_without_cost_basis(tmp_path: Path) -> None:
+    """Test holdings-transfer without carrying cost basis."""
+    db_path, env = _setup_db(tmp_path)
+    runner = CliRunner()
+
+    with connect(load_config(env=env)) as connection:
+        connection.execute(
+            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?)",
+            ("Schwab-IRA", "Schwab", "brokerage"),
+        )
+        connection.execute(
+            "INSERT INTO instruments (name, symbol, currency) VALUES (?, ?, ?)",
+            ("Test Stock", "TEST", "USD"),
+        )
+        connection.execute(
+            """INSERT INTO holdings
+               (account_id, instrument_id, status, position_side, cost_basis_total)
+               VALUES (1, 1, 'active', 'long', 25000.00)"""
+        )
+
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "--apply",
+            "holdings-transfer",
+            "--symbol",
+            "TEST",
+            "--from",
+            "UBS-INV-001",
+            "--to",
+            "Schwab-IRA",
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+
+    with connect(load_config(env=env), apply_migrations=False, read_only=True) as connection:
+        dest = connection.execute(
+            "SELECT cost_basis_total FROM holdings WHERE account_id = 2"
+        ).fetchone()
+        assert dest["cost_basis_total"] is None
+
+
+def test_holdings_transfer_errors(tmp_path: Path) -> None:
+    """Test holdings-transfer error cases."""
+    db_path, env = _setup_db(tmp_path)
+    runner = CliRunner()
+
+    # Error: instrument not found
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "holdings-transfer",
+            "--symbol",
+            "NOTFOUND",
+            "--from",
+            "UBS-INV-001",
+            "--to",
+            "UBS-INV-001",  # Use same account to avoid account error
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    assert "not found" in result.output.lower()
+
+    # Setup instrument and destination account, but no holding
+    with connect(load_config(env=env)) as connection:
+        connection.execute(
+            "INSERT INTO instruments (name, symbol, currency) VALUES (?, ?, ?)",
+            ("Test", "TEST", "USD"),
+        )
+        connection.execute(
+            "INSERT INTO accounts (name, institution, account_type) VALUES (?, ?, ?)",
+            ("Schwab-IRA", "Schwab", "brokerage"),
+        )
+
+    # Error: no active holding at source
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "holdings-transfer",
+            "--symbol",
+            "TEST",
+            "--from",
+            "UBS-INV-001",
+            "--to",
+            "Schwab-IRA",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    assert "no active holding" in result.output.lower()
+
+    # Error: destination account not found
+    with connect(load_config(env=env)) as connection:
+        connection.execute(
+            "INSERT INTO holdings (account_id, instrument_id, status, position_side) VALUES (1, 1, 'active', 'long')"
+        )
+
+    result = runner.invoke(
+        edit_cli,
+        [
+            "--db",
+            str(db_path),
+            "holdings-transfer",
+            "--symbol",
+            "TEST",
+            "--from",
+            "UBS-INV-001",
+            "--to",
+            "NonexistentAccount",
+        ],
+        env=env,
+    )
+    assert result.exit_code != 0
+    assert "not found" in result.output.lower()

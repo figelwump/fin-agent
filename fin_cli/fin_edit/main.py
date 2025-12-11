@@ -1066,6 +1066,200 @@ def holdings_move(cli_ctx: CLIContext, holding_id: int, account_id: int) -> None
     cli_ctx.logger.success(f"Holding id={holding_id} moved to account {account_id}.")
 
 
+@main.command("holdings-transfer")
+@click.option("--symbol", required=True, type=str, help="Instrument symbol to transfer.")
+@click.option(
+    "--from",
+    "from_account",
+    required=True,
+    type=str,
+    help="Source account name or ID.",
+)
+@click.option(
+    "--to",
+    "to_account",
+    required=True,
+    type=str,
+    help="Destination account name or ID.",
+)
+@click.option(
+    "--transfer-date",
+    type=str,
+    default=None,
+    help="Transfer date (YYYY-MM-DD). Defaults to today.",
+)
+@click.option(
+    "--carry-cost-basis",
+    is_flag=True,
+    help="Copy cost basis from source holding to destination.",
+)
+@pass_cli_context
+def holdings_transfer(
+    cli_ctx: CLIContext,
+    symbol: str,
+    from_account: str,
+    to_account: str,
+    transfer_date: str | None,
+    carry_cost_basis: bool,
+) -> None:
+    """Transfer a holding from one account to another.
+
+    This closes the source holding and creates a new active holding at the
+    destination. Use this for custodian transfers (e.g., moving shares from
+    UBS to Schwab).
+
+    Unlike holdings-move, this preserves the source holding's history and
+    creates a proper audit trail with closed_at/opened_at dates.
+    """
+
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+    xfer_date = transfer_date or date.today().isoformat()
+
+    # Validate transfer date format
+    try:
+        date.fromisoformat(xfer_date)
+    except ValueError as exc:
+        raise click.ClickException(f"Invalid transfer date '{xfer_date}': {exc}") from exc
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        # Resolve instrument
+        instrument_row = connection.execute(
+            "SELECT id, name FROM instruments WHERE symbol = ?",
+            (symbol,),
+        ).fetchone()
+        if instrument_row is None:
+            raise click.ClickException(f"Instrument with symbol '{symbol}' not found.")
+        instrument_id = int(instrument_row["id"])
+        instrument_name = instrument_row["name"]
+
+        # Resolve source account (try as ID first, then as name)
+        source_account_id: int | None = None
+        if from_account.isdigit():
+            source_account_id = int(from_account)
+            source_row = connection.execute(
+                "SELECT id, name FROM accounts WHERE id = ?",
+                (source_account_id,),
+            ).fetchone()
+        else:
+            source_row = connection.execute(
+                "SELECT id, name FROM accounts WHERE name = ?",
+                (from_account,),
+            ).fetchone()
+            if source_row:
+                source_account_id = int(source_row["id"])
+
+        if source_row is None:
+            raise click.ClickException(f"Source account '{from_account}' not found.")
+        source_account_name = source_row["name"]
+
+        # Resolve destination account
+        dest_account_id: int | None = None
+        if to_account.isdigit():
+            dest_account_id = int(to_account)
+            dest_row = connection.execute(
+                "SELECT id, name FROM accounts WHERE id = ?",
+                (dest_account_id,),
+            ).fetchone()
+        else:
+            dest_row = connection.execute(
+                "SELECT id, name FROM accounts WHERE name = ?",
+                (to_account,),
+            ).fetchone()
+            if dest_row:
+                dest_account_id = int(dest_row["id"])
+
+        if dest_row is None:
+            raise click.ClickException(f"Destination account '{to_account}' not found.")
+        dest_account_name = dest_row["name"]
+
+        # Find active source holding
+        source_holding = connection.execute(
+            """
+            SELECT id, status, cost_basis_total, cost_basis_method, position_side, metadata
+            FROM holdings
+            WHERE account_id = ? AND instrument_id = ? AND status = 'active'
+            """,
+            (source_account_id, instrument_id),
+        ).fetchone()
+
+        if source_holding is None:
+            raise click.ClickException(
+                f"No active holding for {symbol} found in account '{source_account_name}'."
+            )
+
+        source_holding_id = int(source_holding["id"])
+        cost_basis_total = source_holding["cost_basis_total"]
+        cost_basis_method = source_holding["cost_basis_method"]
+        position_side = source_holding["position_side"] or "long"
+
+        # Check if destination already has an active holding
+        dest_holding = connection.execute(
+            """
+            SELECT id FROM holdings
+            WHERE account_id = ? AND instrument_id = ? AND status = 'active'
+            """,
+            (dest_account_id, instrument_id),
+        ).fetchone()
+
+        if dest_holding:
+            raise click.ClickException(
+                f"Destination account '{dest_account_name}' already has an active holding for {symbol}. "
+                "Close it first or use a different approach."
+            )
+
+        # Preview output
+        cli_ctx.logger.info("Transfer Preview:")
+        cli_ctx.logger.info(f"  Symbol: {symbol} ({instrument_name})")
+        cli_ctx.logger.info(f"  From: {source_account_name} (holding #{source_holding_id})")
+        cli_ctx.logger.info(f"    → Set status='closed', closed_at={xfer_date}")
+        cli_ctx.logger.info(f"  To: {dest_account_name} (new holding)")
+        cli_ctx.logger.info(f"    → Set status='active', opened_at={xfer_date}")
+        if carry_cost_basis and cost_basis_total is not None:
+            cli_ctx.logger.info(f"    → Cost basis: ${cost_basis_total:,.2f} (carried from source)")
+        elif carry_cost_basis:
+            cli_ctx.logger.info("    → Cost basis: None (source has no cost basis)")
+
+        if preview:
+            cli_ctx.logger.info("")
+            cli_ctx.logger.info("Use --apply to execute this transfer.")
+            return
+
+        # Execute transfer
+        # 1. Close source holding
+        connection.execute(
+            "UPDATE holdings SET status = 'closed', closed_at = ? WHERE id = ?",
+            (xfer_date, source_holding_id),
+        )
+
+        # 2. Create destination holding
+        new_cost_basis = cost_basis_total if carry_cost_basis else None
+        new_cost_method = cost_basis_method if carry_cost_basis else None
+
+        cursor = connection.execute(
+            """
+            INSERT INTO holdings (
+                account_id, instrument_id, status, position_side,
+                opened_at, cost_basis_total, cost_basis_method, created_date
+            ) VALUES (?, ?, 'active', ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                dest_account_id,
+                instrument_id,
+                position_side,
+                xfer_date,
+                new_cost_basis,
+                new_cost_method,
+            ),
+        )
+        new_holding_id = cursor.lastrowid
+
+    cli_ctx.logger.success(
+        f"Transferred {symbol} from {source_account_name} to {dest_account_name}. "
+        f"Source holding #{source_holding_id} closed, new holding #{new_holding_id} created."
+    )
+
+
 @main.command("holding-values-upsert")
 @click.option(
     "--from",
