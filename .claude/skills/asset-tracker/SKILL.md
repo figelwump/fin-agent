@@ -18,7 +18,9 @@ Extract holdings from investment statements (UBS, Schwab, Fidelity, etc.) and im
 
 Throughout this workflow, **`$WORKDIR`** refers to: `~/.finagent/skills/asset-tracker/<slug>`
 
-Prerequisites: install the `fin-cli` package so `fin-scrub`, `fin-extract`, `fin-query` commands are on your `PATH`.
+Prerequisites:
+- Install the `fin-cli` package so `fin-scrub`, `fin-edit`, `fin-query` commands are on your `PATH`.
+- Scripts must be run with the project venv Python (`.venv/bin/python`) or ensure `fin-cli` is installed in your active environment.
 
 ## Workflow (Sequential Loop)
 
@@ -88,18 +90,18 @@ python $SKILL_ROOT/scripts/postprocess.py \
 5. **Import validated data** (preview first, then apply):
 ```bash
 # Preview
-fin-extract asset-json $WORKDIR/<file>-enriched.json
+fin-edit asset-import --from $WORKDIR/<file>-enriched.json
 
 # Apply
-fin-extract asset-json $WORKDIR/<file>-enriched.json --apply
+fin-edit --apply asset-import --from $WORKDIR/<file>-enriched.json
 ```
 
 6. **Verify the import:**
 ```bash
-# Check holdings were created
-fin-query saved holdings --limit 20 --format table
+# Check holdings and values were created
+fin-query saved portfolio_snapshot --limit 20 --format table
 
-# Check latest values
+# Check latest values only
 fin-query saved holding_latest_values --limit 20 --format table
 
 # Check allocation breakdown
@@ -132,7 +134,7 @@ The LLM must output JSON with these exact keys:
 }
 ```
 
-Vehicle types: `stock`, `ETF`, `MMF`, `bond`, `fund_LP`, `note`, `option`, `crypto`, `cash`
+Vehicle types: `stock`, `ETF`, `MMF`, `bond`, `fund_LP`, `note`, `option`, `crypto`
 
 ### holdings (one per account+instrument)
 ```json
@@ -172,7 +174,7 @@ Vehicle types: `stock`, `ETF`, `MMF`, `bond`, `fund_LP`, `note`, `option`, `cryp
 | Individual stocks | `stock` | AAPL, CRM, MSFT |
 | ETFs | `ETF` | ACWI, VIG, SPY |
 | Money market funds | `MMF` | SIOXX, SWVXX |
-| Cash/sweep | `cash` | FDIC deposits, sweep accounts |
+| Cash/sweep/FDIC | `MMF` | FDIC deposits, sweep accounts |
 | Private equity | `fund_LP` | Canyon, SL Partners, iCapital funds |
 | BDCs | `fund_LP` | Apollo Debt Solutions, Carlyle |
 | Non-traded REITs | `fund_LP` | BREIT, Blackstone REIT |
@@ -279,13 +281,10 @@ fin-query saved holding_latest_values -p status=null --format table
 
 ```bash
 # Import assets from JSON
-fin-extract asset-json <file.json> --apply
-
-# Import from CSV
-fin-extract asset-csv <file.csv> --apply
+fin-edit --apply asset-import --from <file.json>
 
 # Query holdings
-fin-query saved holdings --limit 50 --format table
+fin-query saved portfolio_snapshot --limit 50 --format table
 fin-query saved holding_latest_values --format csv
 fin-query saved allocation_by_class --format table
 fin-query saved stale_holdings --format table
@@ -315,15 +314,14 @@ This cascades to remove associated holding_values.
 - `fin-scrub`: Sanitize PDFs to redact PII
 - `python $SKILL_ROOT/scripts/preprocess.py`: Build extraction prompts with taxonomy context
 - `python $SKILL_ROOT/scripts/postprocess.py`: Validate/enrich LLM output, auto-classify instruments, detect transfers
-- `fin-extract asset-json`: Validate and import asset JSON payloads
-- `fin-extract asset-csv`: Import from CSV format
+- `fin-edit asset-import --from <file.json>`: Validate and import asset JSON payloads
 - `fin-edit holdings-transfer`: Transfer holdings between accounts (closes source, creates destination)
-- `fin-query saved <query>`: Query asset data
+- `fin-query saved <query>`: Query asset data (use `portfolio_snapshot`, `holding_latest_values`, `allocation_by_class`, etc.)
 
 ## Common Errors
 
 - **Invalid JSON structure**: Use `--validate-only` flag in postprocess.py to check structure
 - **Missing required fields**: Ensure all instruments have `name`, `currency`; all holdings have `account_key`, `symbol`
 - **Document hash collision**: Statement already imported (idempotent protection)
-- **Unknown vehicle_type**: Use one of: stock, ETF, MMF, bond, fund_LP, note, option, crypto, cash
+- **Unknown vehicle_type**: Use one of: stock, ETF, MMF, bond, fund_LP, note, option, crypto
 - **Quantity/price/market_value mismatch**: Ensure market_value ≈ quantity × price (with tolerance)

@@ -15,7 +15,7 @@ Emit a single JSON object with this exact structure:
       "name": "<full security name>",
       "symbol": "<ticker or synthetic symbol>",
       "currency": "USD",
-      "vehicle_type": "<stock|ETF|MMF|bond|fund_LP|note|option|crypto|cash>",
+      "vehicle_type": "<stock|ETF|MMF|bond|fund_LP|note|option|crypto>",
       "identifiers": {"cusip": "...", "isin": "..."},
       "metadata": {}
     }
@@ -64,7 +64,7 @@ Each unique security gets ONE entry:
   - `stock`: Individual stocks
   - `ETF`: Exchange-traded funds
   - `MMF`: Money market funds, treasury funds, cash sweeps, FDIC deposits
-  - `bond`: Individual bonds
+  - `bond`: Individual bonds (see bond pricing notes below)
   - `fund_LP`: Private equity, hedge funds, REITs, BDCs, private credit
   - `note`: Structured products, gold bullion
   - `option`: Options contracts
@@ -97,8 +97,8 @@ Each holding gets ONE value entry per statement:
 
 Use these vehicle_type mappings based on what you see in the statement:
 
-**Cash/Money Market (vehicle_type: "cash" or "MMF")**:
-- FDIC insured deposits, sweep accounts → "cash"
+**Cash/Money Market (vehicle_type: "MMF")**:
+- FDIC insured deposits, sweep accounts → "MMF"
 - Money market funds, treasury funds → "MMF"
 
 **Equities (vehicle_type: "stock")**:
@@ -133,6 +133,11 @@ Use these vehicle_type mappings based on what you see in the statement:
 5. **Accrued interest**: Include in metadata, not in market_value
 6. **DO NOT include**: Pending transfers, dividend reinvestment transactions, activity logs
 7. **DO NOT hallucinate**: Only extract securities actually shown in the holdings sections
+8. **Bond pricing convention**: Bonds are quoted as percentage of par value (e.g., 100.16796 means 100.16796% of par).
+   - For JSON output, convert to per-dollar price by dividing by 100
+   - Example: Statement shows price 100.16796% → use `"price": 1.0016796` in JSON
+   - Quantity for bonds is typically the face value (par amount)
+   - Market value = quantity × (price / 100) when statement shows percentage price
 
 # Asset Class Taxonomy (for your reference)
 

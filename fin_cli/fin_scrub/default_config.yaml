@@ -34,6 +34,7 @@ detectors:
   scrub_ssn: true
 skip_words:
   name:
+    # Banking terms
     - account
     - accounts
     - statement
@@ -103,6 +104,118 @@ skip_words:
     - service
     - health
     - autopay
+    # Brokerage/investment terms - preserve security names
+    - securities
+    - security
+    - position
+    - positions
+    - holdings
+    - holding
+    - portfolio
+    - market
+    - value
+    - quantity
+    - price
+    - cost
+    - basis
+    - unrealized
+    - gain
+    - loss
+    - shares
+    - units
+    - cusip
+    - isin
+    - sedol
+    - ticker
+    - symbol
+    - dividend
+    - yield
+    - coupon
+    - maturity
+    - par
+    - treasury
+    - treasuries
+    - bond
+    - bonds
+    - note
+    - notes
+    - equity
+    - equities
+    - stock
+    - stocks
+    - etf
+    - fund
+    - funds
+    - money
+    # Major brokerages and custodians - preserve these names
+    - schwab
+    - fidelity
+    - vanguard
+    - ubs
+    - morgan
+    - stanley
+    - merrill
+    - lynch
+    - goldman
+    - sachs
+    - blackrock
+    - blackstone
+    - ishares
+    - spdr
+    - invesco
+    - ameritrade
+    - interactive
+    - brokers
+    - pershing
+    # Common fund names and asset managers
+    - apollo
+    - carlyle
+    - canyon
+    - kkr
+    - tpg
+    - icapital
+    - breit
+    - reit
+    - bdc
+    # Security type suffixes
+    - adr
+    - sponsored
+    - unsponsored
+    - ordinary
+    - common
+    - preferred
+    - class
+    - series
+    - trust
+    - partnership
+    - lp
+    - capital
+    - growth
+    - income
+    - allocation
+    - retirement
+    - target
+    - date
+    - index
+    - managed
+    - active
+    - passive
+    - international
+    - emerging
+    - markets
+    - small
+    - large
+    - mid
+    - cap
+    # Table headers often over-redacted
+    - description
+    - settlement
+    - accrued
+    - annual
+    - percent
+    - estimated
+    - current
+    - previous
 filth_placeholders:
   email: EMAIL
   name: NAME
