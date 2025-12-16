@@ -29,6 +29,7 @@ warnings.filterwarnings(
 )
 
 from fin_cli.fin_extract.parsers.pdf_loader import load_pdf_document_with_engine
+from fin_cli.shared.utils import compute_file_sha256
 
 
 def _luhn_checksum(number: str) -> bool:
@@ -670,6 +671,39 @@ def _derive_scrubbed_filename(source: Path | None) -> str:
     return f"{slug}-scrubbed.txt"
 
 
+SOURCE_HASH_HEADER_PREFIX = "# SOURCE_FILE_HASH: "
+
+
+def parse_source_file_hash(scrubbed_content: str) -> str | None:
+    """
+    Extract the source file hash from scrubbed content if present.
+
+    Returns the SHA256 hash string or None if not found.
+    """
+    if not scrubbed_content:
+        return None
+    first_line = scrubbed_content.split("\n", 1)[0]
+    if first_line.startswith(SOURCE_HASH_HEADER_PREFIX):
+        return first_line[len(SOURCE_HASH_HEADER_PREFIX) :].strip()
+    return None
+
+
+def parse_source_file_hash_from_path(path: Path) -> str | None:
+    """
+    Extract the source file hash from a scrubbed file.
+
+    Reads only the first line to avoid loading the entire file.
+    """
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            first_line = f.readline()
+        if first_line.startswith(SOURCE_HASH_HEADER_PREFIX):
+            return first_line[len(SOURCE_HASH_HEADER_PREFIX) :].strip()
+    except (OSError, UnicodeDecodeError):
+        pass
+    return None
+
+
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument("input_path", type=click.Path(path_type=Path), required=False)
 @click.option(
@@ -699,6 +733,12 @@ def _derive_scrubbed_filename(source: Path | None) -> str:
     type=click.Path(path_type=Path),
     help="Path to a YAML configuration file overriding defaults.",
 )
+@click.option(
+    "--no-source-hash",
+    "skip_source_hash",
+    is_flag=True,
+    help="Do not embed the source file hash in the scrubbed output.",
+)
 def main(
     input_path: Path | None,
     output_path: Path | None,
@@ -708,6 +748,7 @@ def main(
     engine: str,
     report: bool,
     config_path: Path | None,
+    skip_source_hash: bool,
 ) -> None:
     """Redact PII from bank statements and emit scrubbed text."""
 
@@ -722,6 +763,11 @@ def main(
 
     _load_and_configure(config_path)
 
+    # Compute source file hash before reading content (for idempotent import tracking)
+    source_file_hash: str | None = None
+    if not use_stdin and not skip_source_hash and input_path is not None:
+        source_file_hash = compute_file_sha256(input_path)
+
     if use_stdin:
         raw_text = sys.stdin.read()
     else:
@@ -732,6 +778,10 @@ def main(
 
     stats = ScrubStats()
     scrubbed = _scrub_text(raw_text, stats)
+
+    # Prepend source hash header if computed
+    if source_file_hash:
+        scrubbed = f"{SOURCE_HASH_HEADER_PREFIX}{source_file_hash}\n{scrubbed}"
 
     if output_dir is not None:
         # Keep scrubbed outputs flat in the requested directory so downstream

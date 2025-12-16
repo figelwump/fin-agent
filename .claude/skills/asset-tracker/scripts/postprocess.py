@@ -13,6 +13,7 @@ from pathlib import Path
 import click
 
 from fin_cli.fin_extract.asset_contract import validate_asset_payload
+from fin_cli.fin_scrub.main import parse_source_file_hash_from_path
 from fin_cli.shared.config import AppConfig, load_config
 from fin_cli.shared.database import connect, run_migrations
 from fin_cli.shared.utils import compute_file_sha256
@@ -160,6 +161,14 @@ def enrich_payload(
         doc_block = payload.setdefault("document", {})
         doc_block.setdefault("document_hash", computed_hash)
         doc_block.setdefault("file_path", str(document_path))
+
+        # Extract source_file_hash from scrubbed file header (if present)
+        # This is the hash of the original PDF before scrubbing
+        source_file_hash = parse_source_file_hash_from_path(document_path)
+        if source_file_hash:
+            doc_block.setdefault("source_file_hash", source_file_hash)
+            if verbose:
+                click.echo(f"Found source_file_hash: {source_file_hash}")
 
         # Apply hash to holding_values
         for value in payload.get("holding_values") or []:

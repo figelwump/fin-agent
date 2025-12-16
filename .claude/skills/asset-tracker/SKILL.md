@@ -22,6 +22,25 @@ Prerequisites:
 - Install the `fin-cli` package so `fin-scrub`, `fin-edit`, `fin-query` commands are on your `PATH`.
 - Scripts must be run with the project venv Python (`.venv/bin/python`) or ensure `fin-cli` is installed in your active environment.
 
+## Finding Unimported Statements
+
+When importing multiple statements from a directory, first check which ones haven't been imported yet:
+
+```bash
+# Check a directory for unimported PDFs
+fin-query unimported statements/schwab/
+
+# Recursively check subdirectories
+fin-query unimported statements/ --recursive
+
+# Output as CSV for scripting
+fin-query unimported statements/schwab/ --format csv
+```
+
+This compares SHA256 hashes of PDF files against the database to identify files that haven't been imported. Use this before bulk imports to avoid re-processing already-imported statements.
+
+> **Note:** This only works for statements imported after this feature was added. Older imports without source file hashes won't be detected.
+
 ## Workflow (Sequential Loop)
 
 Process statements one at a time. For each PDF, run the full loop before touching the next file.
@@ -378,6 +397,7 @@ Preferences are stored in `~/.finagent/preferences.json` and persisted to the `p
 ## Available Commands
 
 - `fin-scrub`: Sanitize PDFs to redact PII
+- `fin-query unimported <directory>`: List PDF files not yet imported (use before bulk imports)
 - `python $SKILL_ROOT/scripts/preprocess.py`: Build extraction prompts with taxonomy context
 - `python $SKILL_ROOT/scripts/postprocess.py`: Validate/enrich LLM output, auto-classify instruments, detect transfers
 - `fin-edit asset-import --from <file.json>`: Validate and import asset JSON payloads

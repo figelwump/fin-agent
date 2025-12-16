@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from pathlib import Path
 
 import click
 
 from fin_cli.shared.cli import CLIContext, common_cli_options, handle_cli_errors, pass_cli_context
 from fin_cli.shared.config import AppConfig
+from fin_cli.shared.database import connect
 from fin_cli.shared.exceptions import QueryError
+from fin_cli.shared.utils import compute_file_sha256
 
 from . import executor, render
 from .types import QueryResult, SavedQuerySummary
@@ -244,6 +247,121 @@ def show_schema(
         if cli_ctx.verbose:
             raise
         raise click.ClickException(str(exc)) from exc
+
+
+@cli.command("unimported")
+@click.argument("directory", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--recursive",
+    "-r",
+    is_flag=True,
+    help="Recursively scan subdirectories for PDFs.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    default="table",
+    show_default=True,
+    type=click.Choice(OUTPUT_FORMAT_CHOICES),
+)
+@click.option(
+    "--db",
+    "db_override",
+    type=click.Path(path_type=str),
+    help="Use an alternate database path just for this command.",
+)
+@pass_cli_context
+def unimported(
+    cli_ctx: CLIContext,
+    directory: Path,
+    recursive: bool,
+    output_format: str,
+    db_override: str | None,
+) -> None:
+    """List PDF files in a directory that haven't been imported yet.
+
+    Compares SHA256 hashes of PDF files against the source_file_hash column
+    in the documents table to identify files not yet imported.
+
+    Note: Only works for files imported after the source_file_hash feature
+    was added. Older imports without this hash will not be detected.
+    """
+    _log_subcommand_entry(cli_ctx, "unimported", db_override)
+
+    # Gather PDF files
+    if recursive:
+        pdf_files = list(directory.rglob("*.pdf")) + list(directory.rglob("*.PDF"))
+    else:
+        pdf_files = list(directory.glob("*.pdf")) + list(directory.glob("*.PDF"))
+
+    # Dedupe (in case of overlapping globs)
+    pdf_files = sorted(set(pdf_files))
+
+    if not pdf_files:
+        click.echo(f"No PDF files found in {directory}")
+        return
+
+    # Compute hashes for all PDFs
+    file_hashes: dict[str, Path] = {}
+    for pdf_path in pdf_files:
+        try:
+            file_hash = compute_file_sha256(pdf_path)
+            file_hashes[file_hash] = pdf_path
+        except OSError as exc:
+            cli_ctx.logger.warning(f"Could not read {pdf_path}: {exc}")
+
+    if not file_hashes:
+        click.echo("Could not compute hashes for any PDF files.")
+        return
+
+    # Query database for known source_file_hashes
+    target_config = _config_for_command(cli_ctx, db_override)
+    with connect(target_config, read_only=True, apply_migrations=False) as conn:
+        # Get all known source_file_hashes
+        rows = conn.execute(
+            "SELECT source_file_hash FROM documents WHERE source_file_hash IS NOT NULL"
+        ).fetchall()
+        known_hashes = {row["source_file_hash"] for row in rows}
+
+    # Find unimported files
+    unimported_files = [
+        (path, file_hash)
+        for file_hash, path in file_hashes.items()
+        if file_hash not in known_hashes
+    ]
+
+    if not unimported_files:
+        click.echo(f"All {len(pdf_files)} PDF file(s) in {directory} have been imported.")
+        return
+
+    # Sort by path for consistent output
+    unimported_files.sort(key=lambda x: x[0])
+
+    # Output results
+    imported_count = len(pdf_files) - len(unimported_files)
+    click.echo(f"Found {len(unimported_files)} unimported file(s) out of {len(pdf_files)} total:")
+    click.echo()
+
+    if output_format == "table":
+        for path, _ in unimported_files:
+            click.echo(f"  {path}")
+    elif output_format == "csv":
+        click.echo("path,hash")
+        for path, file_hash in unimported_files:
+            click.echo(f"{path},{file_hash}")
+    elif output_format == "tsv":
+        click.echo("path\thash")
+        for path, file_hash in unimported_files:
+            click.echo(f"{path}\t{file_hash}")
+    elif output_format == "json":
+        import json
+
+        result = [{"path": str(path), "hash": file_hash} for path, file_hash in unimported_files]
+        click.echo(json.dumps(result, indent=2))
+
+    if imported_count > 0:
+        click.echo()
+        click.echo(f"({imported_count} file(s) already imported)")
 
 
 def _log_subcommand_entry(cli_ctx: CLIContext, command: str, db_override: str | None) -> None:

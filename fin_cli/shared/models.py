@@ -648,9 +648,15 @@ def register_document(
     broker: str | None = None,
     period_end_date: str | None = None,
     file_path: str | None = None,
+    source_file_hash: str | None = None,
     metadata: Mapping[str, Any] | str | None = None,
 ) -> int:
-    """Insert a document if missing, otherwise return existing id."""
+    """Insert a document if missing, otherwise return existing id.
+
+    Args:
+        document_hash: SHA256 of the scrubbed/processed content (for idempotency)
+        source_file_hash: SHA256 of the original source file (for unimported tracking)
+    """
 
     row = connection.execute(
         "SELECT id FROM documents WHERE document_hash = ?",
@@ -662,10 +668,18 @@ def register_document(
     metadata_json = _serialize_metadata(metadata)
     cursor = connection.execute(
         """
-        INSERT INTO documents (document_hash, source_id, broker, period_end_date, file_path, metadata)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO documents (document_hash, source_id, broker, period_end_date, file_path, source_file_hash, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (document_hash, source_id, broker, period_end_date, file_path, metadata_json),
+        (
+            document_hash,
+            source_id,
+            broker,
+            period_end_date,
+            file_path,
+            source_file_hash,
+            metadata_json,
+        ),
     )
     return int(cursor.lastrowid)
 

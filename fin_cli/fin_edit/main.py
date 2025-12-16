@@ -435,6 +435,7 @@ def _process_asset_payload(
                     broker=document_block.get("broker"),
                     period_end_date=document_block.get("period_end_date"),
                     file_path=document_block.get("file_path"),
+                    source_file_hash=document_block.get("source_file_hash"),
                     metadata=document_block.get("metadata"),
                 )
 
