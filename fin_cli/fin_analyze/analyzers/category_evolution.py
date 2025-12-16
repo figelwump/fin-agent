@@ -229,6 +229,6 @@ def _significant_changes(
         if significance(change_pct, threshold):
             direction = "up" if change_pct > 0 else "down"
             highlights.append(
-                f"{rec.category} > {rec.subcategory} spend {direction} {abs(change_pct)*100:.1f}%"
+                f"{rec.category} > {rec.subcategory} spend {direction} {abs(change_pct) * 100:.1f}%"
             )
     return highlights

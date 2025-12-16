@@ -6,9 +6,14 @@ import argparse
 from collections.abc import Mapping, Sequence
 
 from .analyzers import (
+    allocation_snapshot,
+    cash_mix,
     category_breakdown,
     category_timeline,
+    concentration_risk,
     merchant_frequency,
+    portfolio_trend,
+    rebalance_suggestions,
     spending_patterns,
     spending_trends,
     subscription_detect,
@@ -37,6 +42,26 @@ def _placeholder_analyzer(name: str) -> AnalyzerCallable:
 
 
 _ANALYZER_SPECS: Sequence[AnalyzerSpec] = (
+    AnalyzerSpec(
+        slug="allocation-snapshot",
+        title="Allocation Snapshot",
+        summary="Current allocation by class and account using latest valuations.",
+        factory=allocation_snapshot.analyze,
+        options=(
+            AnalyzerOption(
+                name="as_of_date",
+                flags=("--as-of-date",),
+                help="Use a specific as-of date (YYYY-MM-DD) instead of the window end.",
+                type=str,
+            ),
+            AnalyzerOption(
+                name="account_id",
+                flags=("--account-id",),
+                help="Optional account filter.",
+                type=int,
+            ),
+        ),
+    ),
     AnalyzerSpec(
         slug="spending-trends",
         title="Spending Trends",
@@ -176,6 +201,88 @@ _ANALYZER_SPECS: Sequence[AnalyzerSpec] = (
                 help="Grouping strategy: day, week, or date.",
                 type=str,
                 choices=("day", "week", "date"),
+            ),
+        ),
+    ),
+    AnalyzerSpec(
+        slug="portfolio-trend",
+        title="Portfolio Trend",
+        summary="Time-series of portfolio market value across the window.",
+        factory=portfolio_trend.analyze,
+        aliases=("asset-trend", "trend"),
+        options=(
+            AnalyzerOption(
+                name="account_id",
+                flags=("--account-id",),
+                help="Optional account filter.",
+                type=int,
+            ),
+        ),
+    ),
+    AnalyzerSpec(
+        slug="concentration-risk",
+        title="Concentration Risk",
+        summary="Highlight top holdings and fee drag.",
+        factory=concentration_risk.analyze,
+        options=(
+            AnalyzerOption(
+                name="top_n",
+                flags=("--top-n",),
+                help="How many holdings to include in the concentration table.",
+                type=int,
+                default=5,
+            ),
+            AnalyzerOption(
+                name="highlight_fees",
+                flags=("--highlight-fees",),
+                help="Flag holdings with fees > 0 for awareness.",
+                is_flag=True,
+            ),
+            AnalyzerOption(
+                name="as_of_date",
+                flags=("--as-of-date",),
+                help="Use a specific as-of date (YYYY-MM-DD).",
+                type=str,
+            ),
+        ),
+    ),
+    AnalyzerSpec(
+        slug="cash-mix",
+        title="Cash Mix",
+        summary="Cash vs non-cash split with spending runway context.",
+        factory=cash_mix.analyze,
+        options=(
+            AnalyzerOption(
+                name="as_of_date",
+                flags=("--as-of-date",),
+                help="Use a specific as-of date (YYYY-MM-DD).",
+                type=str,
+            ),
+        ),
+    ),
+    AnalyzerSpec(
+        slug="rebalance-suggestions",
+        title="Rebalance Suggestions",
+        summary="Compare allocations to targets and suggest shifts.",
+        factory=rebalance_suggestions.analyze,
+        options=(
+            AnalyzerOption(
+                name="target",
+                flags=("--target",),
+                help="Override targets inline (main/sub:pct). Can be passed multiple times.",
+                multiple=True,
+            ),
+            AnalyzerOption(
+                name="as_of_date",
+                flags=("--as-of-date",),
+                help="Use a specific as-of date (YYYY-MM-DD).",
+                type=str,
+            ),
+            AnalyzerOption(
+                name="account_id",
+                flags=("--account-id",),
+                help="Optional account scope for targets.",
+                type=int,
             ),
         ),
     ),

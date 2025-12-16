@@ -35,6 +35,8 @@ SELECT
     lv.quantity,
     lv.price,
     lv.market_value,
+    lv.accrued_interest,
+    lv.fees,
     lv.valuation_currency,
     lv.fx_rate_used,
     ac.main_class,

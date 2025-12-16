@@ -197,7 +197,7 @@ def _build_summaries(
         if most_recent.change_pct is not None:
             direction = "↑" if most_recent.change_pct > 0 else "↓"
             summaries.append(
-                f"Month-over-month change: {direction} {abs(most_recent.change_pct)*100:.1f}%"
+                f"Month-over-month change: {direction} {abs(most_recent.change_pct) * 100:.1f}%"
             )
 
     if context.options.get("show_categories"):

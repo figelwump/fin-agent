@@ -1,6 +1,6 @@
 ---
 name: asset-tracker
-description: Extract and import investment/brokerage statement holdings into the asset tracking database. Use when asked to import asset statements, track portfolio holdings, or extract positions from PDF statements.
+description: Extract and import investment/brokerage statement holdings into the asset tracking database. Use when asked to import asset statements, track portfolio holdings, extract positions from PDF statements, view allocations, analyze portfolio trends, get rebalance suggestions, or assess cash runway.
 allowed-tools: Bash, Read, Grep, Glob
 ---
 
@@ -302,6 +302,54 @@ fin-edit documents delete --hash <sha256>
 ```
 
 This cascades to remove associated holding_values.
+
+## Analysis Workflows
+
+After importing statements, use these workflows to analyze your portfolio:
+
+### View Allocation
+See current allocation by asset class and account:
+```bash
+fin-analyze allocation-snapshot --format csv
+```
+Detailed workflow: `$SKILL_ROOT/workflows/allocation-analysis.md`
+
+### Portfolio Trend
+Track portfolio value over time:
+```bash
+fin-analyze portfolio-trend --period 6m --format csv
+```
+Detailed workflow: `$SKILL_ROOT/workflows/portfolio-trend.md`
+
+### Rebalance Suggestions
+Compare allocations to targets:
+```bash
+fin-analyze rebalance-suggestions --target equities=60 --target bonds=30 --format csv
+```
+Detailed workflow: `$SKILL_ROOT/workflows/rebalance-analysis.md`
+
+### Cash Runway
+Analyze cash vs non-cash split with spending context:
+```bash
+fin-analyze cash-mix --format csv
+```
+Detailed workflow: `$SKILL_ROOT/workflows/cash-runway.md`
+
+### Concentration Risk
+Identify top holdings and fee drag:
+```bash
+fin-analyze concentration-risk --top-n 10 --format csv
+```
+
+### Set Investment Preferences
+Capture target allocations and risk profile:
+Detailed workflow: `$SKILL_ROOT/workflows/preference-capture.md`
+
+Preferences are stored in `~/.finagent/preferences.json` and persisted to the `portfolio_targets` database table for use by `rebalance-suggestions`.
+
+## Reference
+
+- All asset analyzers: `$SKILL_ROOT/reference/all-analyzers.md`
 
 ## Cross-Skill Transitions
 

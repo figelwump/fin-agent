@@ -1,6 +1,6 @@
 # Asset Tracking Plan
 **Created:** 2025-12-10
-**Updated:** 2025-12-10 (phase 3 hash+autoclassify wiring, CSV ingest)
+**Updated:** 2025-12-16 (phase 5 complete: analysis workflows, preferences module, skill docs)
 **Goal:** Add first-class asset tracking (schema, import, analysis) so users can ingest statements/screenshots, maintain asset history, view allocations/trends, and reuse spending knowledge across skills.
 
 ## Architecture & Data Model
@@ -173,15 +173,21 @@ Notes:
 - [x] Write tests/fixtures under `tests/` for parsers with golden outputs. (Validator + asset-json CLI tests on broker fixtures.)
 
 ### Phase 4: Analysis & Reporting
-- [ ] Add `fin-analyze` analyzers:
+- [x] Add `fin-analyze` analyzers:
   - `allocation_snapshot`: current allocation by class/account
-  - `trend`: time-series of market_value
-  - `concentration_risk`: top-N holdings by weight
+  - `trend` (alias `portfolio-trend`): time-series of market_value
+  - `concentration_risk`: top-N holdings by weight + optional fee flags
   - `cash_mix`: cash vs non-cash breakdown
   - `rebalance_suggestions`: compare to portfolio_targets
-- [ ] Incorporate spending knowledge where relevant (e.g., surface large cash balances relative to monthly spend via existing spending analyzers).
-- [ ] Add CLI flags for date windows, target mix, and fee highlighting; ensure CSV output for skills.
-- [ ] Tests for analyzers using fixture data.
+- [x] Incorporate spending knowledge where relevant (cash runway uses trailing spend for context).
+- [x] Add CLI flags for date windows, target mix, and fee highlighting; ensure CSV output for skills.
+- [x] Tests for analyzers using fixture data.
+
+Notes:
+- New analyzers live under `fin_cli/fin_analyze/analyzers/` with shared asset loaders in `fin_cli/fin_analyze/assets.py`.
+- Saved query `portfolio_snapshot` now returns accrued_interest/fees to support fee highlighting.
+- Asset test fixture `tests/fixtures/analyze/assets_portfolio.json` seeds holdings + targets; loader in `tests/fin_analyze/conftest.py` now supports asset tables.
+- Regression coverage added in `tests/fin_analyze/test_asset_analyzers.py` (allocation, trend, concentration, cash runway, rebalance deltas).
 
 ### Phase 5: Skills Integration
 - [x] Create new skill `asset-tracker` with workflows: ingest statements -> import -> analyze; reuse spending-analyzer patterns for narrative assembly.
@@ -189,13 +195,21 @@ Notes:
   - `preprocess.py`: Builds LLM prompts with asset class taxonomy and existing instruments
   - `postprocess.py`: Validates JSON, auto-classifies instruments by name/vehicle_type, computes document_hash
   - Tested end-to-end with scrubbed UBS November 2025 statement (13 holdings, $6M portfolio)
-- [ ] Add workflows for "view allocation", "trend/history", "rebalance suggestions", "over/under cash vs spend rate".
-- [ ] Add preference capture: quiz user for target allocations/risk/liquidity/geo preferences; persist in DB (`portfolio_targets` table) AND JSON file under `~/.finagent/preferences.json` (gitignored).
-- [ ] Implement safe preferences file handling:
-  - Create `~/.finagent/` directory if missing (with appropriate permissions).
-  - Use atomic writes (write to temp file, then rename) to avoid corruption.
-  - Log warning if preferences file missing; use sensible defaults.
-- [ ] Update skill READMEs and prompts to document new commands/flags and safety (scrub before send).
+- [x] Add workflows for "view allocation", "trend/history", "rebalance suggestions", "over/under cash vs spend rate".
+  - Created `workflows/allocation-analysis.md`, `portfolio-trend.md`, `rebalance-analysis.md`, `cash-runway.md`
+  - Created `reference/all-analyzers.md` documenting all asset analyzers and saved queries
+- [x] Add preference capture: quiz user for target allocations/risk/liquidity/geo preferences; persist in DB (`portfolio_targets` table) AND JSON file under `~/.finagent/preferences.json` (gitignored).
+  - Created `workflows/preference-capture.md` with step-by-step quiz workflow
+  - Defines JSON schema for preferences including profile, targets, and settings
+- [x] Implement safe preferences file handling:
+  - Created `fin_cli/shared/preferences.py` with atomic writes (temp file + rename)
+  - Creates `~/.finagent/` directory with mode 0o700 if missing
+  - Logs warning if preferences file missing; returns sensible defaults
+  - Full test coverage in `tests/shared/test_preferences.py` (13 tests passing)
+- [x] Update skill READMEs and prompts to document new commands/flags and safety (scrub before send).
+  - Updated `SKILL.md` description to include analysis capabilities
+  - Added "Analysis Workflows" section with quick commands and workflow references
+  - Added "Reference" section pointing to all-analyzers.md
 
 ### Phase 6: Web/UI Touchpoints (optional but recommended)
 - [ ] Add API endpoints + minimal UI panels (web_client) for asset list, latest values, allocation chart, history sparkline.

@@ -95,7 +95,7 @@ def test_cli_config_override_disables_name_scrubbing(
     _reset_default_runtime(monkeypatch, tmp_path)
     config_path = tmp_path / "custom.yaml"
     config_path.write_text(
-        "detectors:\n" "  scrub_name: false\n" "placeholders:\n" '  EMAIL: "[MASKED_EMAIL]"\n',
+        'detectors:\n  scrub_name: false\nplaceholders:\n  EMAIL: "[MASKED_EMAIL]"\n',
         encoding="utf-8",
     )
     input_path = tmp_path / "statement.txt"

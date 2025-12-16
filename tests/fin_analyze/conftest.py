@@ -74,9 +74,12 @@ def load_analysis_dataset(app_config: AppConfig) -> Callable[[str], AppConfig]:
     """Load a JSON fixture by name into the migrated SQLite database.
 
     The JSON contract supports `accounts`, `categories`, and `transactions`
-    arrays. Accounts and categories use a `key` field so transactions can
-    reference them symbolically. Missing optional fields fall back to
-    deterministic defaults to keep fingerprints stable across runs.
+    arrays for spending analyses, plus optional asset-tracking blocks:
+    `asset_sources`, `documents`, `instruments`, `holdings`, `holding_values`,
+    and `portfolio_targets`. Accounts and categories use a `key` field so
+    transactions and holdings can reference them symbolically. Missing optional
+    fields fall back to deterministic defaults to keep fingerprints stable
+    across runs.
     """
 
     def _loader(name: str) -> AppConfig:
@@ -89,8 +92,23 @@ def load_analysis_dataset(app_config: AppConfig) -> Callable[[str], AppConfig]:
         categories = payload.get("categories", [])
         transactions = payload.get("transactions", [])
 
+        asset_sources = payload.get("asset_sources", [])
+        documents = payload.get("documents", [])
+        instruments = payload.get("instruments", [])
+        holdings = payload.get("holdings", [])
+        holding_values = payload.get("holding_values", [])
+        portfolio_targets = payload.get("portfolio_targets", [])
+
         with connect(app_config) as connection:
             # Wipe prior data so each fixture load is isolated.
+            connection.execute("DELETE FROM holding_values")
+            connection.execute("DELETE FROM asset_prices")
+            connection.execute("DELETE FROM holdings")
+            connection.execute("DELETE FROM instrument_classifications")
+            connection.execute("DELETE FROM instruments")
+            connection.execute("DELETE FROM documents")
+            connection.execute("DELETE FROM asset_sources")
+            connection.execute("DELETE FROM portfolio_targets")
             connection.execute("DELETE FROM transactions")
             connection.execute("DELETE FROM categories")
             connection.execute("DELETE FROM accounts")
@@ -171,6 +189,217 @@ def load_analysis_dataset(app_config: AppConfig) -> Callable[[str], AppConfig]:
                         metadata_blob,
                     ),
                 )
+
+            if asset_sources or instruments or holdings or holding_values or portfolio_targets:
+                source_ids: dict[str, int] = {}
+                for source in asset_sources:
+                    key = source.get("key") or source["name"]
+                    cursor = connection.execute(
+                        """
+                        INSERT INTO asset_sources (name, source_type, priority, contact_url, metadata)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            source["name"],
+                            source.get("source_type", "statement"),
+                            int(source.get("priority", 1)),
+                            source.get("contact_url"),
+                            json.dumps(source.get("metadata")) if source.get("metadata") else None,
+                        ),
+                    )
+                    source_ids[key] = cursor.lastrowid
+
+                document_ids: dict[str, int] = {}
+                for doc in documents:
+                    key = doc.get("key") or doc.get("document_hash")
+                    source_key = doc.get("source")
+                    if source_key not in source_ids:
+                        raise KeyError(
+                            f"Document source '{source_key}' missing in fixture '{name}'"
+                        )
+                    cursor = connection.execute(
+                        """
+                        INSERT INTO documents (document_hash, source_id, broker, period_end_date, file_path, metadata)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            doc["document_hash"],
+                            source_ids[source_key],
+                            doc.get("broker"),
+                            doc.get("period_end_date"),
+                            doc.get("file_path"),
+                            json.dumps(doc.get("metadata")) if doc.get("metadata") else None,
+                        ),
+                    )
+                    document_ids[key] = cursor.lastrowid
+
+                instrument_ids: dict[str, int] = {}
+                for instrument in instruments:
+                    key = instrument.get("key") or instrument["symbol"]
+                    identifiers = instrument.get("identifiers") or {}
+                    cursor = connection.execute(
+                        """
+                        INSERT INTO instruments (name, symbol, exchange, currency, vehicle_type, identifiers, metadata)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            instrument["name"],
+                            instrument.get("symbol"),
+                            instrument.get("exchange"),
+                            instrument.get("currency", "USD"),
+                            instrument.get("vehicle_type"),
+                            json.dumps(identifiers) if identifiers else None,
+                            (
+                                json.dumps(instrument.get("metadata"))
+                                if instrument.get("metadata")
+                                else None
+                            ),
+                        ),
+                    )
+                    instrument_id = cursor.lastrowid
+                    instrument_ids[key] = instrument_id
+
+                    classification = instrument.get("classification")
+                    if classification:
+                        main = classification.get("main") or classification.get("main_class")
+                        sub = classification.get("sub") or classification.get("sub_class")
+                        row = connection.execute(
+                            "SELECT id FROM asset_classes WHERE main_class = ? AND sub_class = ?",
+                            (main, sub),
+                        ).fetchone()
+                        if not row:
+                            raise KeyError(f"Asset class {main}/{sub} not seeded; fixture '{name}'")
+                        connection.execute(
+                            """
+                            INSERT INTO instrument_classifications (instrument_id, asset_class_id, is_primary)
+                            VALUES (?, ?, 1)
+                            """,
+                            (instrument_id, int(row["id"])),
+                        )
+
+                holding_ids: dict[str, int] = {}
+                for holding in holdings:
+                    account_key = holding.get("account")
+                    instrument_key = holding.get("instrument")
+                    if account_key not in account_ids:
+                        raise KeyError(
+                            f"Holding account '{account_key}' missing in fixture '{name}'"
+                        )
+                    if instrument_key not in instrument_ids:
+                        raise KeyError(
+                            f"Holding instrument '{instrument_key}' missing in fixture '{name}'"
+                        )
+
+                    cursor = connection.execute(
+                        """
+                        INSERT INTO holdings (
+                            account_id, instrument_id, status, opened_at, closed_at, position_side, metadata
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            account_ids[account_key],
+                            instrument_ids[instrument_key],
+                            holding.get("status", "active"),
+                            holding.get("opened_at"),
+                            holding.get("closed_at"),
+                            holding.get("position_side", "long"),
+                            (
+                                json.dumps(holding.get("metadata"))
+                                if holding.get("metadata")
+                                else None
+                            ),
+                        ),
+                    )
+                    holding_ids[holding.get("key") or f"holding-{cursor.lastrowid}"] = (
+                        cursor.lastrowid
+                    )
+
+                for hv in holding_values:
+                    holding_key = hv.get("holding")
+                    source_key = hv.get("source")
+                    document_key = hv.get("document")
+                    if holding_key not in holding_ids:
+                        raise KeyError(
+                            f"Holding value missing holding '{holding_key}' in fixture '{name}'"
+                        )
+                    if source_key not in source_ids:
+                        raise KeyError(
+                            f"Holding value source '{source_key}' missing in fixture '{name}'"
+                        )
+
+                    document_id = document_ids.get(document_key) if document_key else None
+                    connection.execute(
+                        """
+                        INSERT INTO holding_values (
+                            holding_id,
+                            as_of_date,
+                            as_of_datetime,
+                            quantity,
+                            price,
+                            market_value,
+                            accrued_interest,
+                            fees,
+                            source_id,
+                            document_id,
+                            valuation_currency,
+                            fx_rate_used,
+                            metadata
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            holding_ids[holding_key],
+                            hv["as_of_date"],
+                            hv.get("as_of_datetime"),
+                            float(hv.get("quantity", 0.0)),
+                            float(hv.get("price", 0.0)) if hv.get("price") is not None else None,
+                            float(hv.get("market_value", 0.0)),
+                            float(hv.get("accrued_interest", 0.0)),
+                            float(hv.get("fees", 0.0)),
+                            source_ids[source_key],
+                            document_id,
+                            hv.get("valuation_currency", "USD"),
+                            float(hv.get("fx_rate_used", 1.0)),
+                            json.dumps(hv.get("metadata")) if hv.get("metadata") else None,
+                        ),
+                    )
+
+                for target in portfolio_targets:
+                    class_ref = target.get("asset_class") or {}
+                    main = class_ref.get("main") or class_ref.get("main_class")
+                    sub = class_ref.get("sub") or class_ref.get("sub_class")
+                    row = connection.execute(
+                        "SELECT id FROM asset_classes WHERE main_class = ? AND sub_class = ?",
+                        (main, sub),
+                    ).fetchone()
+                    if not row:
+                        raise KeyError(
+                            f"Portfolio target asset class {main}/{sub} missing in fixture '{name}'"
+                        )
+
+                    scope = target.get("scope", "portfolio")
+                    scope_id = None
+                    if scope == "account":
+                        acct_key = target.get("account") or target.get("scope_id")
+                        if acct_key not in account_ids:
+                            raise KeyError(
+                                f"Portfolio target account '{acct_key}' missing in fixture '{name}'"
+                            )
+                        scope_id = account_ids[acct_key]
+
+                    connection.execute(
+                        """
+                        INSERT INTO portfolio_targets (scope, scope_id, asset_class_id, target_weight, as_of_date, metadata)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            scope,
+                            scope_id,
+                            int(row["id"]),
+                            float(target["target_weight"]),
+                            target.get("as_of_date"),
+                            json.dumps(target.get("metadata")) if target.get("metadata") else None,
+                        ),
+                    )
 
         return app_config
 

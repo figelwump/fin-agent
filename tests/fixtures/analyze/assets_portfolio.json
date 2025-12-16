@@ -1,0 +1,163 @@
+{
+  "accounts": [
+    {
+      "key": "broker",
+      "name": "Primary Brokerage",
+      "institution": "UBS",
+      "account_type": "brokerage"
+    },
+    {
+      "key": "checking",
+      "name": "Everyday Checking",
+      "institution": "Chase",
+      "account_type": "checking"
+    }
+  ],
+  "categories": [
+    {
+      "key": "housing_rent",
+      "category": "Housing",
+      "subcategory": "Rent"
+    },
+    {
+      "key": "income_salary",
+      "category": "Income",
+      "subcategory": "Salary",
+      "user_approved": true
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2025-09-05",
+      "merchant": "Rent",
+      "amount": -2500.0,
+      "category": "housing_rent",
+      "account": "checking"
+    },
+    {
+      "date": "2025-10-05",
+      "merchant": "Rent",
+      "amount": -2500.0,
+      "category": "housing_rent",
+      "account": "checking"
+    },
+    {
+      "date": "2025-11-05",
+      "merchant": "Rent",
+      "amount": -2500.0,
+      "category": "housing_rent",
+      "account": "checking"
+    },
+    {
+      "date": "2025-09-15",
+      "merchant": "Salary",
+      "amount": 2000.0,
+      "category": "income_salary",
+      "account": "checking"
+    },
+    {
+      "date": "2025-10-15",
+      "merchant": "Salary",
+      "amount": 2000.0,
+      "category": "income_salary",
+      "account": "checking"
+    },
+    {
+      "date": "2025-11-15",
+      "merchant": "Salary",
+      "amount": 2000.0,
+      "category": "income_salary",
+      "account": "checking"
+    }
+  ],
+  "asset_sources": [
+    {
+      "key": "stmt",
+      "name": "Statement Import",
+      "source_type": "statement",
+      "priority": 1
+    },
+    {
+      "key": "api",
+      "name": "API Sync",
+      "source_type": "api",
+      "priority": 3
+    }
+  ],
+  "documents": [
+    {
+      "key": "nov_stmt",
+      "document_hash": "asset-fixture-doc",
+      "source": "stmt",
+      "broker": "UBS",
+      "period_end_date": "2025-11-30"
+    }
+  ],
+  "instruments": [
+    {
+      "key": "aapl",
+      "name": "Apple Inc",
+      "symbol": "AAPL",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "vehicle_type": "stock",
+      "classification": {"main": "equities", "sub": "US equity"},
+      "identifiers": {"cusip": "037833100"}
+    },
+    {
+      "key": "bnd",
+      "name": "Vanguard Total Bond Market ETF",
+      "symbol": "BND",
+      "exchange": "NYSEARCA",
+      "currency": "USD",
+      "vehicle_type": "ETF",
+      "classification": {"main": "bonds", "sub": "corporate IG"},
+      "identifiers": {"isin": "US9219378356"}
+    },
+    {
+      "key": "sweep",
+      "name": "Sweep Fund",
+      "symbol": "SWVXX",
+      "currency": "USD",
+      "vehicle_type": "MMF",
+      "classification": {"main": "cash", "sub": "money market"},
+      "identifiers": {"fund_id": "sweep"}
+    },
+    {
+      "key": "btc",
+      "name": "Bitcoin Trust",
+      "symbol": "BTC",
+      "currency": "USD",
+      "vehicle_type": "crypto",
+      "classification": {"main": "alternatives", "sub": "crypto"}
+    }
+  ],
+  "holdings": [
+    {"key": "h_aapl", "account": "broker", "instrument": "aapl", "status": "active"},
+    {"key": "h_bnd", "account": "broker", "instrument": "bnd", "status": "active"},
+    {"key": "h_sweep", "account": "broker", "instrument": "sweep", "status": "active"},
+    {"key": "h_btc", "account": "broker", "instrument": "btc", "status": "active"}
+  ],
+  "holding_values": [
+    {"holding": "h_aapl", "as_of_date": "2025-09-30", "quantity": 50.0, "price": 240.0, "market_value": 12000.0, "source": "stmt", "document": "nov_stmt"},
+    {"holding": "h_bnd", "as_of_date": "2025-09-30", "quantity": 125.0, "price": 72.0, "market_value": 9000.0, "source": "stmt", "document": "nov_stmt", "fees": 1.0},
+    {"holding": "h_sweep", "as_of_date": "2025-09-30", "quantity": 5000.0, "price": 1.0, "market_value": 5000.0, "source": "stmt", "document": "nov_stmt"},
+    {"holding": "h_btc", "as_of_date": "2025-09-30", "quantity": 0.1, "price": 40000.0, "market_value": 4000.0, "source": "stmt", "document": "nov_stmt"},
+
+    {"holding": "h_aapl", "as_of_date": "2025-10-31", "quantity": 50.0, "price": 270.0, "market_value": 13500.0, "source": "stmt", "document": "nov_stmt"},
+    {"holding": "h_bnd", "as_of_date": "2025-10-31", "quantity": 125.0, "price": 76.0, "market_value": 9500.0, "source": "stmt", "document": "nov_stmt", "fees": 1.2},
+    {"holding": "h_sweep", "as_of_date": "2025-10-31", "quantity": 5500.0, "price": 1.0, "market_value": 5500.0, "source": "stmt", "document": "nov_stmt"},
+    {"holding": "h_btc", "as_of_date": "2025-10-31", "quantity": 0.1, "price": 45000.0, "market_value": 4500.0, "source": "stmt", "document": "nov_stmt"},
+
+    {"holding": "h_aapl", "as_of_date": "2025-11-30", "quantity": 50.0, "price": 300.0, "market_value": 15000.0, "source": "stmt", "document": "nov_stmt"},
+    {"holding": "h_bnd", "as_of_date": "2025-11-30", "quantity": 125.0, "price": 80.0, "market_value": 10000.0, "source": "stmt", "document": "nov_stmt", "fees": 1.5},
+    {"holding": "h_sweep", "as_of_date": "2025-11-30", "quantity": 6000.0, "price": 1.0, "market_value": 6000.0, "source": "stmt", "document": "nov_stmt"},
+    {"holding": "h_btc", "as_of_date": "2025-11-30", "quantity": 0.1, "price": 50000.0, "market_value": 5000.0, "source": "stmt", "document": "nov_stmt"}
+  ],
+  "portfolio_targets": [
+    {"scope": "portfolio", "asset_class": {"main_class": "equities", "sub_class": "US equity"}, "target_weight": 50.0, "as_of_date": "2025-11-30"},
+    {"scope": "portfolio", "asset_class": {"main_class": "bonds", "sub_class": "corporate IG"}, "target_weight": 25.0, "as_of_date": "2025-11-30"},
+    {"scope": "portfolio", "asset_class": {"main_class": "cash", "sub_class": "money market"}, "target_weight": 15.0, "as_of_date": "2025-11-30"},
+    {"scope": "portfolio", "asset_class": {"main_class": "alternatives", "sub_class": "crypto"}, "target_weight": 10.0, "as_of_date": "2025-11-30"}
+  ]
+}

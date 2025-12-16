@@ -178,7 +178,7 @@ def _change_summary(records: Sequence[CategoryRecord], *, threshold: float | Non
         if significance(rec.change_pct, threshold):
             direction = "up" if rec.change_pct > 0 else "down"
             significant.append(
-                f"{rec.category} > {rec.subcategory} {direction} {abs(rec.change_pct)*100:.1f}%"
+                f"{rec.category} > {rec.subcategory} {direction} {abs(rec.change_pct) * 100:.1f}%"
             )
     if not significant:
         return []
