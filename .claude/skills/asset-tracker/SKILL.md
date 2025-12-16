@@ -305,37 +305,55 @@ This cascades to remove associated holding_values.
 
 ## Analysis Workflows
 
-After importing statements, use these workflows to analyze your portfolio:
+After importing statements, use these workflows to analyze your portfolio.
 
-### View Allocation
+### Running Analysis in Parallel
+
+**When asked to analyze assets or provide a portfolio overview**, run these commands in parallel using multiple Bash tool calls in a single response (not sequentially):
+
+```
+# Run ALL of these in parallel (single response with multiple tool calls):
+fin-analyze allocation-snapshot --format csv
+fin-analyze concentration-risk --top-n 10 --format csv
+fin-analyze cash-mix --format csv
+fin-analyze portfolio-trend --period 6m --format csv
+fin-query saved portfolio_snapshot --limit 30 --format table
+fin-query saved stale_holdings --format table
+```
+
+These commands are independent and can execute concurrently. Running them in parallel significantly reduces response time.
+
+### Individual Analysis Commands
+
+#### View Allocation
 See current allocation by asset class and account:
 ```bash
 fin-analyze allocation-snapshot --format csv
 ```
 Detailed workflow: `$SKILL_ROOT/workflows/allocation-analysis.md`
 
-### Portfolio Trend
+#### Portfolio Trend
 Track portfolio value over time:
 ```bash
 fin-analyze portfolio-trend --period 6m --format csv
 ```
 Detailed workflow: `$SKILL_ROOT/workflows/portfolio-trend.md`
 
-### Rebalance Suggestions
+#### Rebalance Suggestions
 Compare allocations to targets:
 ```bash
 fin-analyze rebalance-suggestions --target equities=60 --target bonds=30 --format csv
 ```
 Detailed workflow: `$SKILL_ROOT/workflows/rebalance-analysis.md`
 
-### Cash Runway
+#### Cash Runway
 Analyze cash vs non-cash split with spending context:
 ```bash
 fin-analyze cash-mix --format csv
 ```
 Detailed workflow: `$SKILL_ROOT/workflows/cash-runway.md`
 
-### Concentration Risk
+#### Concentration Risk
 Identify top holdings and fee drag:
 ```bash
 fin-analyze concentration-risk --top-n 10 --format csv
