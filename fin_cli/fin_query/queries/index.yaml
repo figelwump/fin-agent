@@ -1,5 +1,21 @@
 version: 1
 queries:
+- name: accounts
+  file: accounts.sql
+  description: Account catalog with transaction and holdings stats.
+  parameters:
+    institution:
+      type: string
+      default: null
+      description: Optional institution filter (exact match).
+    account_type:
+      type: string
+      default: null
+      description: Optional account type filter (exact match).
+    limit:
+      type: integer
+      default: 100
+      description: Maximum rows to return (0 for no limit).
 - name: recent_transactions
   file: recent_transactions.sql
   description: Most recent transactions with category metadata.

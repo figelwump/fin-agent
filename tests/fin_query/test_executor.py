@@ -189,6 +189,23 @@ def test_run_categories_query(tmp_path) -> None:
     assert result.limit_applied is True
 
 
+def test_run_accounts_query(tmp_path) -> None:
+    config, _ = _config(tmp_path)
+    _seed_transactions(config)
+
+    result = executor.run_saved_query(
+        config=config,
+        name="accounts",
+        runtime_params={},
+        limit=10,
+    )
+
+    assert result.description == "Account catalog with transaction and holdings stats."
+    columns = result.columns
+    counts = [row[columns.index("transaction_count")] for row in result.rows]
+    assert counts and counts[0] == 4
+
+
 def test_run_recent_imports_query(tmp_path) -> None:
     config, _ = _config(tmp_path)
     _seed_transactions(config)
