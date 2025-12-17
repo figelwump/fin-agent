@@ -17,10 +17,13 @@ try:  # pragma: no cover - import guarded for optional dependency
 except ModuleNotFoundError:  # pragma: no cover - handled at runtime
     pdfplumber = None  # type: ignore[assignment]
 
-try:  # pragma: no cover - import guarded for optional dependency
-    import camelot  # type: ignore[import]
-except ModuleNotFoundError:  # pragma: no cover - handled at runtime
-    camelot = None  # type: ignore[assignment]
+# NOTE: Camelot is an optional dependency. We intentionally import it lazily inside
+# `_load_tables_with_camelot()` instead of at module import time.
+#
+# Reason: Camelot pulls in pypdf, which in turn imports `cryptography` and can emit
+# `CryptographyDeprecationWarning` warnings (e.g., ARC4 deprecation). Some users run
+# pytest with warnings treated as errors (e.g., `PYTEST_ADDOPTS=-W error`), which would
+# cause test collection to fail just by importing this module.
 
 
 @dataclass(slots=True)
@@ -220,14 +223,25 @@ def _load_tables_with_camelot(pdf_path: Path) -> list[PdfTable]:
     underlying library choices.
     """
 
-    if camelot is None:
+    import warnings
+
+    try:
+        # Import Camelot lazily and suppress transitive deprecation warnings that can
+        # be promoted to errors (e.g., when users run `pytest -W error`).
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"ARC4 has been moved.*",
+                category=DeprecationWarning,
+            )
+            import camelot  # type: ignore[import]
+    except ModuleNotFoundError as exc:
         raise ExtractionError(
             "Camelot fallback requested but camelot-py is not installed. Install the 'pdf' extra."
-        )
+        ) from exc
 
     tables: list[PdfTable] = []
     last_error: Exception | None = None
-    import warnings
 
     for flavor in ("lattice", "stream"):
         try:

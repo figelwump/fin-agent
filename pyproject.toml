@@ -108,6 +108,9 @@ minversion = "8.0"
 addopts = "-ra"
 filterwarnings = [
   "error::DeprecationWarning",
-  "ignore:ARC4 has been moved:cryptography.utils.CryptographyDeprecationWarning",
+  # cryptography is an optional transitive dependency (e.g., via pypdf/camelot).
+  # Avoid referencing its warning class directly so pytest doesn't warn when the
+  # module isn't installed.
+  "ignore:ARC4 has been moved:DeprecationWarning",
 ]
 testpaths = ["tests"]

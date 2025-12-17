@@ -20,10 +20,16 @@ _THEME = Theme(
     }
 )
 
-# Rich consoles separate stdout (for structured payloads) and stderr (for log chatter)
-_stdout_console = Console(theme=_THEME)
-_stderr_console = Console(stderr=True, theme=_THEME)
-_verbose_console = Console(stderr=True, theme=_THEME)
+# Rich consoles separate stdout (for structured payloads) and stderr (for log chatter).
+#
+# We disable Rich's built-in syntax highlighting for plain strings to keep output stable.
+# When highlighting is enabled, Rich may apply additional styles to numbers / punctuation
+# within a message (e.g., account names like "UBS-INV-001"), which can inject ANSI
+# sequences inside the string. This makes tests that assert on CLI output brittle in
+# environments that force color output (e.g., `FORCE_COLOR=1`).
+_stdout_console = Console(theme=_THEME, highlight=False)
+_stderr_console = Console(stderr=True, theme=_THEME, highlight=False)
+_verbose_console = Console(stderr=True, theme=_THEME, highlight=False)
 
 
 @dataclass(slots=True)
