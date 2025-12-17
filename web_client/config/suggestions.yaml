@@ -21,3 +21,11 @@
 - id: largest-30d
   title: Largest Transactions (30d)
   prompt: Show my largest transactions over the last 30 days. Limit to the top 25.
+
+- id: portfolio-allocation
+  title: Portfolio Allocation
+  prompt: Show my current portfolio allocation by asset class and account.
+
+- id: portfolio-concentration
+  title: Top Holdings & Concentration
+  prompt: What are my top 10 holdings? Show concentration risk and any positions over 5% of portfolio.

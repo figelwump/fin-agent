@@ -29,12 +29,6 @@ The default SQLite database is at: \`~/.finagent/data.db\`
 
 ## Strategy: Skills-First Approach
 
-### When User Wants To:
-- **Import statements or process PDFs** → Invoke \`statement-processor\` skill
-- **Categorize or recategorize transactions** → Invoke \`transaction-categorizer\` skill
-- **Analyze spending, find subscriptions, see trends** → Invoke \`spending-analyzer\` skill
-- **Search or filter transactions, view specific records** → Invoke \`ledger-query\` skill
-
 ### Categorization Best Practices
 - When recategorizing an existing merchant or pattern, start with \`fin-query saved merchant_search --param pattern="%<name>%" --format csv\` to inspect the matching rows (the first column is always the transaction \`id\`).
 - After confirming the target set, use \`fin-edit set-category --where "merchant LIKE '%<name>%'" ...\` to preview and then apply the bulk change instead of writing custom SQL.

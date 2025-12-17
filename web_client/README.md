@@ -4,7 +4,7 @@ The `web_client/` directory hosts a lightweight React front end for the local we
 
 ## Features
 - Launch the assistant UI with `bun run dev`.
-- The agent uses Claude Skills directly (statement-processor, transaction-categorizer, spending-analyzer, ledger-query).
+- The agent uses Claude Skills directly (statement-processor, transaction-categorizer, spending-analyzer, ledger-query, asset-tracker).
 - Import statements via the local file picker; the workflow routes through the `statement-processor` skill.
 - Review recent messages, suggested prompts, and in-progress operations (imports, analysis requests, etc.).
 
