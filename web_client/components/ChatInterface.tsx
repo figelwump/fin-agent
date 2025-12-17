@@ -4,6 +4,7 @@ import { Message, StructuredPrompt } from './message/types';
 import { Send, Wallet } from 'lucide-react';
 import { SuggestedQueries } from './dashboard/SuggestedQueries';
 import { ImportStatementsButton } from './dashboard/ImportStatementsButton';
+import { ImportAssetStatementsButton } from './dashboard/ImportAssetStatementsButton';
 import { useFileSelection, SelectionMode, SelectedEntry } from '../hooks/useFileSelection';
 
 interface ChatInterfaceProps {
@@ -27,9 +28,12 @@ type ResolvedStatementPath = {
 export function ChatInterface({ isConnected, sendMessage, messages, setMessages, sessionId, isLoading, setIsLoading, onResetAuth, connectionError }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [isImportingAssets, setIsImportingAssets] = useState(false);
   const [showPickerMenu, setShowPickerMenu] = useState(false);
+  const [showAssetPickerMenu, setShowAssetPickerMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pickerAnchorRef = useRef<HTMLDivElement>(null);
+  const assetPickerAnchorRef = useRef<HTMLDivElement>(null);
   const {
     selectFiles,
     error: selectionError,
@@ -205,6 +209,51 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     });
   };
 
+  const sendAssetTrackerRequest = (
+    paths: ResolvedStatementPath[],
+    options?: { staged?: boolean; stagingDir?: string | null }
+  ) => {
+    if (!paths.length) {
+      appendAssistantText('No usable filesystem paths were provided.');
+      return;
+    }
+
+    const displayLines = paths.map((entry) => {
+      const suffix = entry.source === 'staged' ? ' (staged copy)' : '';
+      return `• ${entry.path}${suffix}`;
+    });
+    const displayText = paths.length === 1
+      ? `Import asset statement: ${paths[0].path}${paths[0].source === 'staged' ? ' (staged copy)' : ''}`
+      : `Import asset statements:\n${displayLines.join('\n')}`;
+
+    const numberedLines = paths.map((entry, index) => {
+      const suffix = entry.source === 'staged' ? ' (staged copy)' : '';
+      return `${index + 1}. ${entry.path}${suffix}`;
+    });
+
+    const agentLines = [
+      'Please invoke the asset-tracker skill to import the following investment/brokerage statements.',
+      'Use the provided filesystem paths directly; the files already exist on this machine.',
+      ...numberedLines,
+    ];
+
+    if (options?.staged && options.stagingDir) {
+      agentLines.push(`The files above were staged under ${options.stagingDir}.`);
+    }
+
+    dispatchPrompt({
+      displayText,
+      agentText: agentLines.join('\n'),
+      metadata: {
+        intent: 'asset_import',
+        fileCount: paths.length,
+        files: paths.map((entry) => entry.path),
+        staged: !!options?.staged,
+        stagingDir: options?.stagingDir ?? undefined,
+      },
+    });
+  };
+
   const runSelection = async (mode: SelectionMode) => {
     setShowPickerMenu(false);
     if (isImporting || isSelecting) return;
@@ -249,6 +298,50 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     await runSelection(canPickFiles ? 'files' : 'directory');
   };
 
+  const runAssetSelection = async (mode: SelectionMode) => {
+    setShowAssetPickerMenu(false);
+    if (isImportingAssets || isSelecting) return;
+    setIsImportingAssets(true);
+    try {
+      const entries = await selectFiles(mode);
+      if (!entries.length) {
+        return;
+      }
+
+      const absolutePaths = collectAbsolutePaths(entries);
+      if (absolutePaths) {
+        sendAssetTrackerRequest(absolutePaths);
+        return;
+      }
+
+      appendAssistantText('Staging selected files so the asset-tracker can access them…');
+      const staged = await stageEntriesRemotely(entries);
+      if (staged.skipped.length) {
+        appendAssistantText(`Some uploads were skipped: ${staged.skipped.join(', ')}`);
+      }
+      sendAssetTrackerRequest(staged.resolved, { staged: true, stagingDir: staged.stagingDir });
+    } catch (error: any) {
+      const detail = error?.message ?? 'Failed to prepare selected files.';
+      appendAssistantText(detail);
+    } finally {
+      resetSelection();
+      setIsImportingAssets(false);
+    }
+  };
+
+  const handleRequestAssetImport = async () => {
+    if (!isConnected) {
+      appendAssistantText('Connect to the Fin Agent server before importing asset statements.');
+      return;
+    }
+    if (isImportingAssets || isSelecting) return;
+    if (canPickFiles && canPickDirectories) {
+      setShowAssetPickerMenu((prev) => !prev);
+      return;
+    }
+    await runAssetSelection(canPickFiles ? 'files' : 'directory');
+  };
+
   useEffect(() => {
     if (!showPickerMenu) return;
     const handleClickAway = (event: MouseEvent) => {
@@ -259,6 +352,17 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     document.addEventListener('mousedown', handleClickAway);
     return () => document.removeEventListener('mousedown', handleClickAway);
   }, [showPickerMenu]);
+
+  useEffect(() => {
+    if (!showAssetPickerMenu) return;
+    const handleClickAway = (event: MouseEvent) => {
+      if (assetPickerAnchorRef.current && !assetPickerAnchorRef.current.contains(event.target as Node)) {
+        setShowAssetPickerMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickAway);
+    return () => document.removeEventListener('mousedown', handleClickAway);
+  }, [showAssetPickerMenu]);
 
   useEffect(() => {
     scrollToBottom();
@@ -332,29 +436,55 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
           <div className="mb-6 space-y-4">
             <SuggestedQueries onSend={sendSuggestedPrompt} disabled={!isConnected || isLoading} />
 
-            <div className="relative flex justify-end" ref={pickerAnchorRef}>
-              <ImportStatementsButton
-                onRequestImport={handleRequestImport}
-                isLoading={isImporting || isSelecting}
-              />
-              {showPickerMenu && (
-                <div className="absolute right-0 top-full z-10 mt-2 w-48 card-elevated overflow-hidden animate-fade-in">
-                  <button
-                    type="button"
-                    className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
-                    onClick={() => runSelection('files')}
-                  >
-                    Select files
-                  </button>
-                  <button
-                    type="button"
-                    className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors border-t border-[var(--border-light)]"
-                    onClick={() => runSelection('directory')}
-                  >
-                    Select folder
-                  </button>
-                </div>
-              )}
+            <div className="flex justify-end gap-2">
+              <div className="relative" ref={pickerAnchorRef}>
+                <ImportStatementsButton
+                  onRequestImport={handleRequestImport}
+                  isLoading={isImporting || isSelecting}
+                />
+                {showPickerMenu && (
+                  <div className="absolute right-0 top-full z-10 mt-2 w-48 card-elevated overflow-hidden animate-fade-in">
+                    <button
+                      type="button"
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                      onClick={() => runSelection('files')}
+                    >
+                      Select files
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors border-t border-[var(--border-light)]"
+                      onClick={() => runSelection('directory')}
+                    >
+                      Select folder
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="relative" ref={assetPickerAnchorRef}>
+                <ImportAssetStatementsButton
+                  onRequestImport={handleRequestAssetImport}
+                  isLoading={isImportingAssets || isSelecting}
+                />
+                {showAssetPickerMenu && (
+                  <div className="absolute right-0 top-full z-10 mt-2 w-48 card-elevated overflow-hidden animate-fade-in">
+                    <button
+                      type="button"
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                      onClick={() => runAssetSelection('files')}
+                    >
+                      Select files
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors border-t border-[var(--border-light)]"
+                      onClick={() => runAssetSelection('directory')}
+                    >
+                      Select folder
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
