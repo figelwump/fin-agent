@@ -376,6 +376,44 @@ fin-query saved stale_holdings --format table
 fin-query saved instruments --limit 50 --format table
 ```
 
+## Ad-hoc SQL Queries
+
+**Before writing ad-hoc SQL**, verify the schema to avoid column/table name errors:
+
+```bash
+# Check a specific table's columns
+fin-query schema --table <table_name> --format table
+
+# Example: check instruments table before querying
+fin-query schema --table instruments --format table
+fin-query schema --table instrument_classifications --format table
+```
+
+### Key Schema Points
+
+The database uses a **normalized schema** with join tables:
+
+- **Database location**: `~/.finagent/data.db` (not `fin.db`)
+- **Classifications**: `instruments` does NOT have an `asset_class_id` column. Classifications are in a separate `instrument_classifications` join table that links to `asset_classes`.
+- **Holdings**: `holdings` references `instruments` and `accounts` by ID, not by symbol/name.
+
+### Common Query Pattern
+
+To get instruments with their classification:
+```sql
+SELECT i.symbol, i.name, ac.main_class, ac.sub_class
+FROM instruments i
+JOIN instrument_classifications ic ON ic.instrument_id = i.id AND ic.is_primary = 1
+JOIN asset_classes ac ON ic.asset_class_id = ac.id
+```
+
+### Direct Database Writes
+
+For writes not covered by `fin-edit` commands, use `sqlite3 ~/.finagent/data.db`:
+```bash
+sqlite3 ~/.finagent/data.db "UPDATE instrument_classifications SET asset_class_id = 31 WHERE instrument_id = 123"
+```
+
 ## Rollback/Cleanup
 
 To remove a bad import:
