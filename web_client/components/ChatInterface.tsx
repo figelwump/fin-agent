@@ -31,6 +31,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
   const [isImportingAssets, setIsImportingAssets] = useState(false);
   const [showPickerMenu, setShowPickerMenu] = useState(false);
   const [showAssetPickerMenu, setShowAssetPickerMenu] = useState(false);
+  const [activeImportMode, setActiveImportMode] = useState<'statements' | 'assets' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pickerAnchorRef = useRef<HTMLDivElement>(null);
   const assetPickerAnchorRef = useRef<HTMLDivElement>(null);
@@ -258,6 +259,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     setShowPickerMenu(false);
     if (isImporting || isSelecting) return;
     setIsImporting(true);
+    setActiveImportMode('statements');
     try {
       const entries = await selectFiles(mode);
       if (!entries.length) {
@@ -282,6 +284,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     } finally {
       resetSelection();
       setIsImporting(false);
+      setActiveImportMode(null);
     }
   };
 
@@ -302,6 +305,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     setShowAssetPickerMenu(false);
     if (isImportingAssets || isSelecting) return;
     setIsImportingAssets(true);
+    setActiveImportMode('assets');
     try {
       const entries = await selectFiles(mode);
       if (!entries.length) {
@@ -326,6 +330,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     } finally {
       resetSelection();
       setIsImportingAssets(false);
+      setActiveImportMode(null);
     }
   };
 
@@ -440,7 +445,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
               <div className="relative" ref={pickerAnchorRef}>
                 <ImportStatementsButton
                   onRequestImport={handleRequestImport}
-                  isLoading={isImporting || isSelecting}
+                  isLoading={isImporting || (isSelecting && activeImportMode === 'statements')}
                 />
                 {showPickerMenu && (
                   <div className="absolute right-0 top-full z-10 mt-2 w-48 card-elevated overflow-hidden animate-fade-in">
@@ -464,7 +469,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
               <div className="relative" ref={assetPickerAnchorRef}>
                 <ImportAssetStatementsButton
                   onRequestImport={handleRequestAssetImport}
-                  isLoading={isImportingAssets || isSelecting}
+                  isLoading={isImportingAssets || (isSelecting && activeImportMode === 'assets')}
                 />
                 {showAssetPickerMenu && (
                   <div className="absolute right-0 top-full z-10 mt-2 w-48 card-elevated overflow-hidden animate-fade-in">
