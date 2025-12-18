@@ -35,6 +35,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pickerAnchorRef = useRef<HTMLDivElement>(null);
   const assetPickerAnchorRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     selectFiles,
     error: selectionError,
@@ -374,6 +375,14 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
   }, [messages]);
 
   useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    }
+  }, [inputValue]);
+
+  useEffect(() => {
     if (!selectionError) return;
     const message: Message = {
       id: Date.now().toString(),
@@ -532,13 +541,22 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
       <div className="bg-[var(--bg-secondary)] border-t border-[var(--border-light)] px-4 py-4 md:px-6 shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
           <div className="flex gap-3">
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (inputValue.trim() && !isLoading && isConnected) {
+                    handleSubmit(e);
+                  }
+                }
+              }}
               placeholder={isConnected ? "Ask about your finances..." : "Waiting for connection..."}
-              className="flex-1 px-4 py-3 text-[15px] input-field"
+              className="flex-1 px-4 py-3 text-[15px] input-field resize-none min-h-[48px] max-h-[200px]"
               disabled={isLoading || !isConnected}
+              rows={1}
             />
             <button
               type="submit"
