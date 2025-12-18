@@ -57,8 +57,11 @@ mkdir -p $WORKDIR
 # Check existing accounts
 fin-query saved accounts --format table
 
-# If needed, create the account manually via SQL or let statement-processor create it
-# The account_key in the JSON must match an existing account name
+# Create a new account if needed
+fin-edit --apply accounts-create --name "Account-Name" --institution "Institution" --type brokerage
+
+# Valid account types: brokerage, checking, credit, investment, retirement, savings
+# The account name becomes the account_key used in imports
 ```
 
 1. **Scrub sensitive data into the workspace:**
@@ -129,6 +132,65 @@ fin-query saved allocation_by_class --format table
 
 7. **If any command fails**, resolve the issue before moving to the next statement.
 
+## Importing from CSV/Spreadsheet
+
+For manual investment tracking (angel investments, startup equity, fund commitments, etc.) where you have a CSV or spreadsheet instead of a PDF statement:
+
+### Steps
+
+1. **Create the account:**
+```bash
+fin-edit --apply accounts-create \
+  --name "Startup-Investments" \
+  --institution "Various" \
+  --type investment
+```
+
+2. **Build the JSON manually** following the JSON Contract below:
+   - Use `"source": "manual"` for holding_values (not `statement`)
+   - Use `vehicle_type: "fund_LP"` for private investments
+   - For multiple investments in the same company, combine into a single holding with summed cost basis
+   - Exclude realized/exited investments (shutdowns, acquisitions, full distributions)
+
+3. **Save to workspace:**
+```bash
+mkdir -p ~/.finagent/skills/asset-tracker/<slug>
+# Save JSON to ~/.finagent/skills/asset-tracker/<slug>/<name>-enriched.json
+```
+
+4. **Import:**
+```bash
+# Preview
+fin-edit asset-import --from ~/.finagent/skills/asset-tracker/<slug>/<name>-enriched.json
+
+# Apply
+fin-edit --apply asset-import --from ~/.finagent/skills/asset-tracker/<slug>/<name>-enriched.json
+```
+
+### Example: Angel/Startup Investments
+
+For a spreadsheet with columns like `Name, Date, Amount, Type, Outcome`:
+- **Include** active investments (no outcome or outcome is empty)
+- **Exclude** realized investments (Outcome = "Shutdown", "Acquired", "Fully realized")
+- Combine follow-on investments into single holdings
+
+```json
+{
+  "document": {"broker": "Various", "as_of_date": "2025-12-18"},
+  "instruments": [
+    {"name": "Acme Corp", "symbol": "ACME", "currency": "USD", "vehicle_type": "fund_LP", "identifiers": {}, "metadata": {"type": "Angel"}}
+  ],
+  "holdings": [
+    {"account_key": "Startup-Investments", "symbol": "ACME", "status": "active", "position_side": "long", "cost_basis_total": 25000, "metadata": {"investment_date": "2021-03-15"}}
+  ],
+  "holding_values": [
+    {"account_key": "Startup-Investments", "symbol": "ACME", "as_of_date": "2025-12-18", "quantity": 1, "price": 25000, "market_value": 25000, "source": "manual", "metadata": {}}
+  ]
+}
+```
+
+> **Note:** For illiquid investments without current valuations, use cost basis as market value. Update with actual valuations when available (e.g., from fund statements or cap table updates).
+
 ## JSON Contract (LLM Output)
 
 The LLM must output JSON with these exact keys:
@@ -180,6 +242,8 @@ Vehicle types: `stock`, `ETF`, `MMF`, `bond`, `fund_LP`, `note`, `option`, `cryp
   "metadata": {"unrealized_gain_loss": 1381984.63}
 }
 ```
+
+**Valid `source` values:** `statement`, `manual`, `api`, `upload`
 
 ## Working Directory
 
@@ -400,6 +464,7 @@ Preferences are stored in `~/.finagent/preferences.json` and persisted to the `p
 - `fin-query unimported <directory>`: List PDF files not yet imported (use before bulk imports)
 - `python $SKILL_ROOT/scripts/preprocess.py`: Build extraction prompts with taxonomy context
 - `python $SKILL_ROOT/scripts/postprocess.py`: Validate/enrich LLM output, auto-classify instruments, detect transfers
+- `fin-edit accounts-create`: Create a new account for tracking holdings
 - `fin-edit asset-import --from <file.json>`: Validate and import asset JSON payloads
 - `fin-edit holdings-transfer`: Transfer holdings between accounts (closes source, creates destination)
 - `fin-query saved <query>`: Query asset data (use `portfolio_snapshot`, `holding_latest_values`, `allocation_by_class`, etc.)
@@ -410,4 +475,6 @@ Preferences are stored in `~/.finagent/preferences.json` and persisted to the `p
 - **Missing required fields**: Ensure all instruments have `name`, `currency`; all holdings have `account_key`, `symbol`
 - **Document hash collision**: Statement already imported (idempotent protection)
 - **Unknown vehicle_type**: Use one of: stock, ETF, MMF, bond, fund_LP, note, option, crypto
+- **Unknown source**: Valid values are `statement`, `manual`, `api`, `upload`
+- **Unknown account key**: Create the account first with `fin-edit --apply accounts-create`
 - **Quantity/price/market_value mismatch**: Ensure market_value ≈ quantity × price (with tolerance)

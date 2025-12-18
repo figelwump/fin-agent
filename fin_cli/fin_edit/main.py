@@ -1367,6 +1367,80 @@ def documents_delete(cli_ctx: CLIContext, doc_hash: str) -> None:
     cli_ctx.logger.success(f"Deleted document hash={doc_hash} (id={doc_id}).")
 
 
+# ---------------------------------------------------------------------------
+# Account management
+
+
+VALID_ACCOUNT_TYPES = {"savings", "checking", "credit", "brokerage", "retirement", "investment"}
+
+
+@main.command("accounts-create")
+@click.option(
+    "--name", required=True, type=str, help="Account name (used as account_key in imports)."
+)
+@click.option(
+    "--institution", required=True, type=str, help="Institution name (e.g., Schwab, UBS, Various)."
+)
+@click.option(
+    "--type",
+    "account_type",
+    required=True,
+    type=click.Choice(sorted(VALID_ACCOUNT_TYPES), case_sensitive=False),
+    help="Account type.",
+)
+@click.option("--last4", type=str, default=None, help="Last 4 digits of account number (optional).")
+@pass_cli_context
+def accounts_create(
+    cli_ctx: CLIContext,
+    name: str,
+    institution: str,
+    account_type: str,
+    last4: str | None,
+) -> None:
+    """Create a new account for tracking holdings or transactions.
+
+    The account name becomes the account_key used in asset imports.
+
+    Examples:
+
+        fin-edit --apply accounts-create --name "Startup-Investments" --institution Various --type investment
+
+        fin-edit --apply accounts-create --name "Schwab-1234" --institution Schwab --type brokerage --last4 1234
+    """
+    apply_flag = bool(cli_ctx.state.get("apply_flag"))
+    preview = _effective_dry_run(cli_ctx, apply_flag)
+
+    with connect(cli_ctx.config, read_only=False) as connection:
+        # Check if account already exists
+        existing = connection.execute(
+            "SELECT id, name FROM accounts WHERE name = ?", (name,)
+        ).fetchone()
+
+        if existing:
+            cli_ctx.logger.info(f"Account '{name}' already exists (id={existing['id']}).")
+            return
+
+        if preview:
+            cli_ctx.logger.info(
+                f"[dry-run] Would create account: name='{name}' institution='{institution}' "
+                f"type='{account_type}' last4={last4 or '(none)'}"
+            )
+            return
+
+        account_id = models.upsert_account(
+            connection,
+            name=name,
+            institution=institution,
+            account_type=account_type,
+            last_4_digits=last4,
+            auto_detected=False,
+        )
+
+    cli_ctx.logger.success(
+        f"Created account '{name}' (id={account_id}, institution={institution}, type={account_type})."
+    )
+
+
 @main.command("asset-import")
 @click.option(
     "--from",
