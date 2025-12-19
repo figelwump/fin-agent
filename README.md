@@ -32,6 +32,7 @@ Some notes on Claude Skills I put together while working on this project: https:
 - **transaction-categorizer** – Bulk-categorize outstanding transactions using the agent's LLM, learn merchant patterns, and run guided manual review when needed.
 - **spending-analyzer** – Run analytical reports (trend, subscription, merchant activity) and assemble summaries for users.
 - **ledger-query** – Execute saved or ad-hoc SQL queries against the normalized ledger to answer targeted questions.
+- **asset-tracker** – Extract holdings from investment/brokerage statements (UBS, Schwab, Fidelity, etc.) and import into the asset tracking database. Supports portfolio analysis, allocation breakdowns, rebalancing suggestions, and concentration risk reports.
 
 Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts, and references. Skills will be loaded by Claude Code. Multiple skills can be chained together (for example, importing a statement and categorizing uncategorized transactions). More details on how skills work: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview
 
@@ -39,12 +40,12 @@ Each skill lives under `.claude/skills/<name>` with a `SKILL.md`, helper scripts
 
 ```
 fin-agent/
-├── .claude/skills/          # Claude Agent Skills (statement-processor, transaction-categorizer, etc.)
+├── .claude/skills/          # Claude Agent Skills (statement-processor, transaction-categorizer, spending-analyzer, ledger-query, asset-tracker)
 ├── fin_cli/                 # Python CLI package (fin-scrub, fin-query, fin-edit, fin-analyze)
 │   ├── fin_scrub/          # PII redaction for statements
-│   ├── fin_query/          # Read-only ledger queries
-│   ├── fin_edit/           # Write operations (imports, categorization)
-│   └── fin_analyze/        # Analytical reports and summaries
+│   ├── fin_query/          # Read-only ledger queries (transactions + assets)
+│   ├── fin_edit/           # Write operations (imports, categorization, asset tracking)
+│   └── fin_analyze/        # Analytical reports (spending + asset allocation)
 ├── web_client/              # Web UI for Claude Agent SDK
 │   ├── client/             # React frontend
 │   ├── server/             # Bun backend server
@@ -259,6 +260,20 @@ Below are example prompts that will trigger these skills, the actions each skill
 - **Example prompt**: `How much did we spend at Costco in 2025?` or `What transactions are in the fitness category?`
 - **Workflow**: Uses `fin-query` where possible to retrieve the info to answer the user's question. Typically used for more adhoc questions rather than full analyses.
 
+### Track investment holdings
+
+- **Skill**: asset-tracker
+- **Example prompt**: `import my Schwab statement ~/Downloads/schwab-nov-2025.pdf` or `show my current portfolio allocation`
+- **Workflow**: For imports, scrubs PII from the PDF → extracts holdings via LLM → validates JSON → imports instruments, holdings, and values into the database. For analysis, runs `fin-analyze` asset analyzers and `fin-query` asset queries.
+- **Supported prompts**:
+  - Import: `import ~/Downloads/ubs-statement.pdf`, `import all statements in ~/Downloads/schwab/`
+  - Allocation: `show my asset allocation`, `what's my portfolio breakdown by asset class?`
+  - Trends: `show portfolio value over the last 6 months`
+  - Rebalancing: `suggest rebalancing for 60/30/10 target`
+  - Cash runway: `analyze my cash position`, `how much cash do I have?`
+  - Concentration: `show my top 10 holdings`, `what's my concentration risk?`
+- **Result**: Holdings imported to the database with instruments, classifications, and valuations; analysis reports with allocation breakdowns, trends, and recommendations.
+
 ### Integrating Skills into Another Repository
 
 Copy each skill directory (and its `reference/` and `scripts/` subfolders) into the destination `.claude/skills/`.
@@ -286,6 +301,16 @@ Write operations for the ledger
 - `delete-transactions`: bulk delete (with preview) using fingerprints or IDs; confirm with `--apply` to perform the removal.
 - Global flags from `common_cli_options` apply (`--db`, `--verbose`, `--dry-run`).
 
+**Asset tracking commands:**
+- `accounts-create --name <name> --institution <inst> --type <type>`: create a new account for tracking holdings (types: brokerage, checking, credit, investment, retirement, savings).
+- `asset-import --from <file.json>`: import a complete asset payload (instruments, holdings, holding_values) from normalized JSON.
+- `instruments-upsert --from <file.json>`: upsert instrument records (securities) from JSON.
+- `holdings-add`: create holdings linking accounts to instruments.
+- `holdings-transfer --symbol <sym> --from <account> --to <account>`: transfer holdings between accounts (closes source, creates destination with optional cost basis carry).
+- `holdings-deactivate --holding-id <id>`: mark a holding as closed.
+- `holding-values-upsert --from <file.json>`: upsert valuation snapshots for holdings.
+- `documents-register / documents-delete`: manage document hashes for idempotent imports.
+
 ### `fin-query`
 
 Read-only exploration with saved queries and safe SQL.
@@ -294,7 +319,17 @@ Read-only exploration with saved queries and safe SQL.
 - `fin-query schema --table transactions --format table` to inspect structure.
 - `fin-query sql "SELECT ..."` supports a single SELECT/WITH statement guarded by limits.
 - Most commands emit tables by default; add `--format csv` for agent-friendly output or `--format json` where supported (`saved` queries and `schema`).
-- Typical prompts: “What is Amazon categorized as?” → should run `fin-query saved merchant_search --param pattern=%Amazon% --limit 50 --format csv` so you can review the existing categories before making changes.
+- Typical prompts: "What is Amazon categorized as?" → should run `fin-query saved merchant_search --param pattern=%Amazon% --limit 50 --format csv` so you can review the existing categories before making changes.
+
+**Asset tracking queries:**
+- `fin-query unimported <directory>`: list PDF files not yet imported (compares SHA256 hashes against database). Use before bulk imports to avoid reprocessing.
+- `fin-query saved portfolio_snapshot`: current holdings with values and classifications.
+- `fin-query saved holding_latest_values`: latest valuation per holding (source priority + recency).
+- `fin-query saved allocation_by_class`: allocation breakdown by main/sub asset class.
+- `fin-query saved allocation_by_account`: allocation breakdown by account.
+- `fin-query saved stale_holdings`: holdings without recent valuation updates.
+- `fin-query saved instruments`: instrument catalog with classifications.
+- `fin-query saved asset_classes`: asset class taxonomy catalog.
 
 ### `fin-analyze`
 
@@ -304,6 +339,13 @@ Analytical rollups on top of the SQLite ledger.
 - Analyzers include `spending-trends`, `category-breakdown`, `category-timeline`, `merchant-frequency`, `subscription-detect`, `unusual-spending`, and more (run `fin-analyze --help-list`).
 - Use `--threshold` to control highlight sensitivity and `--include-merchants` for drill-downs when supported.
 - Text output is default; pass `--format csv` for tabular exports (analyzers that support tables) or `--format json` for structured payloads.
+
+**Asset analyzers** (require `pandas` via `pip install '.[analysis]'`):
+- `allocation-snapshot`: current allocation by asset class and account.
+- `portfolio-trend --period 6m`: track portfolio value over time.
+- `concentration-risk --top-n 10`: identify top holdings and concentration.
+- `cash-mix`: analyze cash vs non-cash positions.
+- `rebalance-suggestions --target equities=60 --target bonds=30`: compare current allocation to targets.
 
 ## Upgrading
 

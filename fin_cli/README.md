@@ -6,9 +6,11 @@
 
 ```
 fin_cli/
-├── fin_analyze/   # Analytical CLI (`fin-analyze`)
-├── fin_edit/      # Mutation CLI (`fin-edit`)
-├── fin_query/     # Read-only SQL/MCP CLI (`fin-query`)
+├── fin_analyze/   # Analytical CLI (`fin-analyze`) - spending trends + asset allocation
+│   └── analyzers/ # Individual analyzers (spending, assets)
+├── fin_edit/      # Mutation CLI (`fin-edit`) - transactions + asset tracking
+├── fin_query/     # Read-only SQL/MCP CLI (`fin-query`) - ledger + portfolio queries
+│   └── queries/   # Saved SQL templates (transactions + assets)
 ├── fin_scrub/     # PDF/text scrubbing CLI (`fin-scrub`)
 ├── fin_extract/   # Legacy extractor (deprecated, invoked via python -m)
 ├── fin_enhance/   # Legacy importer (deprecated, invoked via python -m)
@@ -17,6 +19,31 @@ fin_cli/
 ```
 
 Each CLI exposes a `main.py` with `click` commands. Only the active commands (`fin-scrub`, `fin-edit`, `fin-query`, `fin-analyze`) are published as console scripts; legacy flows remain accessible via `python -m fin_cli.<module>`.
+
+## Asset Tracking Commands
+
+The CLI supports investment/brokerage portfolio tracking alongside transaction management:
+
+**fin-edit asset commands:**
+- `accounts-create`: Create accounts for tracking holdings
+- `asset-import --from <json>`: Import complete asset payloads (instruments + holdings + values)
+- `instruments-upsert --from <json>`: Upsert securities/instruments
+- `holdings-add`, `holdings-transfer`, `holdings-deactivate`: Manage holding lifecycle
+- `holding-values-upsert --from <json>`: Import valuation snapshots
+- `documents-register`, `documents-delete`: Manage document hashes for idempotent imports
+
+**fin-query asset queries:**
+- `unimported <directory>`: Find PDFs not yet imported
+- `saved portfolio_snapshot`: Current holdings with valuations
+- `saved allocation_by_class`, `saved allocation_by_account`: Allocation breakdowns
+- `saved holding_latest_values`, `saved stale_holdings`: Valuation status
+
+**fin-analyze asset analyzers:**
+- `allocation-snapshot`: Current allocation by class and account
+- `portfolio-trend`: Portfolio value over time
+- `concentration-risk`: Top holdings analysis
+- `cash-mix`: Cash vs non-cash breakdown
+- `rebalance-suggestions`: Compare allocation to targets
 
 ## Development Workflow
 
