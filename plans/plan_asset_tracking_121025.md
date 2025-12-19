@@ -174,20 +174,19 @@ Notes:
 
 ### Phase 4: Analysis & Reporting
 - [x] Add `fin-analyze` analyzers:
-  - `allocation_snapshot`: current allocation by class/account
   - `trend` (alias `portfolio-trend`): time-series of market_value
-  - `concentration_risk`: top-N holdings by weight + optional fee flags
   - `cash_mix`: cash vs non-cash breakdown
   - `rebalance_suggestions`: compare to portfolio_targets
+  - Note (2025-12-19): removed `allocation-snapshot` and `concentration-risk` in favor of `fin-query` saved queries + agent-side computation.
 - [x] Incorporate spending knowledge where relevant (cash runway uses trailing spend for context).
 - [x] Add CLI flags for date windows, target mix, and fee highlighting; ensure CSV output for skills.
 - [x] Tests for analyzers using fixture data.
 
 Notes:
 - New analyzers live under `fin_cli/fin_analyze/analyzers/` with shared asset loaders in `fin_cli/fin_analyze/assets.py`.
-- Saved query `portfolio_snapshot` now returns accrued_interest/fees to support fee highlighting.
+- Saved query `portfolio_snapshot` returns accrued_interest/fees (originally for fee highlighting; still retained for future analyzers/exports).
 - Asset test fixture `tests/fixtures/analyze/assets_portfolio.json` seeds holdings + targets; loader in `tests/fin_analyze/conftest.py` now supports asset tables.
-- Regression coverage added in `tests/fin_analyze/test_asset_analyzers.py` (allocation, trend, concentration, cash runway, rebalance deltas).
+- Regression coverage added in `tests/fin_analyze/test_asset_analyzers.py` (trend, cash runway, rebalance deltas).
 
 ### Phase 5: Skills Integration
 - [x] Create new skill `asset-tracker` with workflows: ingest statements -> import -> analyze; reuse spending-analyzer patterns for narrative assembly.

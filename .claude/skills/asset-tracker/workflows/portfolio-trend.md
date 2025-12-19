@@ -74,6 +74,6 @@ fin-query saved documents --format table
 
 ## Cross-Skill Transitions
 
-- **Current allocation**: `fin-analyze allocation-snapshot --format csv`
-- **Concentration check**: `fin-analyze concentration-risk --format csv`
+- **Current allocation**: `fin-query saved allocation_by_class --format csv` (and `allocation_by_account`)
+- **Concentration check**: `fin-query saved portfolio_snapshot --format csv`, sort by `market_value`, and compute weights client-side
 - **Import more statements**: Follow the asset-tracker import workflow

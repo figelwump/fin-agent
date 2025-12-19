@@ -5,33 +5,31 @@ View and analyze current portfolio allocation by asset class and account.
 
 ## Prerequisites
 - Holdings imported via the asset-tracker import workflow
-- `fin-analyze` on your PATH
+- `fin-query` on your PATH
 
 ## Quick Commands
 
 ### Basic Allocation Snapshot
 ```bash
-fin-analyze allocation-snapshot --format csv
-```
-
-### With Comparison to Previous Period
-```bash
-fin-analyze allocation-snapshot --period 6m --compare --format csv
+fin-query saved allocation_by_class --format csv
+fin-query saved allocation_by_account --format csv
 ```
 
 ### Specific As-Of Date
 ```bash
-fin-analyze allocation-snapshot --as-of-date 2025-11-30 --format csv
+fin-query saved allocation_by_class --param as_of_date=2025-11-30 --format csv
+fin-query saved allocation_by_account --param as_of_date=2025-11-30 --format csv
 ```
 
 ### Filter by Account
 ```bash
-fin-analyze allocation-snapshot --account-id 1 --format csv
+fin-query saved allocation_by_class --param account_id=1 --format csv
+fin-query saved allocation_by_account --format csv
 ```
 
 ## Understanding the Output
 
-The analyzer returns two tables:
+The saved queries return two tables:
 
 **Allocation by Class:**
 - main_class: Asset class (equities, bonds, alternatives, cash, other)
@@ -51,10 +49,12 @@ The analyzer returns two tables:
 ### Compare Allocations Over Time
 ```bash
 # Current
-fin-analyze allocation-snapshot --as-of-date 2025-12-01 --format csv > allocation_current.csv
+fin-query saved allocation_by_class --param as_of_date=2025-12-01 --format csv > allocation_by_class_current.csv
+fin-query saved allocation_by_account --param as_of_date=2025-12-01 --format csv > allocation_by_account_current.csv
 
 # 3 months ago
-fin-analyze allocation-snapshot --as-of-date 2025-09-01 --format csv > allocation_prior.csv
+fin-query saved allocation_by_class --param as_of_date=2025-09-01 --format csv > allocation_by_class_prior.csv
+fin-query saved allocation_by_account --param as_of_date=2025-09-01 --format csv > allocation_by_account_prior.csv
 ```
 
 ### Check for Unclassified Holdings
@@ -73,5 +73,5 @@ fin-query saved stale_holdings --format table
 ## Cross-Skill Transitions
 
 - **View detailed holdings**: `fin-query saved portfolio_snapshot --format table`
-- **Concentration risk**: Continue with `fin-analyze concentration-risk --top-n 10`
+- **Concentration check**: Use `fin-query saved portfolio_snapshot --format csv`, sort by `market_value`, and compute `weight_pct = market_value / total_market_value`.
 - **Rebalance suggestions**: Use `fin-analyze rebalance-suggestions --target equities=60 --target bonds=30`

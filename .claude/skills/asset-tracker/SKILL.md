@@ -434,8 +434,9 @@ After importing statements, use these workflows to analyze your portfolio.
 
 ```
 # Run ALL of these in parallel (single response with multiple tool calls):
-fin-analyze allocation-snapshot --format csv
-fin-analyze concentration-risk --top-n 10 --format csv
+fin-query saved allocation_by_class --format csv
+fin-query saved allocation_by_account --format csv
+fin-query saved portfolio_snapshot --limit 200 --format csv
 fin-analyze cash-mix --format csv
 fin-analyze portfolio-trend --period 6m --format csv
 fin-query saved portfolio_snapshot --limit 30 --format table
@@ -449,7 +450,8 @@ These commands are independent and can execute concurrently. Running them in par
 #### View Allocation
 See current allocation by asset class and account:
 ```bash
-fin-analyze allocation-snapshot --format csv
+fin-query saved allocation_by_class --format csv
+fin-query saved allocation_by_account --format csv
 ```
 Detailed workflow: `$SKILL_ROOT/workflows/allocation-analysis.md`
 
@@ -473,12 +475,6 @@ Analyze cash vs non-cash split with spending context:
 fin-analyze cash-mix --format csv
 ```
 Detailed workflow: `$SKILL_ROOT/workflows/cash-runway.md`
-
-#### Concentration Risk
-Identify top holdings and fee drag:
-```bash
-fin-analyze concentration-risk --top-n 10 --format csv
-```
 
 ### Set Investment Preferences
 Capture target allocations and risk profile:

@@ -341,9 +341,7 @@ Analytical rollups on top of the SQLite ledger.
 - Text output is default; pass `--format csv` for tabular exports (analyzers that support tables) or `--format json` for structured payloads.
 
 **Asset analyzers** (require `pandas` via `pip install '.[analysis]'`):
-- `allocation-snapshot`: current allocation by asset class and account.
 - `portfolio-trend --period 6m`: track portfolio value over time.
-- `concentration-risk --top-n 10`: identify top holdings and concentration.
 - `cash-mix`: analyze cash vs non-cash positions.
 - `rebalance-suggestions --target equities=60 --target bonds=30`: compare current allocation to targets.
 

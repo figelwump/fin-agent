@@ -118,6 +118,6 @@ Identify specific securities in over/underweight classes.
 
 ## Cross-Skill Transitions
 
-- **View current allocation**: `fin-analyze allocation-snapshot --format csv`
-- **Check concentration**: `fin-analyze concentration-risk --format csv`
+- **View current allocation**: `fin-query saved allocation_by_class --format csv` (and `allocation_by_account`)
+- **Check concentration**: `fin-query saved portfolio_snapshot --format csv`, sort by `market_value`, and compute weights client-side
 - **Set preferences**: Follow the preference capture workflow

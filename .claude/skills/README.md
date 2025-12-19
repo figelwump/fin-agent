@@ -48,14 +48,14 @@ The skills in this directory teach an agent how to drive the `fin-cli` toolkit e
 - **Key actions:**
   - **Import:** `fin-scrub`, `python scripts/preprocess.py`, LLM extraction, `python scripts/postprocess.py`, `fin-edit asset-import --from <json>`.
   - **Query:** `fin-query saved portfolio_snapshot`, `fin-query saved allocation_by_class`, `fin-query saved stale_holdings`, `fin-query unimported <dir>`.
-  - **Analyze:** `fin-analyze allocation-snapshot`, `fin-analyze portfolio-trend`, `fin-analyze concentration-risk`, `fin-analyze cash-mix`, `fin-analyze rebalance-suggestions`.
+  - **Analyze:** `fin-analyze portfolio-trend`, `fin-analyze cash-mix`, `fin-analyze rebalance-suggestions` (use `fin-query` for allocation + concentration).
   - **Manage:** `fin-edit accounts-create`, `fin-edit holdings-transfer`, `fin-edit holdings-deactivate`.
 - **Example prompts:**
   - "Import my Schwab statement ~/Downloads/schwab-nov-2025.pdf"
   - "Show my current asset allocation"
   - "What's my portfolio trend over the last 6 months?"
   - "Suggest rebalancing for 60/30/10 equities/bonds/cash"
-- **Outputs:** Instruments, holdings, and valuations imported to SQLite; allocation breakdowns; trend charts; rebalancing recommendations; concentration risk reports.
+- **Outputs:** Instruments, holdings, and valuations imported to SQLite; allocation breakdowns; trend charts; rebalancing recommendations.
 
 ## Cross-Skill Workflow
 

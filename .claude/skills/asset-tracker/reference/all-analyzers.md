@@ -2,19 +2,22 @@
 
 ## Portfolio Analyzers
 
-### allocation-snapshot
+### Allocation (via `fin-query`)
 Current allocation by asset class and account.
 
 ```bash
-fin-analyze allocation-snapshot --format csv
-fin-analyze allocation-snapshot --as-of-date 2025-11-30 --format csv
-fin-analyze allocation-snapshot --account-id 1 --format csv
-fin-analyze allocation-snapshot --period 6m --compare --format csv
+fin-query saved allocation_by_class --format csv
+fin-query saved allocation_by_account --format csv
+
+fin-query saved allocation_by_class --param as_of_date=2025-11-30 --format csv
+fin-query saved allocation_by_account --param as_of_date=2025-11-30 --format csv
+
+fin-query saved allocation_by_class --param account_id=1 --format csv
 ```
 
-Options:
-- `--as-of-date YYYY-MM-DD`: Use a specific date instead of window end
-- `--account-id N`: Filter to a single account
+Notes:
+- `allocation_by_class` supports `--param as_of_date=YYYY-MM-DD` and `--param account_id=N`
+- `allocation_by_account` supports `--param as_of_date=YYYY-MM-DD`
 
 ---
 
@@ -32,20 +35,18 @@ Options:
 
 ---
 
-### concentration-risk
-Top holdings by weight with optional fee flagging.
+### Concentration (via `fin-query`)
+Top holdings by weight (compute weights client-side).
 
 ```bash
-fin-analyze concentration-risk --format csv
-fin-analyze concentration-risk --top-n 10 --format csv
-fin-analyze concentration-risk --highlight-fees --format csv
-fin-analyze concentration-risk --as-of-date 2025-11-30 --format csv
+fin-query saved portfolio_snapshot --format csv
+fin-query saved portfolio_snapshot --param as_of_date=2025-11-30 --format csv
 ```
 
-Options:
-- `--top-n N`: Number of holdings to show (default: 5)
-- `--highlight-fees`: Flag holdings with fees > 0
-- `--as-of-date YYYY-MM-DD`: Use a specific date
+Recipe:
+- Sort by `market_value` descending, take top N
+- Compute `weight_pct = market_value / total_market_value * 100`
+- Optional concentration metric: `HHI = sum((weight_pct/100)^2) * 10000`
 
 ---
 

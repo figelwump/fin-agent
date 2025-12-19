@@ -227,6 +227,8 @@ def test_cli_help_list_outputs_catalog(runner: CliRunner) -> None:
     assert result.exit_code == 0, result.output
     assert "Available analyses" in result.output
     assert "merchant-frequency" in result.output
+    assert "allocation-snapshot" not in result.output
+    assert "concentration-risk" not in result.output
 
 
 def test_cli_analyzer_help_shows_options(runner: CliRunner) -> None:

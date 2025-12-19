@@ -39,9 +39,7 @@ The CLI supports investment/brokerage portfolio tracking alongside transaction m
 - `saved holding_latest_values`, `saved stale_holdings`: Valuation status
 
 **fin-analyze asset analyzers:**
-- `allocation-snapshot`: Current allocation by class and account
 - `portfolio-trend`: Portfolio value over time
-- `concentration-risk`: Top holdings analysis
 - `cash-mix`: Cash vs non-cash breakdown
 - `rebalance-suggestions`: Compare allocation to targets
 
